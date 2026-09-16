@@ -274,31 +274,40 @@ const PORT = process.env.PORT || 3000;
 
   logger.info('Change-request schema migration complete');
 
-  // Seed gearing constants if the table is empty (handles fresh review/staging DBs)
+  // Ensure gearing_constants table exists and has default rows (idempotent — safe on every start)
   try {
-    const { rows: gcCheck } = await pool.query('SELECT COUNT(*)::int AS n FROM gearing_constants');
-    if (gcCheck[0].n === 0) {
-      await pool.query(`
-        INSERT INTO gearing_constants (discipline_id, project_type, min_divisor, max_divisor)
-        SELECT d.id, v.project_type, v.min_d, v.max_d
-        FROM (VALUES
-          ('Construction', 'Retail', 2.00, 1.00),
-          ('Construction', 'xScale', 1.00, 0.50),
-          ('Construction', 'EM',     0.50, 0.25),
-          ('Design',       'Retail', 4.00, 2.00),
-          ('Design',       'xScale', 2.00, 1.00),
-          ('Design',       'EM',     2.00, 1.00),
-          ('Commercial',   'Retail', 6.00, 3.00),
-          ('Commercial',   'xScale', 2.50, 1.25),
-          ('Commercial',   'EM',     2.50, 1.25),
-          ('Commissioning','Retail', 4.00, 2.00),
-          ('Commissioning','xScale', 2.00, 1.00)
-        ) AS v(discipline_name, project_type, min_d, max_d)
-        JOIN disciplines d ON d.name = v.discipline_name
-        ON CONFLICT DO NOTHING
-      `);
-      logger.info('Gearing constants seeded with defaults');
-    }
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gearing_constants (
+        id            SERIAL       PRIMARY KEY,
+        discipline_id INTEGER      NOT NULL REFERENCES disciplines(id),
+        project_type  VARCHAR(20)  NOT NULL CHECK (project_type IN ('Retail', 'xScale', 'EM')),
+        min_divisor   DECIMAL(4,2) NOT NULL,
+        max_divisor   DECIMAL(4,2) NOT NULL,
+        updated_by    INTEGER,
+        updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        UNIQUE (discipline_id, project_type)
+      )
+    `);
+    await pool.query(`
+      INSERT INTO gearing_constants (discipline_id, project_type, min_divisor, max_divisor)
+      SELECT d.id, v.project_type, v.min_d::numeric, v.max_d::numeric
+      FROM (VALUES
+        ('Construction', 'Retail', '2.00', '1.00'),
+        ('Construction', 'xScale', '1.00', '0.50'),
+        ('Construction', 'EM',     '0.50', '0.25'),
+        ('Design',       'Retail', '4.00', '2.00'),
+        ('Design',       'xScale', '2.00', '1.00'),
+        ('Design',       'EM',     '2.00', '1.00'),
+        ('Commercial',   'Retail', '6.00', '3.00'),
+        ('Commercial',   'xScale', '2.50', '1.25'),
+        ('Commercial',   'EM',     '2.50', '1.25'),
+        ('Commissioning','Retail', '4.00', '2.00'),
+        ('Commissioning','xScale', '2.00', '1.00')
+      ) AS v(discipline_name, project_type, min_d, max_d)
+      JOIN disciplines d ON d.name = v.discipline_name
+      ON CONFLICT (discipline_id, project_type) DO NOTHING
+    `);
+    logger.info('Gearing constants ready');
   } catch (e) { logger.warn('Gearing constants seed skipped', { err: e.message }); }
 
   app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
