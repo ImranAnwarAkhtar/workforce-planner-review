@@ -174,7 +174,11 @@ useEffect(() => {
 
   // ── Derived: countries from projects ──────────────────────────────────────
   const countryGroups = useMemo(() => {
-    let filtered = projects.filter(p => p.region_id === selectedRegionId);
+    // When no region is selected include all projects; otherwise filter to the chosen region.
+    // (null === null would only match region-less projects, so we skip the filter entirely.)
+    let filtered = selectedRegionId !== null
+      ? projects.filter(p => p.region_id === selectedRegionId)
+      : projects;
     if (statusFilter) filtered = filtered.filter(p => p.status === statusFilter);
     const map: Record<string, { id: number; projects: Project[] }> = {};
     for (const p of filtered) {
