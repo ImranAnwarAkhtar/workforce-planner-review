@@ -17,6 +17,29 @@ router.get('/', requireAuth, async (req, res) => {
   res.json({ data: rows });
 });
 
+router.get('/debug', requireAuth, async (req, res) => {
+  const tableExists = await pool.query(
+    `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'gearing_constants') AS exists`
+  ).then(r => r.rows[0].exists).catch(() => false);
+
+  const disciplines = await pool.query('SELECT id, name FROM disciplines ORDER BY name')
+    .then(r => r.rows).catch(() => []);
+
+  const constants = tableExists
+    ? await pool.query('SELECT COUNT(*) AS count FROM gearing_constants').then(r => r.rows[0].count).catch(() => 'error')
+    : 'table missing';
+
+  const sample = tableExists
+    ? await pool.query(`
+        SELECT d.name AS discipline, gc.project_type, gc.min_divisor, gc.max_divisor
+        FROM gearing_constants gc JOIN disciplines d ON gc.discipline_id = d.id
+        ORDER BY d.name, gc.project_type LIMIT 20
+      `).then(r => r.rows).catch(() => [])
+    : [];
+
+  res.json({ gearing_constants_table_exists: tableExists, gearing_constants_count: constants, disciplines, sample });
+});
+
 router.get('/:id', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT gc.*, d.name AS discipline_name
