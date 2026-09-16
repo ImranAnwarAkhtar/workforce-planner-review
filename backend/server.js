@@ -320,7 +320,10 @@ const PORT = process.env.PORT || 3000;
         ('Commissioning','xScale', '2.00', '1.00')
       ) AS v(discipline_name, project_type, min_d, max_d)
       JOIN disciplines d ON d.name = v.discipline_name
-      ON CONFLICT (discipline_id, project_type) DO NOTHING
+      WHERE NOT EXISTS (
+        SELECT 1 FROM gearing_constants gc
+        WHERE gc.discipline_id = d.id AND gc.project_type = v.project_type
+      )
     `);
 
     logger.info(`Gearing constants ready: ${rowCount} rows inserted`);
