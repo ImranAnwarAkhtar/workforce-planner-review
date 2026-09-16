@@ -274,6 +274,17 @@ const PORT = process.env.PORT || 3000;
 
   logger.info('Change-request schema migration complete');
 
+  // Ensure disciplines exist first (gearing seed JOIN depends on them)
+  try {
+    await pool.query(`
+      INSERT INTO disciplines (name) VALUES
+        ('Construction'), ('Design'), ('Commercial'), ('Commissioning'), ('Other')
+      ON CONFLICT (name) DO NOTHING
+    `);
+    const { rows: [{ count: dc }] } = await pool.query('SELECT COUNT(*) FROM disciplines');
+    logger.info(`Gearing seed: ${dc} disciplines in DB`);
+  } catch (e) { logger.warn('Discipline seed skipped', { err: e.message }); }
+
   // Ensure gearing_constants table exists and has default rows (idempotent — safe on every start)
   try {
     await pool.query(`
@@ -288,7 +299,11 @@ const PORT = process.env.PORT || 3000;
         UNIQUE (discipline_id, project_type)
       )
     `);
-    await pool.query(`
+
+    const { rows: [{ count: before }] } = await pool.query('SELECT COUNT(*) FROM gearing_constants');
+    logger.info(`Gearing seed: ${before} rows before insert`);
+
+    const { rowCount } = await pool.query(`
       INSERT INTO gearing_constants (discipline_id, project_type, min_divisor, max_divisor)
       SELECT d.id, v.project_type, v.min_d::numeric, v.max_d::numeric
       FROM (VALUES
@@ -307,7 +322,8 @@ const PORT = process.env.PORT || 3000;
       JOIN disciplines d ON d.name = v.discipline_name
       ON CONFLICT (discipline_id, project_type) DO NOTHING
     `);
-    logger.info('Gearing constants ready');
+
+    logger.info(`Gearing constants ready: ${rowCount} rows inserted`);
   } catch (e) { logger.warn('Gearing constants seed skipped', { err: e.message }); }
 
   app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
