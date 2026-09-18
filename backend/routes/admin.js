@@ -2,6 +2,7 @@ const { Router } = require('express');
 const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { writeAudit } = require('../db/auditLog');
 
 const router = Router();
 
@@ -58,6 +59,7 @@ router.post('/users', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
     [auth0_id, name, email, role]
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'user', resourceId: rows[0].id, newValue: rows[0] });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'users', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.status(201).json({ data: rows[0] });
 });
 
@@ -81,6 +83,7 @@ router.put('/users/:id', requireAuth, requireRole(ROLES.PMO), async (req, res) =
   );
   if (!rows.length) return res.status(404).json({ error: 'User not found' });
   await req.auditLog({ actionType: 'UPDATE', resourceType: 'user', resourceId: rows[0].id, newValue: rows[0] });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'users', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -130,6 +133,7 @@ router.post('/planning-years', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFOR
     'INSERT INTO planning_years (year, copied_from_year, created_by) VALUES ($1,$2,$3) RETURNING *',
     [year, copied_from_year ?? null, req.user.id]
   );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'planning_years', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.status(201).json({ data: rows[0] });
 });
 
@@ -149,6 +153,7 @@ router.put('/hierarchy-config/:view', requireAuth, requireRole(ROLES.PMO), async
     [JSON.stringify(level_order), req.user.id, req.params.view]
   );
   if (!rows.length) return res.status(404).json({ error: 'View not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'hierarchy_config', newValues: { view_name: req.params.view, level_order }, ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -167,6 +172,7 @@ router.put('/finance-settings', requireAuth, requireRole(ROLES.PMO, ROLES.FINANC
      RETURNING *`,
     [notification_emails ?? '', req.user.id]
   );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'finance_settings', newValues: { notification_emails }, ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -185,6 +191,7 @@ router.put('/change-request-rules/:id', requireAuth, requireRole(ROLES.PMO), asy
     [auto_approve, req.user.id, req.params.id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Rule not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'change_request_rules', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -197,6 +204,7 @@ router.post('/regions', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLAN
     'INSERT INTO regions (name, code, sort_order) VALUES ($1, $2, $3) RETURNING *',
     [name.trim(), code.trim().toUpperCase(), sort_order ?? 0]
   );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'regions', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.status(201).json({ data: rows[0] });
 });
 
@@ -213,6 +221,7 @@ router.put('/regions/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_P
     `UPDATE regions SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, params
   );
   if (!rows.length) return res.status(404).json({ error: 'Region not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'regions', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -220,6 +229,7 @@ router.delete('/regions/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORC
   try {
     const { rowCount } = await pool.query('DELETE FROM regions WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Region not found' });
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE', tableName: 'regions', recordId: parseInt(req.params.id, 10), ipAddress: req.ip });
     res.json({ success: true });
   } catch (err) {
     if (err.code === '23503') return res.status(409).json({ error: 'Cannot delete — region is referenced by countries or projects' });
@@ -233,6 +243,7 @@ router.post('/disciplines', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
   const { rows } = await pool.query('INSERT INTO disciplines (name) VALUES ($1) RETURNING *', [name.trim()]);
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'disciplines', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.status(201).json({ data: rows[0] });
 });
 
@@ -243,6 +254,7 @@ router.put('/disciplines/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFOR
     'UPDATE disciplines SET name = $1 WHERE id = $2 RETURNING *', [name.trim(), req.params.id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Discipline not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'disciplines', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -250,6 +262,7 @@ router.delete('/disciplines/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORK
   try {
     const { rowCount } = await pool.query('DELETE FROM disciplines WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Discipline not found' });
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE', tableName: 'disciplines', recordId: parseInt(req.params.id, 10), ipAddress: req.ip });
     res.json({ success: true });
   } catch (err) {
     if (err.code === '23503') return res.status(409).json({ error: 'Cannot delete — discipline is referenced by people or projects' });
@@ -266,6 +279,7 @@ router.post('/levels', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANN
     'INSERT INTO levels (level_name, short_code, level_number) VALUES ($1, $2, $3) RETURNING *',
     [level_name.trim(), short_code.trim(), level_number || null]
   );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'levels', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.status(201).json({ data: rows[0] });
 });
 
@@ -282,6 +296,7 @@ router.put('/levels/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PL
     `UPDATE levels SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, params
   );
   if (!rows.length) return res.status(404).json({ error: 'Level not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'levels', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -289,6 +304,7 @@ router.delete('/levels/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE
   try {
     const { rowCount } = await pool.query('DELETE FROM levels WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Level not found' });
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE', tableName: 'levels', recordId: parseInt(req.params.id, 10), ipAddress: req.ip });
     res.json({ success: true });
   } catch (err) {
     if (err.code === '23503') return res.status(409).json({ error: 'Cannot delete — level is referenced by people records' });
@@ -307,6 +323,7 @@ router.post('/contract-types', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFOR
     'INSERT INTO contract_types (code, description, category, colour_hex) VALUES ($1, $2, $3, $4) RETURNING *',
     [code.trim(), description.trim(), category, colour_hex.replace('#', '').toUpperCase().substring(0, 6)]
   );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'contract_types', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.status(201).json({ data: rows[0] });
 });
 
@@ -324,6 +341,7 @@ router.put('/contract-types/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORK
     `UPDATE contract_types SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, params
   );
   if (!rows.length) return res.status(404).json({ error: 'Contract type not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'contract_types', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -331,6 +349,7 @@ router.delete('/contract-types/:id', requireAuth, requireRole(ROLES.PMO, ROLES.W
   try {
     const { rowCount } = await pool.query('DELETE FROM contract_types WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Contract type not found' });
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE', tableName: 'contract_types', recordId: parseInt(req.params.id, 10), ipAddress: req.ip });
     res.json({ success: true });
   } catch (err) {
     if (err.code === '23503') return res.status(409).json({ error: 'Cannot delete — contract type is referenced by people records' });

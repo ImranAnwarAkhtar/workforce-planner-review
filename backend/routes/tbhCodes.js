@@ -4,6 +4,7 @@ const XLSX   = require('xlsx');
 const pool   = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { writeAudit } = require('../db/auditLog');
 
 const WRITE_ROLES = [ROLES.PMO, ROLES.WORKFORCE_PLANNING, ROLES.FINANCE];
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -232,6 +233,7 @@ router.post('/', requireAuth, requireRole(...WRITE_ROLES), async (req, res) => {
      tbh_description ?? null, fp_and_a_notes ?? null]
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'tbh_code', resourceId: rows[0].id, newValue: rows[0] });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'tbh_codes', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.status(201).json({ data: rows[0] });
 });
 
@@ -261,6 +263,7 @@ router.put('/:id', requireAuth, requireRole(...WRITE_ROLES), async (req, res) =>
   );
   if (!rows.length) return res.status(404).json({ error: 'TBH code not found' });
   await req.auditLog({ actionType: 'UPDATE', resourceType: 'tbh_code', resourceId: rows[0].id, newValue: rows[0] });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'tbh_codes', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -268,6 +271,7 @@ router.delete('/:id', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
   const { rows } = await pool.query('DELETE FROM tbh_codes WHERE id = $1 RETURNING id', [req.params.id]);
   if (!rows.length) return res.status(404).json({ error: 'TBH code not found' });
   await req.auditLog({ actionType: 'DELETE', resourceType: 'tbh_code', resourceId: rows[0].id });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE', tableName: 'tbh_codes', recordId: rows[0].id, ipAddress: req.ip });
   res.status(204).end();
 });
 

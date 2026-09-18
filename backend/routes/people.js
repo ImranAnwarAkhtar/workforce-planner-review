@@ -2,6 +2,7 @@ const { Router } = require('express');
 const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, WRITER_ROLES, ROLES } = require('../middleware/rbac');
+const { writeAudit } = require('../db/auditLog');
 
 const router = Router();
 
@@ -113,6 +114,7 @@ router.post('/', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => 
 
     await client.query('COMMIT');
     await req.auditLog({ actionType: 'CREATE', resourceType: 'person', resourceId: personId, newValue: rows[0] });
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'people', recordId: personId, newValues: rows[0], ipAddress: req.ip });
     res.status(201).json({ data: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -197,6 +199,7 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
 
     await client.query('COMMIT');
     await req.auditLog({ actionType: 'UPDATE', resourceType: 'person', resourceId: updated.id, newValue: updated });
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'people', recordId: updated.id, newValues: updated, ipAddress: req.ip });
     res.json({ data: updated });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -222,6 +225,7 @@ router.delete('/:id/permanent', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFO
 
     await client.query('COMMIT');
     await req.auditLog({ actionType: 'PERMANENT_DELETE', resourceType: 'person', resourceId: id, newValue: { name } });
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'PERMANENT_DELETE', tableName: 'people', recordId: id, oldValues: { name }, ipAddress: req.ip });
     res.status(204).end();
   } catch (err) {
     await client.query('ROLLBACK');

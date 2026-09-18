@@ -6,6 +6,7 @@ const helmet  = require('helmet');
 const morgan  = require('morgan');
 const winston = require('winston');
 
+const cookieParser       = require('cookie-parser');
 const { limiter }        = require('./middleware/rateLimiter');
 const { auditMiddleware }= require('./middleware/audit');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -55,16 +56,45 @@ const app = express();
 
 app.set('trust proxy', 1);
 
+// IT_HANDOVER: Review scriptSrc and styleSrc once the frontend build is finalised.
+// Remove 'unsafe-inline' from styleSrc if styled-components or Tailwind are replaced with static CSS.
+// Add your CDN domain to connectSrc if Anaplan or Workday APIs are called directly from the browser.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      'img-src': ["'self'", 'data:', 'https://flagcdn.com'],
+      defaultSrc:              ["'self'"],
+      scriptSrc:               ["'self'"],
+      styleSrc:                ["'self'", "'unsafe-inline'"],
+      imgSrc:                  ["'self'", "data:"],
+      connectSrc:              ["'self'"],
+      fontSrc:                 ["'self'"],
+      objectSrc:               ["'none'"],
+      frameAncestors:          ["'none'"],
+      upgradeInsecureRequests: [],
     },
   },
+  hsts: {
+    maxAge:            31536000,
+    includeSubDomains: true,
+    preload:           true,
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  frameguard: { action: 'deny' },
 }));
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*', credentials: true }));
 app.use(express.json({ limit: '5mb' }));
+/*
+ * IT_HANDOVER: Token storage
+ * Currently the frontend stores the session token in localStorage (dev mode).
+ * For production, tokens must be moved to httpOnly, Secure, SameSite=Strict cookies.
+ * Steps for IT:
+ *   1. On login success, set: res.cookie('token', jwt, { httpOnly: true, secure: true, sameSite: 'Strict', maxAge: 3600000 })
+ *   2. Update frontend/src/hooks/useAuth.ts to remove localStorage token storage
+ *      and rely on the cookie being sent automatically with credentials: 'include' on fetch calls.
+ *   3. Update api.ts axios instance to add: withCredentials: true
+ * The cookie-parser middleware is already registered below — IT enables it in production.
+ */
+app.use(cookieParser());
 app.use(morgan('combined', { stream: { write: (msg) => logger.http(msg.trim()) } }));
 app.use(limiter);
 app.use(auditMiddleware);

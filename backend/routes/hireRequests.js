@@ -2,6 +2,7 @@ const { Router } = require('express');
 const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, ALL_ROLES, ROLES, SENIOR_ROLES } = require('../middleware/rbac');
+const { writeAudit } = require('../db/auditLog');
 
 const router = Router();
 
@@ -83,6 +84,7 @@ router.post('/', requireAuth, requireRole(...ALL_ROLES), async (req, res) => {
      region_id ?? null, country_id ?? null, project_id ?? null, justification ?? null, req.user.id]
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'hire_request', resourceId: rows[0].id, newValue: rows[0] });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'hire_requests', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.status(201).json({ data: rows[0] });
 });
 
@@ -112,6 +114,7 @@ router.post('/:id/approve', requireAuth, async (req, res, next) => {
 
   const { rows } = await pool.query(updateSql, [nextStage, req.user.id, req.params.id]);
   await req.auditLog({ actionType: 'APPROVE', resourceType: 'hire_request', resourceId: rows[0].id, newValue: rows[0] });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'APPROVE', tableName: 'hire_requests', recordId: rows[0].id, newValues: { stage: rows[0].stage, status: rows[0].status }, ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
@@ -126,6 +129,7 @@ router.post('/:id/reject', requireAuth, requireRole(...SENIOR_ROLES), async (req
   );
   if (!rows.length) return res.status(404).json({ error: 'Hire request not found or not pending' });
   await req.auditLog({ actionType: 'REJECT', resourceType: 'hire_request', resourceId: rows[0].id, newValue: rows[0] });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'REJECT', tableName: 'hire_requests', recordId: rows[0].id, newValues: { status: 'Rejected', rejection_reason }, ipAddress: req.ip });
   res.json({ data: rows[0] });
 });
 
