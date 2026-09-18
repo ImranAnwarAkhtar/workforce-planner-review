@@ -321,55 +321,51 @@ useEffect(() => {
 
   // ── Footer totals: Proposed/Min/Max per discipline per country ───────────
   const disciplineFooterTotals = useMemo(() => {
-    // Build gearing lookup: discipline_name → project_type → { min_divisor, max_divisor }
-    const gearingByDisc: Record<string, Record<string, { min: number; max: number }>> = {};
+    // Build gearing lookup: discipline_name → project_type → min_divisor (only min_divisor is used)
+    const gearingByDisc: Record<string, Record<string, number>> = {};
     for (const g of gearingConstants) {
       if (!gearingByDisc[g.discipline_name]) gearingByDisc[g.discipline_name] = {};
-      gearingByDisc[g.discipline_name][g.project_type] = {
-        min: Number(g.min_divisor),
-        max: Number(g.max_divisor),
-      };
+      gearingByDisc[g.discipline_name][g.project_type] = Number(g.min_divisor);
     }
     return displayedHierarchy.map(h => {
       const discGearing = gearingByDisc[h.discipline] ?? {};
+      const retailDivisor = discGearing['Retail'];
+      const xScaleDivisor = discGearing['xScale'];
+      const emDivisor = discGearing['EM'];
+
       const countries = countryGroups.map(g => {
         const proposed = h.allPeople.reduce(
           (s, p) => s + (allocMap[p.id]?.[g.countryId] ?? 0), 0
         );
 
-        // For EM countries the non-xScale divisor comes from the 'EM' row; otherwise 'Retail'
-        const retailType = g.isEmergingMarket ? 'EM' : 'Retail';
-        const retailGc = discGearing[retailType];
-        const xScaleGc = discGearing['xScale'];
-
-        if (!retailGc && !xScaleGc) {
+        if (!retailDivisor && !xScaleDivisor) {
           return { countryId: g.countryId, proposed, min: 0, max: 0 };
         }
 
-        // Split project weights: xScale | Retail-type | Matrix
-        // "Adjusted" counts (for Min) exclude Matrix projects
-        // "Total" counts (for Max) include Matrix as non-xScale
-        let xScaleW = 0, retailW = 0, matrixW = 0;
+        // Accumulate weight sums (for Min) and project counts (for Max)
+        let xScaleWeight = 0, nonXScaleWeight = 0;
+        let xScaleCount = 0, nonXScaleCount = 0;
         for (const proj of g.projects) {
           const w = Number(proj.weight) || 1;
-          if (proj.type === 'xScale') xScaleW += w;
-          else if (proj.type === 'Matrix') matrixW += w;
-          else retailW += w;
+          if (proj.type === 'xScale') {
+            xScaleWeight += w;
+            xScaleCount += 1;
+          } else {
+            nonXScaleWeight += w;
+            nonXScaleCount += 1;
+          }
         }
 
-        // Min = ((AdjTotal − AdjXScale) / retailMinDivisor) + (AdjXScale / xScaleMinDivisor)
-        // Adjusted excludes Matrix
-        const adjNonXScale = retailW;
+        // Min: weight-based; ALL countries (including EM) use Retail min_divisor for non-xScale
         let minFte = 0;
-        if (retailGc && retailGc.min > 0) minFte += adjNonXScale / retailGc.min;
-        if (xScaleGc && xScaleGc.min > 0) minFte += xScaleW / xScaleGc.min;
+        if (retailDivisor && retailDivisor > 0) minFte += nonXScaleWeight / retailDivisor;
+        if (xScaleDivisor && xScaleDivisor > 0) minFte += xScaleWeight / xScaleDivisor;
 
-        // Max = ((Total − TotalXScale) / retailMaxDivisor) + (TotalXScale / xScaleMaxDivisor)
-        // Total includes Matrix as non-xScale
-        const totalNonXScale = retailW + matrixW;
+        // Max: count-based; EM countries use EM min_divisor for non-xScale, non-EM use Retail
+        const maxNonXScaleDivisor = g.isEmergingMarket ? (emDivisor ?? retailDivisor) : retailDivisor;
         let maxFte = 0;
-        if (retailGc && retailGc.max > 0) maxFte += totalNonXScale / retailGc.max;
-        if (xScaleGc && xScaleGc.max > 0) maxFte += xScaleW / xScaleGc.max;
+        if (maxNonXScaleDivisor && maxNonXScaleDivisor > 0) maxFte += nonXScaleCount / maxNonXScaleDivisor;
+        if (xScaleDivisor && xScaleDivisor > 0) maxFte += xScaleCount / xScaleDivisor;
 
         return { countryId: g.countryId, proposed, min: minFte, max: maxFte };
       });
