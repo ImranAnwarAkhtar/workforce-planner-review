@@ -34,13 +34,14 @@ INSERT INTO countries (name, code, region_id, is_emerging_market, sort_order) VA
     ('India',        'IND', (SELECT id FROM regions WHERE code = 'APAC'), TRUE,   9),
     ('Philippines',  'PHL', (SELECT id FROM regions WHERE code = 'APAC'), TRUE,  10),
     ('Thailand',     'THA', (SELECT id FROM regions WHERE code = 'APAC'), TRUE,  11),
-    ('Taiwan',       'TWN', (SELECT id FROM regions WHERE code = 'APAC'), TRUE,  12),
+    ('Taiwan',       'TWN', (SELECT id FROM regions WHERE code = 'APAC'), FALSE, 12),
     -- AMER
     ('United States', 'USA', (SELECT id FROM regions WHERE code = 'AMER'), FALSE, 1),
     ('Canada',        'CAN', (SELECT id FROM regions WHERE code = 'AMER'), FALSE, 2),
     ('Brazil',        'BRA', (SELECT id FROM regions WHERE code = 'AMER'), FALSE, 3),
-    ('Mexico',        'MEX', (SELECT id FROM regions WHERE code = 'AMER'), FALSE, 4),
-    ('Colombia',      'COL', (SELECT id FROM regions WHERE code = 'AMER'), FALSE, 5),
+    ('Mexico',        'MEX', (SELECT id FROM regions WHERE code = 'AMER'), TRUE,  4),
+    ('Colombia',      'COL', (SELECT id FROM regions WHERE code = 'AMER'), TRUE,  5),
+    ('Chile',         'CHL', (SELECT id FROM regions WHERE code = 'AMER'), TRUE,  6),
     -- AMER Matrix sites
     ('Hampton',  'HAM', (SELECT id FROM regions WHERE code = 'AMER_MATRIX'), FALSE, 1),
     ('Minooka',  'MIN', (SELECT id FROM regions WHERE code = 'AMER_MATRIX'), FALSE, 2),
@@ -65,11 +66,12 @@ INSERT INTO countries (name, code, region_id, is_emerging_market, sort_order) VA
     ('Switzerland', 'CHE', (SELECT id FROM regions WHERE code = 'EMEA_C'), FALSE, 3),
     ('Austria',     'AUT', (SELECT id FROM regions WHERE code = 'EMEA_C'), FALSE, 4),
     -- MEA
-    ('South Africa', 'ZAF', (SELECT id FROM regions WHERE code = 'MEA'), FALSE, 1),
-    ('UAE',          'ARE', (SELECT id FROM regions WHERE code = 'MEA'), FALSE, 2),
-    ('Nigeria',      'NGA', (SELECT id FROM regions WHERE code = 'MEA'), FALSE, 3),
-    ('Saudi Arabia', 'SAU', (SELECT id FROM regions WHERE code = 'MEA'), FALSE, 4),
-    ('Turkey',       'TUR', (SELECT id FROM regions WHERE code = 'MEA'), FALSE, 5),
+    ('South Africa', 'ZAF', (SELECT id FROM regions WHERE code = 'MEA'), TRUE, 1),
+    ('UAE',          'ARE', (SELECT id FROM regions WHERE code = 'MEA'), TRUE, 2),
+    ('Nigeria',      'NGA', (SELECT id FROM regions WHERE code = 'MEA'), TRUE, 3),
+    ('Saudi Arabia', 'SAU', (SELECT id FROM regions WHERE code = 'MEA'), TRUE, 4),
+    ('Turkey',       'TUR', (SELECT id FROM regions WHERE code = 'MEA'), TRUE, 5),
+    ('Oman',         'OMN', (SELECT id FROM regions WHERE code = 'MEA'), TRUE, 6),
     -- Global
     ('Global', 'GLB', (SELECT id FROM regions WHERE code = 'GLOBAL'), FALSE, 1);
 

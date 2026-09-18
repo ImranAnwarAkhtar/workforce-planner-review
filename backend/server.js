@@ -148,6 +148,31 @@ pool.query(`
   }
 })();
 
+// Correct emerging-market flags and add missing countries (Chile, Oman)
+(async () => {
+  try {
+    // Insert Chile and Oman if not already present
+    await pool.query(`
+      INSERT INTO countries (name, code, region_id, is_emerging_market, sort_order)
+      VALUES
+        ('Chile', 'CHL', (SELECT id FROM regions WHERE code = 'AMER'), TRUE,  6),
+        ('Oman',  'OMN', (SELECT id FROM regions WHERE code = 'MEA'),  TRUE,  6)
+      ON CONFLICT (code) DO NOTHING
+    `);
+    // Set correct EM flags — Taiwan was incorrectly TRUE; all MEA + AMER EM countries were FALSE
+    await pool.query(`
+      UPDATE countries SET is_emerging_market = TRUE
+      WHERE code IN ('IDN','MYS','IND','PHL','THA','COL','CHL','MEX','ZAF','ARE','NGA','SAU','TUR','OMN')
+    `);
+    await pool.query(`
+      UPDATE countries SET is_emerging_market = FALSE WHERE code = 'TWN'
+    `);
+    logger.info('Emerging-market country flags updated');
+  } catch (err) {
+    logger.error('EM country migration failed', { error: err.message });
+  }
+})();
+
 // Project comments table
 (async () => {
   try {
