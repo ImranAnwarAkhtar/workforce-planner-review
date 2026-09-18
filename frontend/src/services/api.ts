@@ -260,6 +260,7 @@ export interface Project {
   updated_at: string;
   region_name: string | null;
   country_name: string | null;
+  is_emerging_market: boolean | null;
 }
 
 export interface ProjectsQuery {

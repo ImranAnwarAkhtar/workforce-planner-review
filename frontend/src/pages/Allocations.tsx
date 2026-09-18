@@ -203,6 +203,7 @@ useEffect(() => {
         countryId: id,
         projects: projs,
         totalWeight: projs.reduce((s, p) => s + (Number(p.weight) || 1), 0),
+        isEmergingMarket: projs[0]?.is_emerging_market ?? false,
       }));
     return countryFilter ? groups.filter(g => g.country === countryFilter) : groups;
   }, [projects, countryAllocs, selectedRegionId, statusFilter, countryFilter]);
@@ -320,7 +321,7 @@ useEffect(() => {
 
   // ── Footer totals: Proposed/Min/Max per discipline per country ───────────
   const disciplineFooterTotals = useMemo(() => {
-    // Build gearing lookup by discipline_name + project_type
+    // Build gearing lookup: discipline_name → project_type → { min_divisor, max_divisor }
     const gearingByDisc: Record<string, Record<string, { min: number; max: number }>> = {};
     for (const g of gearingConstants) {
       if (!gearingByDisc[g.discipline_name]) gearingByDisc[g.discipline_name] = {};
@@ -335,14 +336,41 @@ useEffect(() => {
         const proposed = h.allPeople.reduce(
           (s, p) => s + (allocMap[p.id]?.[g.countryId] ?? 0), 0
         );
-        let minFte = 0, maxFte = 0;
-        for (const proj of g.projects) {
-          const gc = discGearing[proj.type ?? 'Retail'];
-          if (gc) {
-            if (gc.min > 0) minFte += Number(proj.weight) / gc.min;
-            if (gc.max > 0) maxFte += Number(proj.weight) / gc.max;
-          }
+
+        // For EM countries the non-xScale divisor comes from the 'EM' row; otherwise 'Retail'
+        const retailType = g.isEmergingMarket ? 'EM' : 'Retail';
+        const retailGc = discGearing[retailType];
+        const xScaleGc = discGearing['xScale'];
+
+        if (!retailGc && !xScaleGc) {
+          return { countryId: g.countryId, proposed, min: 0, max: 0 };
         }
+
+        // Split project weights: xScale | Retail-type | Matrix
+        // "Adjusted" counts (for Min) exclude Matrix projects
+        // "Total" counts (for Max) include Matrix as non-xScale
+        let xScaleW = 0, retailW = 0, matrixW = 0;
+        for (const proj of g.projects) {
+          const w = Number(proj.weight) || 1;
+          if (proj.type === 'xScale') xScaleW += w;
+          else if (proj.type === 'Matrix') matrixW += w;
+          else retailW += w;
+        }
+
+        // Min = ((AdjTotal − AdjXScale) / retailMinDivisor) + (AdjXScale / xScaleMinDivisor)
+        // Adjusted excludes Matrix
+        const adjNonXScale = retailW;
+        let minFte = 0;
+        if (retailGc && retailGc.min > 0) minFte += adjNonXScale / retailGc.min;
+        if (xScaleGc && xScaleGc.min > 0) minFte += xScaleW / xScaleGc.min;
+
+        // Max = ((Total − TotalXScale) / retailMaxDivisor) + (TotalXScale / xScaleMaxDivisor)
+        // Total includes Matrix as non-xScale
+        const totalNonXScale = retailW + matrixW;
+        let maxFte = 0;
+        if (retailGc && retailGc.max > 0) maxFte += totalNonXScale / retailGc.max;
+        if (xScaleGc && xScaleGc.max > 0) maxFte += xScaleW / xScaleGc.max;
+
         return { countryId: g.countryId, proposed, min: minFte, max: maxFte };
       });
       return { discipline: h.discipline, countries };

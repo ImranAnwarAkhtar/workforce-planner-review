@@ -28,7 +28,7 @@ router.get('/', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT p.id, p.name, p.type, p.status, p.weight, p.region_id, p.country_id,
             p.metro, p.phase_code, p.year, p.is_active, p.created_at, p.updated_at,
-            r.name AS region_name, c.name AS country_name
+            r.name AS region_name, c.name AS country_name, c.is_emerging_market
      FROM projects p
      LEFT JOIN regions r ON p.region_id = r.id
      LEFT JOIN countries c ON p.country_id = c.id
