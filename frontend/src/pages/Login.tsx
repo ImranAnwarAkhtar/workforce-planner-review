@@ -13,6 +13,9 @@ const ROLES = [
   'EVP',
 ];
 
+// Set by the server at request time — true only on the Railway review service
+const IS_REVIEW = typeof window !== 'undefined' && (window as any).__REVIEW_MODE__ === true;
+
 export default function Login() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -63,7 +66,27 @@ export default function Login() {
           GDC Workforce Planning Platform
         </p>
 
-        <div style={{ width: 36, height: 3, background: '#E91C24', margin: '16px auto 28px', borderRadius: 2 }} />
+        <div style={{ width: 36, height: 3, background: '#E91C24', margin: '16px auto 20px', borderRadius: 2 }} />
+
+        {/* Evaluation badge — visible only on Railway review service (REVIEW_MODE=true) */}
+        {IS_REVIEW && (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            background: '#FDB90D',
+            color: '#5C3A00',
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase' as const,
+            padding: '4px 12px',
+            borderRadius: 100,
+            marginBottom: 20,
+          }}>
+            ◆ Evaluation Version
+          </div>
+        )}
 
         {/* Your Name */}
         <div style={{ marginBottom: 14, textAlign: 'left' }}>

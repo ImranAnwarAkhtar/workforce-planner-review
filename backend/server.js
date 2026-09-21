@@ -291,49 +291,23 @@ app.use(express.static(path.join(__dirname, 'public')));
 const indexHtml = path.join(__dirname, 'public', 'index.html');
 
 /*
- * REVIEW_MODE: set REVIEW_MODE=true in the Railway review service environment variables
- * to show the "Evaluation Version" banner on every page. Leave unset on production.
- * No frontend rebuild needed — the banner is injected server-side.
+ * REVIEW_MODE: set REVIEW_MODE=true in the Railway *review* service environment variables.
+ * Leave unset (or false) on production. No frontend rebuild needed.
+ * The React login page reads window.__REVIEW_MODE__ to show/hide the gold evaluation badge.
  */
-const REVIEW_BANNER = process.env.REVIEW_MODE === 'true' ? `
-<style>
-  #wfp-eval-banner {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 99999;
-    background: #F59E0B;
-    color: #78350F;
-    text-align: center;
-    padding: 7px 16px;
-    font-family: system-ui, -apple-system, sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-  }
-  body { padding-top: 32px !important; }
-</style>
-<div id="wfp-eval-banner">
-  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-  </svg>
-  Evaluation Version &#8212; Not for Production Use
-</div>` : '';
+const REVIEW_SCRIPT = process.env.REVIEW_MODE === 'true'
+  ? '<script>window.__REVIEW_MODE__=true;</script>'
+  : '';
 
 app.get('/*splat', (req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
   const fs = require('fs');
   fs.access(indexHtml, (err) => {
     if (err) return next();
-    if (!REVIEW_BANNER) return res.sendFile(indexHtml);
+    if (!REVIEW_SCRIPT) return res.sendFile(indexHtml);
     fs.readFile(indexHtml, 'utf8', (readErr, html) => {
       if (readErr) return res.sendFile(indexHtml);
-      res.type('html').send(html.replace('</body>', REVIEW_BANNER + '</body>'));
+      res.type('html').send(html.replace('</head>', REVIEW_SCRIPT + '</head>'));
     });
   });
 });
