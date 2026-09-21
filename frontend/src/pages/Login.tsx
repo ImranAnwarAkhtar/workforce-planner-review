@@ -13,8 +13,6 @@ const ROLES = [
   'EVP',
 ];
 
-const IS_REVIEW = process.env.REACT_APP_REVIEW_BADGE === 'true';
-
 export default function Login() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -49,35 +47,10 @@ export default function Login() {
         width: 400,
         background: '#FFFFFF',
         borderRadius: 12,
-        padding: IS_REVIEW ? '0 0 48px' : '48px 40px',
+        padding: '48px 40px',
         textAlign: 'center',
         boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
-        overflow: 'hidden',
       }}>
-        {/* Evaluation badge — review builds only */}
-        {IS_REVIEW && (
-          <div style={{
-            background: 'linear-gradient(90deg, #F59E0B 0%, #D97706 100%)',
-            color: '#FFFFFF',
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            padding: '7px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 7,
-            marginBottom: 0,
-          }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-            </svg>
-            Evaluation Version — Not for Production Use
-          </div>
-        )}
-
-        <div style={{ padding: IS_REVIEW ? '32px 40px 0' : '0' }}>
         {/* Logo */}
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}>
           <img src={equinixFortressRed} alt="Equinix" style={{ height: 28, width: 'auto' }} />
@@ -105,7 +78,6 @@ export default function Login() {
             value={name}
             onChange={e => { setName(e.target.value); setNameError(''); }}
             onKeyDown={handleKeyDown}
-            placeholder=""
             autoFocus
             style={{
               width: '100%',
@@ -174,7 +146,6 @@ export default function Login() {
         >
           Continue →
         </button>
-        </div>{/* end inner padding wrapper */}
       </div>
     </div>
   );
