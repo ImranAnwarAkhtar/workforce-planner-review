@@ -105,7 +105,7 @@ export default function Login() {
             value={name}
             onChange={e => { setName(e.target.value); setNameError(''); }}
             onKeyDown={handleKeyDown}
-            placeholder="e.g. Imran Akhtar"
+            placeholder=""
             autoFocus
             style={{
               width: '100%',
