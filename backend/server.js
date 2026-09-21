@@ -63,9 +63,9 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:              ["'self'"],
-      scriptSrc:               ["'self'"],
+      scriptSrc:               ["'self'", "'unsafe-inline'"],
       styleSrc:                ["'self'", "'unsafe-inline'"],
-      imgSrc:                  ["'self'", "data:"],
+      imgSrc:                  ["'self'", "data:", "https://flagcdn.com"],
       connectSrc:              ["'self'"],
       fontSrc:                 ["'self'"],
       objectSrc:               ["'none'"],
