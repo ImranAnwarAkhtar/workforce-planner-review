@@ -1046,8 +1046,12 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
                 <PieChart>
                   <Pie data={donutData} dataKey="value" nameKey="name" cx="50%" cy="50%"
                     innerRadius={40} outerRadius={65} paddingAngle={2}
-                    startAngle={-60} endAngle={-60 + 360}
-                    label={({ percent }) => `${Math.round((percent ?? 0) * 100)}%`}
+                    startAngle={45} endAngle={45 + 360}
+                    label={((props: any) => (
+                      <text x={props.x} y={props.y} textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700} fill="#333">
+                        {`${Math.round((props.percent ?? 0) * 100)}%`}
+                      </text>
+                    )) as any}
                     labelLine={false}>
                     {donutData.map((_, i) => <Cell key={i} fill={DISC_PIE_COLORS[i % DISC_PIE_COLORS.length]} />)}
                   </Pie>
