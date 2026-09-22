@@ -1342,7 +1342,7 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
                       <XAxis dataKey="region" tick={{ fontSize: 8, fill: C.muted }} angle={-30} textAnchor="end" />
                       <YAxis hide width={0} domain={[0, 'auto']} />
                       <Tooltip content={<BulletTooltip />} />
-                      <Bar dataKey="Max" fill={color} shape={(props: any) => <BulletBar {...props} labelColor={labelColor} />} background={<PlaceholderBackground />} isAnimationActive={false} />
+                      <Bar dataKey="Max" fill={color} shape={(props: any) => <BulletBar {...props} labelColor={labelColor} />} isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 2 }}>
