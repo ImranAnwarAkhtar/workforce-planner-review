@@ -1040,8 +1040,9 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
                   <Pie data={donutData} dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    innerRadius={40} outerRadius={70} paddingAngle={2}
-                    label={({ name, percent }) => `${Math.round((percent ?? 0) * 100)}%`}
+                    innerRadius={40} outerRadius={65} paddingAngle={2}
+                    startAngle={45} endAngle={45 + 360}
+                    label={({ percent }) => `${Math.round((percent ?? 0) * 100)}%`}
                     labelLine={false}>
                     {donutData.map((_, i) => <Cell key={i} fill={DISC_PIE_COLORS[i % DISC_PIE_COLORS.length]} />)}
                   </Pie>
@@ -1119,15 +1120,23 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
         {levelLineData.length === 0 ? (
           <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>Loading levels…</div>
         ) : (
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={levelLineData} margin={{ top: 8, right: 24, bottom: 4, left: 0 }}>
+          <ResponsiveContainer width="100%" height={175}>
+            <LineChart data={levelLineData} margin={{ top: 20, right: 24, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
               <XAxis dataKey="level" tick={{ fontSize: 10, fill: C.muted }} />
-              <YAxis tick={{ fontSize: 10, fill: C.muted }} width={28} />
+              <YAxis hide />
               <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : String(v)) as any} />
               <Legend wrapperStyle={{ fontSize: 10, paddingTop: 6 }} />
-              <Line type="monotone" dataKey={yearA} stroke={C.seeded}  strokeWidth={2} dot={{ r: 4, fill: C.seeded }}  activeDot={{ r: 5 }} />
-              <Line type="monotone" dataKey={yearB} stroke={C.retail}  strokeWidth={2} dot={{ r: 4, fill: C.retail }}  activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey={yearA} name={String(yearA)} stroke={C.seeded} strokeWidth={2} dot={{ r: 4, fill: C.seeded }} activeDot={{ r: 5 }}
+                label={((p: any) => {
+                  if (typeof p.value !== 'number' || p.value < 1) return <g />;
+                  return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.seeded} fontWeight={700}>{p.value}</text>;
+                }) as any} />
+              <Line type="monotone" dataKey={yearB} name={String(yearB)} stroke={C.retail} strokeWidth={2} dot={{ r: 4, fill: C.retail }} activeDot={{ r: 5 }}
+                label={((p: any) => {
+                  if (typeof p.value !== 'number' || p.value < 1) return <g />;
+                  return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.retail} fontWeight={700}>{p.value}</text>;
+                }) as any} />
             </LineChart>
           </ResponsiveContainer>
         )}
