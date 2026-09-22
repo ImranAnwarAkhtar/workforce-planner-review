@@ -1002,17 +1002,6 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
               ))}
             </div>
           </div>
-          {/* KPI chips */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <div style={{ flex: 1, background: '#FFF1CC', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: C.seeded }}>{totalRFte.toFixed(1)}</div>
-              <div style={{ fontSize: 9, color: C.muted, fontWeight: 600 }}>R FTE</div>
-            </div>
-            <div style={{ flex: 1, background: '#CCE3FF', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: C.retail }}>{totalRCon.toFixed(1)}</div>
-              <div style={{ fontSize: 9, color: C.muted, fontWeight: 600 }}>R CON</div>
-            </div>
-          </div>
           {totalRFte === 0 && totalRCon === 0 ? (
             <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
           ) : (
@@ -1038,6 +1027,17 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
         {/* Donut: distribution */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
           <SectionTitle>Distribution by Discipline</SectionTitle>
+          {/* KPI chips */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 10 }}>
+            <div style={{ flex: 1, background: '#FFF1CC', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em', marginBottom: 2 }}>R FTE</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: C.seeded, lineHeight: 1 }}>{totalRFte.toFixed(1)}</div>
+            </div>
+            <div style={{ flex: 1, background: '#CCE3FF', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em', marginBottom: 2 }}>R CON</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: C.retail, lineHeight: 1 }}>{totalRCon.toFixed(1)}</div>
+            </div>
+          </div>
           {donutData.length === 0 ? (
             <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
           ) : (
