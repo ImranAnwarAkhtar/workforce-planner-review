@@ -1019,7 +1019,9 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={discBarData} margin={{ top: 4, right: 6, bottom: 20, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                <XAxis dataKey="discipline" tick={{ fontSize: 9, fill: C.muted }} textAnchor="middle" />
+                <XAxis dataKey="discipline" tick={(props: any) => (
+                  <text x={props.x} y={props.y + 10} textAnchor="middle" fontSize={9} fill={C.muted}>{props.payload.value}</text>
+                )} />
                 <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
                 <Tooltip contentStyle={{ fontSize: 11 }} />
                 <Bar dataKey="R FTE" fill={C.seeded} radius={[2, 2, 0, 0]}>
