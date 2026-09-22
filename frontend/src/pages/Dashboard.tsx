@@ -1120,7 +1120,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
         {levelLineData.length === 0 ? (
           <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>Loading levels…</div>
         ) : (
-          <ResponsiveContainer width="100%" height={175}>
+          <ResponsiveContainer width="100%" height={240}>
             <LineChart data={levelLineData} margin={{ top: 20, right: 24, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
               <XAxis dataKey="level" tick={{ fontSize: 10, fill: C.muted }} />
