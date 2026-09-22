@@ -802,11 +802,11 @@ function PeopleTab({ yearA, yearB, dataA, dataB, allRegionNames, regionCodeMap }
               <BarChart data={hcBarData} layout="vertical" margin={{ top: 0, right: 20, bottom: 0, left: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" horizontal={false} />
                 <XAxis type="number" hide />
-                <YAxis type="category" dataKey="region" width={68}
+                <YAxis type="category" dataKey="region" width={90}
                   tick={(props: any) => {
                     const { x, y, payload } = props;
                     return (
-                      <text x={x} y={y} textAnchor="end" dominantBaseline="middle" fontSize={10} fill="#333">
+                      <text x={x} y={y} textAnchor="end" dominantBaseline="middle" fontSize={9} fill="#333">
                         {payload.value}
                       </text>
                     );
