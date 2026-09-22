@@ -1182,9 +1182,9 @@ function BulletBar({ x, y, width, height, payload, fill, labelColor }: any) {
       {/* Proposed — red marker */}
       <rect x={cx - markerW / 2} y={propY - markerH / 2} width={markerW} height={markerH}           fill="#E91C24"     rx={1} />
 
-      {/* Min label — horizontal, centred inside min bar, white */}
-      {payload.Min > 0 && minH > 22 && (
-        <text x={cx} y={bottom - minH / 2} textAnchor="middle" dominantBaseline="middle" fontSize={10} fill="#FFF" fontWeight={700}>
+      {/* Min label — bottom-centre of min bar, white */}
+      {payload.Min > 0 && minH > 16 && (
+        <text x={cx} y={bottom - 5} textAnchor="middle" dominantBaseline="auto" fontSize={10} fill="#FFF" fontWeight={700}>
           {payload.Min}
         </text>
       )}
@@ -1196,9 +1196,9 @@ function BulletBar({ x, y, width, height, payload, fill, labelColor }: any) {
         </text>
       )}
 
-      {/* Max label — just above top of max bar, dark discipline colour */}
+      {/* Max label — inside max bar at the top, dark discipline colour */}
       {payload.Max > 0 && (
-        <text x={cx} y={y - 4} textAnchor="middle" fontSize={10} fill={darkColor} fontWeight={700}>
+        <text x={cx} y={y + 13} textAnchor="middle" dominantBaseline="auto" fontSize={10} fill={darkColor} fontWeight={700}>
           {payload.Max}
         </text>
       )}
@@ -1337,7 +1337,7 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
               {allRegions.length > 0 && (
                 <div style={{ padding: '8px 4px 4px' }}>
                   <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={barData} margin={{ top: 22, right: 4, bottom: 16, left: 4 }}>
+                    <BarChart data={barData} margin={{ top: 8, right: 4, bottom: 16, left: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                       <XAxis dataKey="region" tick={{ fontSize: 8, fill: C.muted }} angle={-30} textAnchor="end" />
                       <YAxis hide width={0} domain={[0, 'auto']} />
