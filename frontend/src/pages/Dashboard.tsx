@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import {
   dashboardApi, refDataApi,
-  type HubIqResponse, type HubIqYearData, type Level,
+  type HubIqResponse, type HubIqYearData, type Level, type Discipline,
 } from '../services/api';
 
 // ---------------------------------------------------------------------------
@@ -931,7 +931,10 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
   const [activeYear, setActiveYear] = useState(yearA);
   const data = activeYear === yearA ? dataA : dataB;
   const [levels, setLevels] = useState<Level[]>([]);
+  const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   useEffect(() => { refDataApi.levels().then(setLevels).catch(() => {}); }, []);
+  useEffect(() => { refDataApi.disciplines().then(setDisciplines).catch(() => {}); }, []);
+  const discCodeMap = Object.fromEntries(disciplines.map(d => [d.name, d.code ?? d.name]));
 
   // Aggregate requests by discipline — pre-populate all known disciplines as zero placeholders
   const byDisc: Record<string, { rFte: number; rCon: number }> = {};
@@ -942,7 +945,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
     else if (['R CON', 'R CON>FTE'].includes(r.contract_code)) byDisc[r.discipline_name].rCon += r.contracted_fte;
   }
   const discBarData = Object.entries(byDisc).map(([disc, v]) => ({
-    discipline: disc,
+    discipline: discCodeMap[disc] ?? disc,
     fullName: disc,
     'R FTE':         Math.round(v.rFte * 10) / 10,
     'R CON/CON→FTE': Math.round(v.rCon * 10) / 10,
@@ -1016,7 +1019,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={discBarData} margin={{ top: 4, right: 6, bottom: 20, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                <XAxis dataKey="discipline" tick={{ fontSize: 9, fill: C.muted }} angle={-20} textAnchor="end" />
+                <XAxis dataKey="discipline" tick={{ fontSize: 9, fill: C.muted }} textAnchor="middle" />
                 <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
                 <Tooltip contentStyle={{ fontSize: 11 }} />
                 <Bar dataKey="R FTE" fill={C.seeded} radius={[2, 2, 0, 0]}>
