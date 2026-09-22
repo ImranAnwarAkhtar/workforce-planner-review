@@ -1163,22 +1163,49 @@ function PlaceholderBackground({ x, y, width, height, payload }: any) {
 
 function BulletBar({ x, y, width, height, payload, fill }: any) {
   if (!payload || payload.Max <= 0 || height <= 0) return <g />;
-  const bottom = y + height;                         // zero baseline in px
-  const ppu    = height / payload.Max;               // pixels per headcount unit
-  const minH   = Math.max((payload.Min ?? 0) * ppu, 0);
-  const propY  = Math.min(bottom, Math.max(y, bottom - (payload.Proposed ?? 0) * ppu));
-  const bw     = Math.max(width - 2, 6);
-  const cx     = x + width / 2;
-  const maxW   = Math.round(bw * 0.52);
+  const bottom  = y + height;
+  const ppu     = height / payload.Max;
+  const minH    = Math.max((payload.Min ?? 0) * ppu, 0);
+  const propY   = Math.min(bottom, Math.max(y, bottom - (payload.Proposed ?? 0) * ppu));
+  const bw      = Math.max(width - 2, 6);
+  const cx      = x + width / 2;
+  const maxW    = Math.round(bw * 0.52);
   const markerW = Math.round(bw * 0.62);
+  const markerH = 16;  // reduced from 24
+  // label anchor for Min: bottom-left of min bar, text goes upward via rotate(-90)
+  const minLabelX = cx - bw / 2 + 4;
+  const minLabelY = bottom - 4;
   return (
     <g>
-      {/* Min — wide, behind */}
-      <rect x={cx - bw / 2}    y={bottom - minH}  width={bw}    height={Math.max(minH, 0)} fill={`${fill}35`} rx={2} />
-      {/* Max — narrower, in front */}
-      <rect x={cx - maxW / 2}  y={y}              width={maxW}  height={height}            fill={`${fill}80`} rx={2} />
-      {/* Proposed — red horizontal marker */}
-      <rect x={cx - markerW / 2} y={propY - 12}  width={markerW} height={24}              fill="#E91C24"     rx={1} />
+      {/* Min — wide, faded */}
+      <rect x={cx - bw / 2}      y={bottom - minH}      width={bw}      height={Math.max(minH, 0)} fill={`${fill}35`} rx={2} />
+      {/* Max — narrower */}
+      <rect x={cx - maxW / 2}    y={y}                  width={maxW}    height={height}            fill={`${fill}80`} rx={2} />
+      {/* Proposed — red marker */}
+      <rect x={cx - markerW / 2} y={propY - markerH / 2} width={markerW} height={markerH}         fill="#E91C24"     rx={1} />
+
+      {/* Min label — vertical, top-left of min bar, rotated CCW 90° */}
+      {payload.Min > 0 && minH > 16 && (
+        <text x={minLabelX} y={minLabelY}
+          transform={`rotate(-90, ${minLabelX}, ${minLabelY})`}
+          textAnchor="start" fontSize={8} fill={fill} fontWeight={700} dominantBaseline="middle">
+          {payload.Min}
+        </text>
+      )}
+
+      {/* Proposed label — white, centred on marker */}
+      {payload.Proposed > 0 && (
+        <text x={cx} y={propY} textAnchor="middle" dominantBaseline="middle" fontSize={8} fill="#FFF" fontWeight={700}>
+          {payload.Proposed}
+        </text>
+      )}
+
+      {/* Max label — bottom-centre of max bar */}
+      {payload.Max > 0 && (
+        <text x={cx} y={bottom - 4} textAnchor="middle" fontSize={8} fill={`${fill}CC`} fontWeight={700}>
+          {payload.Max}
+        </text>
+      )}
     </g>
   );
 }
@@ -1313,11 +1340,11 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
               {/* Bar chart — lipstick/bullet style */}
               {allRegions.length > 0 && (
                 <div style={{ padding: '8px 4px 4px' }}>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={barData} margin={{ top: 4, right: 4, bottom: 16, left: -20 }}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={barData} margin={{ top: 16, right: 4, bottom: 16, left: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                       <XAxis dataKey="region" tick={{ fontSize: 8, fill: C.muted }} angle={-30} textAnchor="end" />
-                      <YAxis tick={{ fontSize: 8, fill: C.muted }} domain={[0, 'auto']} />
+                      <YAxis hide width={0} domain={[0, 'auto']} />
                       <Tooltip content={<BulletTooltip />} />
                       <Bar dataKey="Max" fill={color} shape={BulletBar} background={<PlaceholderBackground />} isAnimationActive={false} />
                     </BarChart>
