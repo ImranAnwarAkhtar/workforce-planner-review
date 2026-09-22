@@ -964,7 +964,8 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
     'R CON':     { bg: '#FEF3F2', color: C.accent },
     'R CON>FTE': { bg: '#EBF2FB', color: C.retail },
   };
-  const DISC_PIE_COLORS = ['#086AE3','#33A85C','#FDB90D','#00737A','#8B93A3'];
+  const DISC_PIE_FALLBACK = ['#086AE3','#33A85C','#FDB90D','#00737A','#8B93A3'];
+  const discPieColor = (name: string, i: number) => C.discColors[name] ?? DISC_PIE_FALLBACK[i % DISC_PIE_FALLBACK.length];
 
   // Aggregate requests by level for both years — senior→junior order (level_number DESC)
   const sortedLevels = [...levels].sort((a, b) => (b.level_number ?? -1) - (a.level_number ?? -1));
@@ -1008,15 +1009,21 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={discBarData} margin={{ top: 4, right: 6, bottom: 20, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                <XAxis dataKey="discipline" tick={(props: any) => (
+                <XAxis dataKey="discipline" tickLine={false} tick={(props: any) => (
                   <text x={props.x} y={props.y + 10} textAnchor="middle" fontSize={9} fill={C.muted}>{props.payload.value}</text>
                 )} />
                 <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
                 <Tooltip contentStyle={{ fontSize: 11 }} />
-                <Bar dataKey="R FTE" fill={C.seeded} radius={[2, 2, 0, 0]}>
+                <Bar dataKey="R FTE" stackId="s" radius={[0, 0, 0, 0]}>
+                  {discBarData.map((entry, i) => (
+                    <Cell key={i} fill={C.discColors[entry.fullName] ?? DISC_PIE_FALLBACK[i % DISC_PIE_FALLBACK.length]} />
+                  ))}
                   <LabelList dataKey="R FTE" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: unknown) => (typeof v === 'number' && v > 0) ? v : ''} />
                 </Bar>
-                <Bar dataKey="R CON/CON→FTE" fill={C.retail} radius={[2, 2, 0, 0]}>
+                <Bar dataKey="R CON/CON→FTE" stackId="s" radius={[2, 2, 0, 0]}>
+                  {discBarData.map((entry, i) => (
+                    <Cell key={i} fill={C.discColors[entry.fullName] ?? DISC_PIE_FALLBACK[i % DISC_PIE_FALLBACK.length]} fillOpacity={0.5} />
+                  ))}
                   <LabelList dataKey="R CON/CON→FTE" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: unknown) => (typeof v === 'number' && v > 0) ? v : ''} />
                 </Bar>
               </BarChart>
@@ -1053,7 +1060,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
                       </text>
                     )) as any}
                     labelLine={false}>
-                    {donutData.map((_, i) => <Cell key={i} fill={DISC_PIE_COLORS[i % DISC_PIE_COLORS.length]} />)}
+                    {donutData.map((d, i) => <Cell key={i} fill={discPieColor(d.name, i)} />)}
                   </Pie>
                   <Tooltip formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : String(v)) + ' FTE'} contentStyle={{ fontSize: 11 }} />
                 </PieChart>
@@ -1061,7 +1068,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
                 {donutData.map((d, i) => (
                   <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: DISC_PIE_COLORS[i % DISC_PIE_COLORS.length], flexShrink: 0 }} />
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: discPieColor(d.name, i), flexShrink: 0 }} />
                     <span style={{ fontSize: 10, color: '#444', flex: 1 }}>{d.name}</span>
                     <span style={{ fontSize: 10, fontWeight: 700, color: '#111' }}>{d.value.toFixed(1)}</span>
                   </div>
