@@ -1130,12 +1130,12 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
               <YAxis hide />
               <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : String(v)) as any} />
               <Legend wrapperStyle={{ fontSize: 10, paddingTop: 6 }} />
-              <Line type="monotone" dataKey={yearA} name={String(yearA)} stroke={C.seeded} strokeWidth={2} dot={{ r: 4, fill: C.seeded }} activeDot={{ r: 5 }}
+              <Line type="monotone" dataKey={yearA} name={String(yearA)} stroke={C.seeded} strokeWidth={3} dot={false} activeDot={false}
                 label={((p: any) => {
                   if (typeof p.value !== 'number' || p.value < 1) return <g />;
                   return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.seeded} fontWeight={700}>{p.value}</text>;
                 }) as any} />
-              <Line type="monotone" dataKey={yearB} name={String(yearB)} stroke={C.retail} strokeWidth={2} dot={{ r: 4, fill: C.retail }} activeDot={{ r: 5 }}
+              <Line type="monotone" dataKey={yearB} name={String(yearB)} stroke={C.retail} strokeWidth={3} dot={false} activeDot={false}
                 label={((p: any) => {
                   if (typeof p.value !== 'number' || p.value < 1) return <g />;
                   return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.retail} fontWeight={700}>{p.value}</text>;
