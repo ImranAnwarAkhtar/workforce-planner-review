@@ -930,17 +930,18 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
   const [activeYear, setActiveYear] = useState(yearA);
   const data = activeYear === yearA ? dataA : dataB;
 
-  // Aggregate requests by discipline
+  // Aggregate requests by discipline — pre-populate all known disciplines as zero placeholders
   const byDisc: Record<string, { rFte: number; rCon: number }> = {};
+  for (const disc of Object.keys(C.discColors)) byDisc[disc] = { rFte: 0, rCon: 0 };
   for (const r of data.requests) {
     if (!byDisc[r.discipline_name]) byDisc[r.discipline_name] = { rFte: 0, rCon: 0 };
     if (r.contract_code === 'R FTE')     byDisc[r.discipline_name].rFte += r.contracted_fte;
     else if (['R CON', 'R CON>FTE'].includes(r.contract_code)) byDisc[r.discipline_name].rCon += r.contracted_fte;
   }
   const discBarData = Object.entries(byDisc).map(([disc, v]) => ({
-    discipline: disc.length > 12 ? disc.slice(0, 10) + '…' : disc,
+    discipline: disc,
     fullName: disc,
-    'R FTE':     Math.round(v.rFte * 10) / 10,
+    'R FTE':         Math.round(v.rFte * 10) / 10,
     'R CON/CON→FTE': Math.round(v.rCon * 10) / 10,
   }));
 
@@ -961,7 +962,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr', gap: 14 }}>
 
         {/* Bar: by discipline */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
@@ -988,17 +989,21 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
               <div style={{ fontSize: 9, color: C.muted, fontWeight: 600 }}>R CON</div>
             </div>
           </div>
-          {discBarData.length === 0 ? (
-            <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
+          {totalRFte === 0 && totalRCon === 0 ? (
+            <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
           ) : (
-            <ResponsiveContainer width="100%" height={150}>
-              <BarChart data={discBarData} margin={{ top: 4, right: 6, bottom: 20, left: -20 }}>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={discBarData} margin={{ top: 4, right: 6, bottom: 20, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                 <XAxis dataKey="discipline" tick={{ fontSize: 9, fill: C.muted }} angle={-20} textAnchor="end" />
-                <YAxis tick={{ fontSize: 9, fill: C.muted }} />
+                <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
                 <Tooltip contentStyle={{ fontSize: 11 }} />
-                <Bar dataKey="R FTE"         fill={C.seeded}  radius={[2, 2, 0, 0]} />
-                <Bar dataKey="R CON/CON→FTE" fill={C.retail}  radius={[2, 2, 0, 0]} />
+                <Bar dataKey="R FTE" fill={C.seeded} radius={[2, 2, 0, 0]}>
+                  <LabelList dataKey="R FTE" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: unknown) => (typeof v === 'number' && v > 0) ? v : ''} />
+                </Bar>
+                <Bar dataKey="R CON/CON→FTE" fill={C.retail} radius={[2, 2, 0, 0]}>
+                  <LabelList dataKey="R CON/CON→FTE" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: unknown) => (typeof v === 'number' && v > 0) ? v : ''} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
