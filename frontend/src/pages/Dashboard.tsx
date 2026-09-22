@@ -1029,13 +1029,13 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
           <SectionTitle>Distribution by Discipline</SectionTitle>
           {/* KPI chips */}
           <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 10 }}>
-            <div style={{ flex: 1, background: '#FFF1CC', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
-              <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em', marginBottom: 2 }}>R FTE</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: C.seeded, lineHeight: 1 }}>{totalRFte.toFixed(1)}</div>
+            <div style={{ flex: 1, background: '#FFE4E6', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: 8, color: '#111', fontWeight: 700, letterSpacing: '0.05em', marginBottom: 2 }}>R FTE</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#111', lineHeight: 1 }}>{totalRFte.toFixed(1)}</div>
             </div>
-            <div style={{ flex: 1, background: '#CCE3FF', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
-              <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em', marginBottom: 2 }}>R CON</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: C.retail, lineHeight: 1 }}>{totalRCon.toFixed(1)}</div>
+            <div style={{ flex: 1, background: '#FFFDE7', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: 8, color: '#111', fontWeight: 700, letterSpacing: '0.05em', marginBottom: 2 }}>R CON</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#111', lineHeight: 1 }}>{totalRCon.toFixed(1)}</div>
             </div>
           </div>
           {donutData.length === 0 ? (
@@ -1046,7 +1046,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
                 <PieChart>
                   <Pie data={donutData} dataKey="value" nameKey="name" cx="50%" cy="50%"
                     innerRadius={40} outerRadius={65} paddingAngle={2}
-                    startAngle={45} endAngle={45 + 360}
+                    startAngle={-60} endAngle={-60 + 360}
                     label={({ percent }) => `${Math.round((percent ?? 0) * 100)}%`}
                     labelLine={false}>
                     {donutData.map((_, i) => <Cell key={i} fill={DISC_PIE_COLORS[i % DISC_PIE_COLORS.length]} />)}
