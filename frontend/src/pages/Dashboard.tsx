@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import equinixFortressRed from '../assets/equinix-fortress-red.svg';
 import {
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList,
-  ComposedChart, Area, Line,
+  LineChart, Line,
+  ComposedChart, Area,
 } from 'recharts';
 import {
-  dashboardApi,
-  type HubIqResponse, type HubIqYearData,
+  dashboardApi, refDataApi,
+  type HubIqResponse, type HubIqYearData, type Level,
 } from '../services/api';
 
 // ---------------------------------------------------------------------------
@@ -929,6 +930,8 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
   const rc = (name: string) => regionCodeMap[name] || name;
   const [activeYear, setActiveYear] = useState(yearA);
   const data = activeYear === yearA ? dataA : dataB;
+  const [levels, setLevels] = useState<Level[]>([]);
+  useEffect(() => { refDataApi.levels().then(setLevels).catch(() => {}); }, []);
 
   // Aggregate requests by discipline — pre-populate all known disciplines as zero placeholders
   const byDisc: Record<string, { rFte: number; rCon: number }> = {};
@@ -959,6 +962,24 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
     'R CON>FTE': { bg: '#EBF2FB', color: C.retail },
   };
   const DISC_PIE_COLORS = ['#086AE3','#33A85C','#FDB90D','#00737A','#8B93A3'];
+
+  // Aggregate requests by level for both years — senior→junior order (level_number DESC)
+  const sortedLevels = [...levels].sort((a, b) => (b.level_number ?? -1) - (a.level_number ?? -1));
+  const aggByLevel = (reqs: HubIqYearData['requests']) => {
+    const m: Record<string, number> = {};
+    for (const r of reqs) {
+      const k = r.level_code ?? 'Unknown';
+      m[k] = (m[k] ?? 0) + r.contracted_fte;
+    }
+    return m;
+  };
+  const levelMapA = aggByLevel(dataA.requests);
+  const levelMapB = aggByLevel(dataB.requests);
+  const levelLineData = sortedLevels.map(l => ({
+    level: l.short_code,
+    [yearA]: Math.round((levelMapA[l.short_code] ?? 0) * 10) / 10,
+    [yearB]: Math.round((levelMapB[l.short_code] ?? 0) * 10) / 10,
+  }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1090,6 +1111,26 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
             </table>
           </div>
         </div>
+      </div>
+
+      {/* Line chart: requests by level */}
+      <div style={{ ...cardStyle, padding: '14px 16px' }}>
+        <SectionTitle>Requests by Level</SectionTitle>
+        {levelLineData.length === 0 ? (
+          <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>Loading levels…</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={levelLineData} margin={{ top: 8, right: 24, bottom: 4, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+              <XAxis dataKey="level" tick={{ fontSize: 10, fill: C.muted }} />
+              <YAxis tick={{ fontSize: 10, fill: C.muted }} width={28} />
+              <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : String(v)) as any} />
+              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 6 }} />
+              <Line type="monotone" dataKey={yearA} stroke={C.seeded}  strokeWidth={2} dot={{ r: 4, fill: C.seeded }}  activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey={yearB} stroke={C.retail}  strokeWidth={2} dot={{ r: 4, fill: C.retail }}  activeDot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );
