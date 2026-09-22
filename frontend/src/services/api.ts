@@ -694,7 +694,7 @@ export const tbhCodesApi = {
 // Reference data  (admin endpoints, read-only for all roles)
 // ---------------------------------------------------------------------------
 
-export interface Discipline { id: number; name: string }
+export interface Discipline { id: number; name: string; code: string | null }
 export interface Level { id: number; level_name: string; short_code: string; level_number: number | null }
 export interface ContractType { id: number; code: string; description: string; colour_hex: string | null; category: string | null }
 export interface Region  { id: number; name: string; code: string; sort_order: number }

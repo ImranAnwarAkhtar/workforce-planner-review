@@ -240,18 +240,22 @@ router.delete('/regions/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORC
 // ── Disciplines CRUD (PMO + Workforce Planning) ───────────────────────────────
 
 router.post('/disciplines', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANNING), async (req, res) => {
-  const { name } = req.body;
+  const { name, code } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
-  const { rows } = await pool.query('INSERT INTO disciplines (name) VALUES ($1) RETURNING *', [name.trim()]);
+  const { rows } = await pool.query(
+    'INSERT INTO disciplines (name, code) VALUES ($1, $2) RETURNING *',
+    [name.trim(), code ? code.trim() : null]
+  );
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'disciplines', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.status(201).json({ data: rows[0] });
 });
 
 router.put('/disciplines/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANNING), async (req, res) => {
-  const { name } = req.body;
+  const { name, code } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
   const { rows } = await pool.query(
-    'UPDATE disciplines SET name = $1 WHERE id = $2 RETURNING *', [name.trim(), req.params.id]
+    'UPDATE disciplines SET name = $1, code = $2 WHERE id = $3 RETURNING *',
+    [name.trim(), code ? code.trim() : null, req.params.id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Discipline not found' });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'disciplines', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });

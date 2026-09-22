@@ -268,6 +268,23 @@ pool.query(`
   }
 })();
 
+// Disciplines code column
+(async () => {
+  try {
+    await pool.query(`ALTER TABLE disciplines ADD COLUMN IF NOT EXISTS code VARCHAR(20);`);
+    await pool.query(`
+      UPDATE disciplines SET code = 'COM'   WHERE LOWER(name) = 'commercial'    AND code IS NULL;
+      UPDATE disciplines SET code = 'CX'    WHERE LOWER(name) = 'commissioning' AND code IS NULL;
+      UPDATE disciplines SET code = 'CON'   WHERE LOWER(name) = 'construction'  AND code IS NULL;
+      UPDATE disciplines SET code = 'DES'   WHERE LOWER(name) = 'design'        AND code IS NULL;
+      UPDATE disciplines SET code = 'Other' WHERE LOWER(name) = 'other'         AND code IS NULL;
+    `);
+    logger.info('Disciplines code column migration complete');
+  } catch (err) {
+    logger.error('Disciplines code migration failed', { error: err.message });
+  }
+})();
+
 app.use('/api/country-allocations', wrapAsync(countryAllocationsRouter));
 app.use('/api/person-comments',     wrapAsync(personCommentsRouter));
 app.use('/api/planning-cycles', wrapAsync(planningCyclesRouter));

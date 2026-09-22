@@ -54,7 +54,9 @@ function DisciplinesTab() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [saving, setSaving]     = useState(false);
   const [formName, setFormName] = useState('');
+  const [formCode, setFormCode] = useState('');
   const [editName, setEditName] = useState('');
+  const [editCode, setEditCode] = useState('');
 
   function load() {
     setLoading(true);
@@ -66,15 +68,15 @@ function DisciplinesTab() {
     if (!formName.trim()) return;
     setSaving(true);
     try {
-      await rawClient.post('/admin/disciplines', { name: formName.trim() });
-      load(); setCreating(false); setFormName('');
+      await rawClient.post('/admin/disciplines', { name: formName.trim(), code: formCode.trim() || null });
+      load(); setCreating(false); setFormName(''); setFormCode('');
     } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
   }
 
   async function handleUpdate(id: number) {
     setSaving(true);
     try {
-      await rawClient.put(`/admin/disciplines/${id}`, { name: editName.trim() });
+      await rawClient.put(`/admin/disciplines/${id}`, { name: editName.trim(), code: editCode.trim() || null });
       load(); setEditingId(null);
     } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
   }
@@ -101,10 +103,17 @@ function DisciplinesTab() {
       {creating && (
         <div style={{ ...card, marginBottom: 16, padding: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 12 }}>New Discipline</div>
-          <div style={{ maxWidth: 320 }}>
-            <label style={lbl}>Name *</label>
-            <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="e.g. Construction"
-              style={inp} onKeyDown={e => e.key === 'Enter' && handleCreate()} />
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: '2 1 200px' }}>
+              <label style={lbl}>Name *</label>
+              <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="e.g. Construction"
+                style={inp} onKeyDown={e => e.key === 'Enter' && handleCreate()} />
+            </div>
+            <div style={{ flex: '1 1 120px' }}>
+              <label style={lbl}>Code</label>
+              <input value={formCode} onChange={e => setFormCode(e.target.value)} placeholder="e.g. CON"
+                style={{ ...inp, maxWidth: 120 }} onKeyDown={e => e.key === 'Enter' && handleCreate()} />
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
             <button onClick={() => { setCreating(false); setFormName(''); }} style={btnSecondary}>Cancel</button>
@@ -118,14 +127,15 @@ function DisciplinesTab() {
 
       <div style={card}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={th}>Name</th><th style={{ ...th, width: 180 }}>Actions</th></tr></thead>
+          <thead><tr><th style={th}>Name</th><th style={{ ...th, width: 100 }}>Code</th><th style={{ ...th, width: 180 }}>Actions</th></tr></thead>
           <tbody>
-            {loading ? <LoadingRows cols={2} /> : data.length === 0 ? (
-              <tr><td colSpan={2} style={{ ...td, textAlign: 'center', color: '#555' }}>No disciplines</td></tr>
+            {loading ? <LoadingRows cols={3} /> : data.length === 0 ? (
+              <tr><td colSpan={3} style={{ ...td, textAlign: 'center', color: '#555' }}>No disciplines</td></tr>
             ) : data.map(d => {
               if (editingId === d.id) return (
                 <tr key={d.id} style={{ background: '#FAFAFA' }}>
                   <td style={td}><input value={editName} onChange={e => setEditName(e.target.value)} style={{ ...inp, maxWidth: 320 }} /></td>
+                  <td style={td}><input value={editCode} onChange={e => setEditCode(e.target.value)} placeholder="e.g. CON" style={{ ...inp, maxWidth: 100 }} /></td>
                   <td style={td}>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => handleUpdate(d.id)} disabled={saving} style={saveBtn}>{saving ? '…' : 'Save'}</button>
@@ -137,6 +147,7 @@ function DisciplinesTab() {
               return (
                 <tr key={d.id}>
                   <td style={{ ...td, color: '#111', fontWeight: 500 }}>{d.name}</td>
+                  <td style={{ ...td, color: '#555', fontFamily: 'monospace', fontSize: 12 }}>{d.code ?? '—'}</td>
                   <td style={td}>
                     {deletingId === d.id ? (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -146,7 +157,7 @@ function DisciplinesTab() {
                       </div>
                     ) : (
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => { setEditingId(d.id); setEditName(d.name); setDeletingId(null); }}
+                        <button onClick={() => { setEditingId(d.id); setEditName(d.name); setEditCode(d.code ?? ''); setDeletingId(null); }}
                           style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Edit</button>
                         <button onClick={() => { setDeletingId(d.id); setEditingId(null); }}
                           style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12, color: '#AD050C', borderColor: '#FBBDBA' }}>Delete</button>
