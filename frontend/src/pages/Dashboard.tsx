@@ -1405,16 +1405,16 @@ function HireStatusTab({ yearA, yearB, tbhStatus }: { yearA: number; yearB: numb
 
   const STAGE_ORDER = ['Req not raised', 'Not Raised', 'Screening', 'Screen', 'Interview', 'Offer Accepted', 'Hired', 'Closed'];
 
-  // Solid colours taken from the sidebar gradient palette endpoints
+  // Solid colours sampled evenly along the Dashboard sidebar gradient: #E91C24 → #411980
   const STAGE_COLORS: Record<string, string> = {
-    'Req not raised': '#E91C24',
+    'Req not raised': '#E91C24', // 0 %  — crimson red
     'Not Raised':     '#E91C24',
-    'Screening':      '#FE9234',
-    'Screen':         '#FE9234',
-    'Interview':      '#086AE3',
-    'Offer Accepted': '#00737A',
-    'Hired':          '#33A85C',
-    'Closed':         '#2F3541',
+    'Screening':      '#C71B36', // 20 %
+    'Screen':         '#C71B36',
+    'Interview':      '#A61B49', // 40 %
+    'Offer Accepted': '#841A5B', // 60 %
+    'Hired':          '#631A6E', // 80 %
+    'Closed':         '#411980', // 100 % — deep violet
   };
 
   const yearRows = tbhStatus.filter(r => r.funding_year === activeYear);
