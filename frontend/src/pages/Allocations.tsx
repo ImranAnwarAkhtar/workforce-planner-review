@@ -757,14 +757,6 @@ useEffect(() => {
                           <span style={{ fontSize: 10, opacity: 0.75 }}>
                             {h.allPeople.length} people · {discTotal.toFixed(1)} FTE
                           </span>
-                          {canEdit && (
-                            <button
-                              onClick={e => { e.stopPropagation(); openAddModal(h.disciplineId ?? undefined); }}
-                              style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 4, color: '#FFFFFF', fontSize: 10, fontWeight: 700, padding: '2px 8px', cursor: 'pointer' }}
-                            >
-                              + Person
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
