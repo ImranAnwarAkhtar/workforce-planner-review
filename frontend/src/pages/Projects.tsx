@@ -470,14 +470,14 @@ useEffect(() => {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const statItems: { label: string; curr: number; comp: number; color: string; isFloat?: boolean }[] = [
-    { label: 'Total',        curr: stats.total,       comp: compStats.total,       color: '#2F3541' },
-    { label: 'Approved',     curr: stats.approved,    comp: compStats.approved,    color: '#E91C24' },
-    { label: 'Seeded',       curr: stats.seeded,      comp: compStats.seeded,      color: '#7739D9' },
-    { label: 'Proposed',     curr: stats.proposed,    comp: compStats.proposed,    color: '#086AE3' },
-    { label: 'Retail',       curr: stats.retail,      comp: compStats.retail,      color: '#00408C' },
-    { label: 'xScale',       curr: stats.xscale,      comp: compStats.xscale,      color: '#411980' },
-    { label: 'Total Weight', curr: stats.totalWeight, comp: compStats.totalWeight, color: '#E91C24', isFloat: true },
+  const statItems: { label: string; metric: string; curr: number; comp: number; color: string; isFloat?: boolean }[] = [
+    { label: 'Total',    metric: 'count', curr: stats.total,       comp: compStats.total,       color: '#2F3541' },
+    { label: 'Approved', metric: 'count', curr: stats.approved,    comp: compStats.approved,    color: '#E91C24' },
+    { label: 'Seeded',   metric: 'count', curr: stats.seeded,      comp: compStats.seeded,      color: '#7739D9' },
+    { label: 'Proposed', metric: 'count', curr: stats.proposed,    comp: compStats.proposed,    color: '#086AE3' },
+    { label: 'Retail',   metric: 'count', curr: stats.retail,      comp: compStats.retail,      color: '#00408C' },
+    { label: 'xScale',   metric: 'count', curr: stats.xscale,      comp: compStats.xscale,      color: '#411980' },
+    { label: 'Weight',   metric: 'wt',    curr: stats.totalWeight, comp: compStats.totalWeight, color: '#E91C24', isFloat: true },
   ];
 
   return (
@@ -495,58 +495,59 @@ useEffect(() => {
           <div style={{ padding: '9px 16px', borderRight: '1px solid #E0E3E8', flexShrink: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1, whiteSpace: 'nowrap' }}>Projects</div>
           </div>
-          {statItems.map(({ label, curr, comp, color, isFloat }) => (
+          {statItems.map(({ label, metric, curr, comp, color, isFloat }) => (
             <div key={label} style={{
               display: 'flex', flexDirection: 'column', justifyContent: 'center',
-              padding: '7px 13px', flex: '1 1 auto',
+              padding: '6px 10px', flex: '1 1 auto',
               borderRight: '1px solid #E0E3E8', minWidth: 0,
             }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                <span style={{ fontSize: 18, fontWeight: 700, color, lineHeight: 1 }}>{isFloat ? curr.toFixed(1) : curr}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', lineHeight: 1.4, whiteSpace: 'nowrap' }}>{label}</span>
+              <span style={{ fontSize: 19, fontWeight: 700, color, lineHeight: 1 }}>{isFloat ? curr.toFixed(1) : curr}</span>
+              <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{label}</span>
+                <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· {metric}</span>
               </div>
               {compCycleId && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                  <span style={{ fontSize: 10, color: '#8B93A3' }}>{isFloat ? comp.toFixed(1) : comp}</span>
-                  <DeltaBadge a={comp} b={curr} size={10} isFloat={isFloat} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                  <span style={{ fontSize: 9, color: '#8B93A3' }}>{isFloat ? comp.toFixed(1) : comp}</span>
+                  <DeltaBadge a={comp} b={curr} size={9} isFloat={isFloat} />
                 </div>
               )}
             </div>
           ))}
-          {/* Region selector */}
-          <div style={{ padding: '0 12px', borderRight: '1px solid #E0E3E8', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Region</span>
-            <select
-              value={selectedRegionId ?? ''}
-              onChange={e => { setSelectedRegionId(e.target.value ? parseInt(e.target.value, 10) : null); setCountryFilter(''); }}
-              style={{ background: '#F2F3F5', border: '1px solid #E0E3E8', color: '#111827', fontSize: 12, fontWeight: 500, borderRadius: 4, padding: '3px 6px', cursor: 'pointer', outline: 'none', width: 90 }}
-            >
-              <option value="">All</option>
-              {regions.map(r => <option key={r.id} value={r.id}>{r.code}</option>)}
-            </select>
-          </div>
           {/* Planning cycle selector */}
-          <div style={{ padding: '0 12px', borderRight: '1px solid #E0E3E8', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Cycle</span>
+          <div style={{ padding: '0 10px', borderRight: '1px solid #E0E3E8', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+            <span style={{ fontSize: 7, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Cycle</span>
             <select
               value={selectedCycleId ?? ''}
               onChange={e => setSelectedCycleId(e.target.value ? parseInt(e.target.value, 10) : null)}
-              style={{ background: '#F2F3F5', border: '1px solid #E0E3E8', color: '#111827', fontSize: 12, fontWeight: 500, borderRadius: 4, padding: '3px 6px', cursor: 'pointer', outline: 'none' }}
+              style={{ background: '#F2F3F5', border: '1px solid #E0E3E8', color: '#111827', fontSize: 11, fontWeight: 500, borderRadius: 4, padding: '2px 5px', cursor: 'pointer', outline: 'none' }}
             >
               <option value="">All cycles</option>
               {cycles.filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          {/* Comparison cycle selector */}
-          <div style={{ padding: '0 12px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>vs</span>
+          {/* Y-O-Y comparison cycle selector */}
+          <div style={{ padding: '0 10px', borderRight: '1px solid #E0E3E8', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+            <span style={{ fontSize: 7, fontWeight: 700, color: '#5A657B', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>YoY comparison</span>
             <select
               value={compCycleId ?? ''}
               onChange={e => setCompCycleId(e.target.value ? parseInt(e.target.value, 10) : null)}
-              style={{ background: '#F2F3F5', border: '1px solid #E0E3E8', color: '#111827', fontSize: 12, fontWeight: 500, borderRadius: 4, padding: '3px 6px', cursor: 'pointer', outline: 'none' }}
+              style={{ background: '#F2F3F5', border: '1px solid #E0E3E8', color: '#111827', fontSize: 11, fontWeight: 500, borderRadius: 4, padding: '2px 5px', cursor: 'pointer', outline: 'none' }}
             >
               <option value="">None</option>
               {cycles.filter(c => c.is_active && c.id !== selectedCycleId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          {/* Region selector — far right */}
+          <div style={{ padding: '0 10px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+            <span style={{ fontSize: 7, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Region</span>
+            <select
+              value={selectedRegionId ?? ''}
+              onChange={e => { setSelectedRegionId(e.target.value ? parseInt(e.target.value, 10) : null); setCountryFilter(''); }}
+              style={{ background: '#F2F3F5', border: '1px solid #E0E3E8', color: '#111827', fontSize: 11, fontWeight: 500, borderRadius: 4, padding: '2px 5px', cursor: 'pointer', outline: 'none', width: 82 }}
+            >
+              <option value="">All</option>
+              {regions.map(r => <option key={r.id} value={r.id}>{r.code}</option>)}
             </select>
           </div>
         </div>
