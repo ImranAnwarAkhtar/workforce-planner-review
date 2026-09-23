@@ -224,6 +224,7 @@ export default function Projects() {
   const [postingComment,  setPostingComment]  = useState(false);
 
   const [hoveredCell, setHoveredCell] = useState<{ country: string; status: string } | null>(null);
+  const [hoveredCountryHeader, setHoveredCountryHeader] = useState<{ name: string; x: number; y: number } | null>(null);
 
   const [compCycleId,  setCompCycleId]  = useState<number | null>(null);
   const [compProjects, setCompProjects] = useState<Project[]>([]);
@@ -657,12 +658,16 @@ useEffect(() => {
                 const flag16 = flagUrl(country, 20);
                 const flag32 = flagUrl(country, 40);
                 return (
-                  <div key={country} style={{
-                    width: COL_W, flexShrink: 0,
-                    padding: '7px 10px',
-                    borderRight: ci < countriesList.length - 1 ? '1px solid rgba(255,255,255,0.30)' : 'none',
-                    display: 'flex', alignItems: 'center', gap: 7,
-                  }}>
+                  <div key={country}
+                    onMouseEnter={e => setHoveredCountryHeader({ name: country, x: e.clientX, y: e.clientY })}
+                    onMouseLeave={() => setHoveredCountryHeader(null)}
+                    style={{
+                      width: COL_W, flexShrink: 0,
+                      padding: '7px 10px',
+                      borderRight: ci < countriesList.length - 1 ? '1px solid rgba(255,255,255,0.30)' : 'none',
+                      display: 'flex', alignItems: 'center', gap: 7,
+                      cursor: 'default',
+                    }}>
                     {flag16 && (
                       <img
                         src={flag16}
@@ -881,6 +886,79 @@ useEffect(() => {
         </div>
         )}
       </div>
+
+      {/* ── Country header hover tooltip ── */}
+      {hoveredCountryHeader && (() => {
+        const entry = countryGroups.find(([c]) => c === hoveredCountryHeader.name);
+        if (!entry) return null;
+        const [, projs] = entry;
+        const sorted = [...projs].sort((a, b) => {
+          const sd = (STATUS_ORDER[a.status as keyof typeof STATUS_ORDER] ?? 9)
+                   - (STATUS_ORDER[b.status as keyof typeof STATUS_ORDER] ?? 9);
+          return sd !== 0 ? sd : a.name.localeCompare(b.name);
+        });
+        const totalWeight = projs.reduce((s, p) => s + (Number(p.weight) || 1), 0);
+        const LIMIT = 12;
+        const visible = sorted.slice(0, LIMIT);
+        const overflow = sorted.length - LIMIT;
+
+        const tipW = 290;
+        const tipH = 60 + visible.length * 26 + (overflow > 0 ? 20 : 0);
+        const x = Math.min(hoveredCountryHeader.x + 12, window.innerWidth - tipW - 8);
+        const y = Math.min(hoveredCountryHeader.y + 14, window.innerHeight - tipH - 8);
+
+        return (
+          <div style={{
+            position: 'fixed', zIndex: 999,
+            left: x, top: y,
+            background: '#1A1A2E', color: '#FFFFFF',
+            border: '1px solid #333355', borderRadius: 8,
+            padding: '10px 12px', width: tipW,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            pointerEvents: 'none' as const,
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
+                {hoveredCountryHeader.name}
+              </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{projs.length} project{projs.length !== 1 ? 's' : ''}</span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#E91C24' }}>Wt {totalWeight.toFixed(1)}</span>
+              </div>
+            </div>
+
+            {/* Project list */}
+            {visible.map(p => {
+              const sm = statusMeta(p.status);
+              const tm = typeMeta(p.type ?? '');
+              return (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: sm.dot }} />
+                  <span style={{ fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                    {p.name}
+                  </span>
+                  {p.type && (
+                    <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3, background: tm.bg, color: tm.color, flexShrink: 0 }}>
+                      {p.type}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: sm.pill, color: '#FFF', fontWeight: 700, flexShrink: 0 }}>
+                    {p.status}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', flexShrink: 0, minWidth: 30, textAlign: 'right' as const }}>
+                    {Number(p.weight) || 1}
+                  </span>
+                </div>
+              );
+            })}
+
+            {overflow > 0 && (
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>+{overflow} more</div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Add / Edit modal */}
       {modalOpen && (
