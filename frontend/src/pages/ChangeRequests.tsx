@@ -103,40 +103,51 @@ export default function ChangeRequests() {
 
       {/* ── Banner ── */}
       <div style={{
-        flexShrink: 0, display: 'flex', alignItems: 'center',
+        flexShrink: 0, display: 'flex', alignItems: 'stretch',
         background: '#FFFFFF', border: '1px solid #E0E3E8', borderBottom: '3px solid #E91C24',
-        borderRadius: 8, marginBottom: 8, padding: '9px 16px', gap: 20,
+        borderRadius: 8, marginBottom: 8, overflow: 'hidden',
       }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>Change Requests</span>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          {[
-            { label: 'Total',       value: counts.total,      color: '#5A657B' },
-            { label: 'Open',        value: counts.open,       color: '#5A657B' },
-            { label: 'In Progress', value: counts.inProgress, color: '#3B4ECA' },
-            { label: 'Actioned',    value: counts.actioned,   color: '#2A8346' },
-            { label: 'On Hold',     value: counts.onHold,     color: '#D97706' },
-          ].map(({ label, value, color }) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color }}>{value}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
-            </div>
-          ))}
-
-          {/* Divider */}
-          <div style={{ width: 1, height: 28, background: '#E0E3E8', flexShrink: 0 }} />
-
-          {[
-            { label: 'TBH In Plan',     value: counts.tbhInPlan,    total: rows.filter(r => r['TBH Code']).length },
-            { label: 'New TBH In Plan', value: counts.newTbhInPlan, total: rows.filter(r => r['New TBH Code']).length },
-          ].map(({ label, value, total }) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#2A8346' }}>{value}</span>
-              <span style={{ fontSize: 12, fontWeight: 400, color: '#9CA3AF' }}>/{total}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
-            </div>
-          ))}
+        {/* Title */}
+        <div style={{ padding: '9px 16px', borderRight: '1px solid #E0E3E8', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>Change Requests</span>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
+
+        {/* Status stats */}
+        {[
+          { label: 'Total',       value: counts.total,      color: '#5A657B' },
+          { label: 'Open',        value: counts.open,       color: '#5A657B' },
+          { label: 'In Progress', value: counts.inProgress, color: '#3B4ECA' },
+          { label: 'Actioned',    value: counts.actioned,   color: '#2A8346' },
+          { label: 'On Hold',     value: counts.onHold,     color: '#D97706' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', flex: '1 1 auto', borderRight: '1px solid #E0E3E8', minWidth: 0 }}>
+            <span style={{ fontSize: 19, fontWeight: 700, color, lineHeight: 1 }}>{value}</span>
+            <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{label}</span>
+              <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
+            </div>
+          </div>
+        ))}
+
+        {/* TBH stats — separated by a thicker left border on the first item */}
+        {[
+          { label: 'TBH In Plan',     value: counts.tbhInPlan,    total: rows.filter(r => r['TBH Code']).length },
+          { label: 'New TBH In Plan', value: counts.newTbhInPlan, total: rows.filter(r => r['New TBH Code']).length },
+        ].map(({ label, value, total }, i) => (
+          <div key={label} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', flex: '1 1 auto', borderLeft: i === 0 ? '3px solid #E0E3E8' : undefined, borderRight: '1px solid #E0E3E8', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+              <span style={{ fontSize: 19, fontWeight: 700, color: '#2A8346', lineHeight: 1 }}>{value}</span>
+              <span style={{ fontSize: 11, fontWeight: 400, color: '#9CA3AF' }}>/{total}</span>
+            </div>
+            <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{label}</span>
+              <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
+            </div>
+          </div>
+        ))}
+
+        {/* Refresh */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: '0 14px', flexShrink: 0 }}>
           <button
             onClick={loadData}
             disabled={loading}

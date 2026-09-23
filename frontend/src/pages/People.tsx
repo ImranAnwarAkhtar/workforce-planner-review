@@ -425,14 +425,20 @@ export default function People() {
           </div>
           {!loading && people.length > 0 && (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRight: '1px solid #E0E3E8' }}>
-                <span style={{ fontSize: 17, fontWeight: 700, color: '#E91C24', lineHeight: 1 }}>{people.length}</span>
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>Total</span>
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', flex: '1 1 auto', borderRight: '1px solid #E0E3E8', minWidth: 0 }}>
+                <span style={{ fontSize: 19, fontWeight: 700, color: '#E91C24', lineHeight: 1 }}>{people.length}</span>
+                <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Total</span>
+                  <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
+                </div>
               </div>
               {regionStats.map(([region, count]) => (
-                <div key={region} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', flex: '1 1 auto', borderRight: '1px solid #E0E3E8' }}>
-                  <span style={{ fontSize: 17, fontWeight: 700, color: regionColor(region), lineHeight: 1 }}>{count}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>{region}</span>
+                <div key={region} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', flex: '1 1 auto', borderRight: '1px solid #E0E3E8', minWidth: 0 }}>
+                  <span style={{ fontSize: 19, fontWeight: 700, color: regionColor(region), lineHeight: 1 }}>{count}</span>
+                  <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{region}</span>
+                    <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
+                  </div>
                 </div>
               ))}
             </>
@@ -447,9 +453,12 @@ export default function People() {
           <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid #E0E3E8', padding: '6px 16px', gap: 20, flexWrap: 'wrap' as const }}>
             <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.1em', flexShrink: 0 }}>By Discipline</span>
             {disciplineStats.map(([disc, count]) => (
-              <div key={disc} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ fontSize: 15, fontWeight: 800, color: DISC_LABEL_COLOR(disc), lineHeight: 1 }}>{count}</span>
-                <span style={{ fontSize: 9, fontWeight: 600, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>{disc}</span>
+              <div key={disc} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <span style={{ fontSize: 17, fontWeight: 800, color: DISC_LABEL_COLOR(disc), lineHeight: 1 }}>{count}</span>
+                <div style={{ marginTop: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{disc}</span>
+                  <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
+                </div>
               </div>
             ))}
           </div>

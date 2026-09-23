@@ -259,7 +259,7 @@ export default function Summary() {
 
   const SEL_SM: React.CSSProperties = {
     background: '#F2F3F5', border: '1px solid #E0E3E8', color: '#111827',
-    fontSize: 12, fontWeight: 500, borderRadius: 4, padding: '3px 6px',
+    fontSize: 11, fontWeight: 500, borderRadius: 4, padding: '2px 5px',
     cursor: 'pointer', outline: 'none',
   };
 
@@ -276,14 +276,14 @@ export default function Summary() {
         </div>
 
         {/* Total heads */}
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '7px 13px', borderRight: '1px solid #E0E3E8', minWidth: 0, flex: '1 1 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{ fontSize: 18, fontWeight: 700, color: '#111827', lineHeight: 1 }}>
-              {loading ? '—' : derive(totals).total || '—'}
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Total</span>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', borderRight: '1px solid #E0E3E8', minWidth: 0, flex: '1 1 auto' }}>
+          <span style={{ fontSize: 19, fontWeight: 700, color: '#111827', lineHeight: 1 }}>
+            {loading ? '—' : derive(totals).total || '—'}
+          </span>
+          <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Total</span>
+            <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
           </div>
-          {!loading && <div style={{ fontSize: 10, color: '#8B93A3', marginTop: 2 }}>{people.length} people</div>}
         </div>
 
         {/* Per-discipline stats */}
@@ -291,18 +291,19 @@ export default function Summary() {
           const meta     = GEARING_STATUS[status];
           const numColor = loading ? '#C8C8C8' : hasGearing ? meta.color : (DISC_COLOUR[disc]?.bg ?? '#5A657B');
           return (
-            <div key={disc} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '7px 13px', borderRight: '1px solid #E0E3E8', minWidth: 0, flex: '1 1 auto' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                <span style={{ fontSize: 18, fontWeight: 700, color: numColor, lineHeight: 1 }}>
-                  {loading ? '—' : (total || '—')}
-                </span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{disc}</span>
+            <div key={disc} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', borderRight: '1px solid #E0E3E8', minWidth: 0, flex: '1 1 auto' }}>
+              <span style={{ fontSize: 19, fontWeight: 700, color: numColor, lineHeight: 1 }}>
+                {loading ? '—' : (total || '—')}
+              </span>
+              <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{disc}</span>
+                <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
               </div>
               {!loading && hasGearing && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                  <span style={{ fontSize: 10, color: '#8B93A3' }}>Min {min}</span>
-                  <span style={{ fontSize: 10, color: '#C8C8C8' }}>·</span>
-                  <span style={{ fontSize: 10, color: '#8B93A3' }}>Max {max}</span>
+                  <span style={{ fontSize: 9, color: '#8B93A3' }}>Min {min}</span>
+                  <span style={{ fontSize: 9, color: '#C8C8C8' }}>·</span>
+                  <span style={{ fontSize: 9, color: '#8B93A3' }}>Max {max}</span>
                   <span style={{
                     fontSize: 9, fontWeight: 700, padding: '0 5px', borderRadius: 6,
                     background: meta.bg, color: meta.color, border: `1px solid ${meta.border}`,
@@ -311,26 +312,26 @@ export default function Summary() {
                 </div>
               )}
               {!loading && !hasGearing && (
-                <div style={{ fontSize: 10, color: '#C8C8C8', marginTop: 2 }}>no gearing</div>
+                <div style={{ fontSize: 9, color: '#C8C8C8', marginTop: 2 }}>no gearing</div>
               )}
             </div>
           );
         })}
 
-        {/* Selectors pushed to right */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <div style={{ padding: '0 10px', borderLeft: '1px solid #E0E3E8', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Region</span>
-            <select value={regionId ?? ''} onChange={e => setRegionId(e.target.value ? Number(e.target.value) : null)} style={{ ...SEL_SM, width: 90 }}>
-              <option value="">All</option>
-              {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-          </div>
-          <div style={{ padding: '0 10px', borderLeft: '1px solid #E0E3E8', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Cycle</span>
+        {/* Selectors pushed to right: Cycle → Region */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'stretch', flexShrink: 0 }}>
+          <div style={{ padding: '0 10px', borderLeft: '1px solid #E0E3E8', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 2 }}>
+            <span style={{ fontSize: 7, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Cycle</span>
             <select value={selectedCycleId ?? ''} onChange={e => setSelectedCycleId(e.target.value ? Number(e.target.value) : null)} style={SEL_SM}>
               <option value="">All cycles</option>
               {cycles.filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div style={{ padding: '0 10px', borderLeft: '1px solid #E0E3E8', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 2 }}>
+            <span style={{ fontSize: 7, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Region</span>
+            <select value={regionId ?? ''} onChange={e => setRegionId(e.target.value ? Number(e.target.value) : null)} style={{ ...SEL_SM, width: 82 }}>
+              <option value="">All</option>
+              {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>
         </div>

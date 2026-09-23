@@ -233,20 +233,24 @@ export default function Recruitment() {
         </div>
 
         {/* Total */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRight: '1px solid #E0E3E8', flexShrink: 0 }}>
-          <span style={{ fontSize: 16, fontWeight: 500, color: '#111827', lineHeight: 1 }}>{tbhCodes.length}</span>
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.07em', lineHeight: 1.3 }}>Total</span>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', borderRight: '1px solid #E0E3E8', flex: '1 1 auto', minWidth: 0 }}>
+          <span style={{ fontSize: 19, fontWeight: 700, color: '#111827', lineHeight: 1 }}>{tbhCodes.length}</span>
+          <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Total</span>
+            <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
+          </div>
         </div>
 
         {/* Per-status counts */}
         {REQ_STATUSES.map(s => (
-          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRight: '1px solid #E0E3E8', flexShrink: 0 }}>
-            <span style={{ fontSize: 16, fontWeight: 500, color: STATUS_BANNER_COLOR[s], lineHeight: 1 }}>
+          <div key={s} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', borderRight: '1px solid #E0E3E8', flex: '1 1 auto', minWidth: 0 }}>
+            <span style={{ fontSize: 19, fontWeight: 700, color: STATUS_BANNER_COLOR[s], lineHeight: 1 }}>
               {statusCounts[s] ?? 0}
             </span>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.07em', lineHeight: 1.3 }}>
-              {s}
-            </span>
+            <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{s}</span>
+              <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
+            </div>
           </div>
         ))}
 

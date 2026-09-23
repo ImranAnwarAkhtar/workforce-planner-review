@@ -335,11 +335,14 @@ export default function Headcount() {
           {/* Stats */}
           {bannerStats.map(s => (
             <div key={s.label} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
-              padding: '10px 16px', flex: '1 1 auto', borderRight: '1px solid #E0E3E8',
+              display: 'flex', flexDirection: 'column', justifyContent: 'center',
+              padding: '6px 10px', flex: '1 1 auto', borderRight: '1px solid #E0E3E8', minWidth: 0,
             }}>
-              <span style={{ fontSize: 17, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</span>
-              <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.07em', lineHeight: 1.4 }}>{s.label}</span>
+              <span style={{ fontSize: 19, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</span>
+              <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{s.label}</span>
+                <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
+              </div>
             </div>
           ))}
 
