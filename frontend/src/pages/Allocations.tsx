@@ -921,14 +921,15 @@ useEffect(() => {
                                 </td>
                               );
                             } else {
-                              const isHov = canEdit && hoveredEmptyCell?.discipline === h.discipline && hoveredEmptyCell?.countryId === g.countryId;
+                              const colHasAlloc = h.allPeople.some(p => (allocMap[p.id]?.[g.countryId] ?? 0) > 0);
+                              const isHov = colHasAlloc && canEdit && hoveredEmptyCell?.discipline === h.discipline && hoveredEmptyCell?.countryId === g.countryId;
                               cells.push(
                                 <td
                                   key={`e${g.countryId}`}
-                                  onMouseEnter={() => { if (canEdit) setHoveredEmptyCell({ discipline: h.discipline, countryId: g.countryId }); }}
+                                  onMouseEnter={() => { if (colHasAlloc && canEdit) setHoveredEmptyCell({ discipline: h.discipline, countryId: g.countryId }); }}
                                   onMouseLeave={() => setHoveredEmptyCell(null)}
-                                  onClick={() => { if (canEdit) openAddModal(h.disciplineId ?? undefined); }}
-                                  style={{ padding: isHov ? '3px 4px' : '4px 2px', borderRight: '1px solid #E0E3E8', borderBottom: '1px solid #EEF0F3', background: rowBg, cursor: canEdit ? 'pointer' : 'default', transition: 'background 0.1s' }}
+                                  onClick={() => { if (colHasAlloc && canEdit) openAddModal(h.disciplineId ?? undefined); }}
+                                  style={{ padding: isHov ? '3px 4px' : '4px 2px', borderRight: '1px solid #E0E3E8', borderBottom: '1px solid #EEF0F3', background: rowBg, cursor: (colHasAlloc && canEdit) ? 'pointer' : 'default', transition: 'background 0.1s' }}
                                 >
                                   {isHov && (
                                     <div style={{
