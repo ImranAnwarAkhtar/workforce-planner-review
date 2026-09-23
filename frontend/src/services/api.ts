@@ -839,7 +839,7 @@ export interface HubIqYearData {
 }
 
 export interface HubIqTrendRow   { year: number; status: string; count: number }
-export interface HubIqTbhStatus  { req_status: string; count: number }
+export interface HubIqTbhStatus  { funding_year: number; req_status: string; count: number }
 
 export interface HubIqResponse {
   available_years:    number[];

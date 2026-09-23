@@ -1400,19 +1400,29 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
 // HIRE STATUS TAB
 // ---------------------------------------------------------------------------
 
-function HireStatusTab({ tbhStatus }: { tbhStatus: { req_status: string; count: number }[] }) {
+function HireStatusTab({ yearA, yearB, tbhStatus }: { yearA: number; yearB: number; tbhStatus: { funding_year: number; req_status: string; count: number }[] }) {
+  const [activeYear, setActiveYear] = useState(yearA);
+
   const STAGE_ORDER = ['Req not raised', 'Not Raised', 'Screening', 'Screen', 'Interview', 'Offer Accepted', 'Hired', 'Closed'];
-  const sorted = [...tbhStatus].sort((a, b) => {
+
+  // Solid colours taken from the sidebar gradient palette endpoints
+  const STAGE_COLORS: Record<string, string> = {
+    'Req not raised': '#E91C24',
+    'Not Raised':     '#E91C24',
+    'Screening':      '#FE9234',
+    'Screen':         '#FE9234',
+    'Interview':      '#086AE3',
+    'Offer Accepted': '#00737A',
+    'Hired':          '#33A85C',
+    'Closed':         '#2F3541',
+  };
+
+  const yearRows = tbhStatus.filter(r => r.funding_year === activeYear);
+  const sorted = [...yearRows].sort((a, b) => {
     const ia = STAGE_ORDER.indexOf(a.req_status), ib = STAGE_ORDER.indexOf(b.req_status);
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
   const total = sorted.reduce((s, r) => s + r.count, 0);
-
-  const STAGE_COLORS: Record<string, string> = {
-    'Hired': '#33A85C', 'Closed': '#8B93A3', 'Offer Accepted': '#00737A',
-    'Interview': '#086AE3', 'Screening': '#470063', 'Screen': '#470063',
-    'Not Raised': '#E91C24', 'Req not raised': '#E91C24',
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1420,9 +1430,21 @@ function HireStatusTab({ tbhStatus }: { tbhStatus: { req_status: string; count: 
 
         {/* Horizontal bar chart */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
-          <SectionTitle>TBH Roles by Hiring Stage</SectionTitle>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={sectionLabel}>TBH Roles by Hiring Stage</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[yearA, yearB].map(y => (
+                <button key={y} onClick={() => setActiveYear(y)} style={{
+                  padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                  border: `1px solid ${activeYear === y ? C.accent : C.border}`,
+                  background: activeYear === y ? C.accent : '#FFF',
+                  color: activeYear === y ? '#FFF' : '#555',
+                }}>{y}</button>
+              ))}
+            </div>
+          </div>
           {sorted.length === 0 ? (
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No TBH data</div>
+            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No TBH data for {activeYear}</div>
           ) : (
             <ResponsiveContainer width="100%" height={Math.max(160, sorted.length * 36)}>
               <BarChart data={sorted} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 100 }}>
@@ -1432,7 +1454,7 @@ function HireStatusTab({ tbhStatus }: { tbhStatus: { req_status: string; count: 
                 <Tooltip contentStyle={{ fontSize: 11 }} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]} label={{ position: 'right', fontSize: 11, fill: '#555' }}>
                   {sorted.map((entry, i) => (
-                    <Cell key={i} fill={STAGE_COLORS[entry.req_status] ?? '#AAAAAA'} />
+                    <Cell key={i} fill={STAGE_COLORS[entry.req_status] ?? '#8B93A3'} />
                   ))}
                 </Bar>
               </BarChart>
@@ -1577,7 +1599,7 @@ export default function Dashboard() {
             {activeTab === 'People'      && <PeopleTab      yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} allRegionNames={hubData?.all_region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Gearing'     && <GearingTab     yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
-            {activeTab === 'Hire Status' && <HireStatusTab  tbhStatus={hubData!.tbh_status} />}
+            {activeTab === 'Hire Status' && <HireStatusTab  yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} />}
           </>
         )}
       </div>

@@ -225,11 +225,12 @@ async function fetchShared() {
       ORDER BY year, status
     `),
     pool.query(`
-      SELECT COALESCE(req_status, 'Not Raised') AS req_status, COUNT(*)::int AS count
+      SELECT COALESCE(funding_year, 0) AS funding_year,
+             COALESCE(req_status, 'Not Raised') AS req_status,
+             COUNT(*)::int AS count
       FROM tbh_codes
-      GROUP BY req_status
-      ORDER BY count DESC
-      LIMIT 12
+      GROUP BY funding_year, req_status
+      ORDER BY funding_year, count DESC
     `),
     pool.query(`SELECT name, code FROM regions WHERE name != 'Global' ORDER BY sort_order`),
     pool.query(`SELECT name, code FROM regions ORDER BY sort_order`),
