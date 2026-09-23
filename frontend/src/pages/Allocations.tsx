@@ -117,7 +117,7 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   const [editPerson, setEditPerson] = useState<Person | null>(null);
   const [addModal, setAddModal]     = useState<{ preDisciplineId?: number } | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<{ name: string; x: number; y: number } | null>(null);
-  const [hoveredEmptyCell, setHoveredEmptyCell] = useState<{ discipline: string; countryId: number } | null>(null);
+  const [hoveredEmptyCell, setHoveredEmptyCell] = useState<{ discipline: string; countryId: number; rowIndex: number } | null>(null);
 
   // Add allocation modal state
   const [modalPersonId, setModalPersonId]   = useState<number | ''>('');
@@ -914,11 +914,11 @@ useEffect(() => {
                               );
                             } else {
                               const colHasAlloc = h.allPeople.some(p => (allocMap[p.id]?.[g.countryId] ?? 0) > 0);
-                              const isHov = colHasAlloc && canEdit && hoveredEmptyCell?.discipline === h.discipline && hoveredEmptyCell?.countryId === g.countryId;
+                              const isHov = colHasAlloc && canEdit && hoveredEmptyCell?.discipline === h.discipline && hoveredEmptyCell?.countryId === g.countryId && hoveredEmptyCell?.rowIndex === ri;
                               cells.push(
                                 <td
                                   key={`e${g.countryId}`}
-                                  onMouseEnter={() => { if (colHasAlloc && canEdit) setHoveredEmptyCell({ discipline: h.discipline, countryId: g.countryId }); }}
+                                  onMouseEnter={() => { if (colHasAlloc && canEdit) setHoveredEmptyCell({ discipline: h.discipline, countryId: g.countryId, rowIndex: ri }); }}
                                   onMouseLeave={() => setHoveredEmptyCell(null)}
                                   onClick={() => { if (colHasAlloc && canEdit) openAddModal(h.disciplineId ?? undefined); }}
                                   style={{ padding: isHov ? '3px 4px' : '4px 2px', borderRight: '1px solid #E0E3E8', borderBottom: '1px solid #EEF0F3', background: rowBg, cursor: (colHasAlloc && canEdit) ? 'pointer' : 'default', transition: 'background 0.1s' }}
