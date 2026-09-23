@@ -117,6 +117,7 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   const [editPerson, setEditPerson] = useState<Person | null>(null);
   const [addModal, setAddModal]     = useState<{ preDisciplineId?: number } | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<{ name: string; x: number; y: number } | null>(null);
+  const [hoveredEmptyCell, setHoveredEmptyCell] = useState<{ discipline: string; countryId: number } | null>(null);
 
   // Add allocation modal state
   const [modalPersonId, setModalPersonId]   = useState<number | ''>('');
@@ -738,7 +739,7 @@ useEffect(() => {
                         <div
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '7px 10px',
+                            padding: '4px 10px',
                             background: dc.bg, color: dc.text,
                             cursor: 'pointer', userSelect: 'none' as const,
                           }}
@@ -920,8 +921,24 @@ useEffect(() => {
                                 </td>
                               );
                             } else {
+                              const isHov = canEdit && hoveredEmptyCell?.discipline === h.discipline && hoveredEmptyCell?.countryId === g.countryId;
                               cells.push(
-                                <td key={`e${g.countryId}`} style={{ padding: '4px 2px', borderRight: '1px solid #E0E3E8', borderBottom: '1px solid #EEF0F3', background: rowBg }} />
+                                <td
+                                  key={`e${g.countryId}`}
+                                  onMouseEnter={() => { if (canEdit) setHoveredEmptyCell({ discipline: h.discipline, countryId: g.countryId }); }}
+                                  onMouseLeave={() => setHoveredEmptyCell(null)}
+                                  onClick={() => { if (canEdit) openAddModal(h.disciplineId ?? undefined); }}
+                                  style={{ padding: isHov ? '3px 4px' : '4px 2px', borderRight: '1px solid #E0E3E8', borderBottom: '1px solid #EEF0F3', background: rowBg, cursor: canEdit ? 'pointer' : 'default', transition: 'background 0.1s' }}
+                                >
+                                  {isHov && (
+                                    <div style={{
+                                      height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      border: `1px dashed ${dc.text}`, background: `${dc.bg}50`, borderRadius: 4,
+                                    }}>
+                                      <span style={{ fontSize: 10, fontWeight: 700, color: dc.text, opacity: 0.85 }}>+ Person</span>
+                                    </div>
+                                  )}
+                                </td>
                               );
                             }
                             ci++;
