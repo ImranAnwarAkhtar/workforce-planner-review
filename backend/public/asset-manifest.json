@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/static/css/main.c94e046f.css",
-    "main.js": "/static/js/main.d6409cd8.js",
+    "main.js": "/static/js/main.9bdcc14a.js",
     "static/media/equinix-fortress-white.svg": "/static/media/equinix-fortress-white.bb7c94645cc65619617fd3cb92d1e4f6.svg",
     "static/media/equinix-fortress-red.svg": "/static/media/equinix-fortress-red.ab9b5122de8bfcf75784c8480841215e.svg",
     "index.html": "/index.html",
     "main.c94e046f.css.map": "/static/css/main.c94e046f.css.map",
-    "main.d6409cd8.js.map": "/static/js/main.d6409cd8.js.map"
+    "main.9bdcc14a.js.map": "/static/js/main.9bdcc14a.js.map"
   },
   "entrypoints": [
     "static/css/main.c94e046f.css",
-    "static/js/main.d6409cd8.js"
+    "static/js/main.9bdcc14a.js"
   ]
 }

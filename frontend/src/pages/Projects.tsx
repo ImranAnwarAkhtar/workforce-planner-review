@@ -528,7 +528,7 @@ useEffect(() => {
           </div>
           {/* Y-O-Y comparison cycle selector */}
           <div style={{ padding: '0 10px', borderRight: '1px solid #E0E3E8', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-            <span style={{ fontSize: 7, fontWeight: 700, color: '#5A657B', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>YoY comparison</span>
+            <span style={{ fontSize: 7, fontWeight: 700, color: '#5A657B', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>YoY Comparison</span>
             <select
               value={compCycleId ?? ''}
               onChange={e => setCompCycleId(e.target.value ? parseInt(e.target.value, 10) : null)}
