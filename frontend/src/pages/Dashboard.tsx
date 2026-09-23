@@ -930,6 +930,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
   const rc = (name: string) => regionCodeMap[name] || name;
   const [activeYear, setActiveYear] = useState(yearA);
   const data = activeYear === yearA ? dataA : dataB;
+  const [activeLevelYear, setActiveLevelYear] = useState(yearA);
   const [levels, setLevels] = useState<Level[]>([]);
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   useEffect(() => { refDataApi.levels().then(setLevels).catch(() => {}); }, []);
@@ -1132,7 +1133,19 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
 
       {/* Line chart: requests by level */}
       <div style={{ ...cardStyle, padding: '14px 16px' }}>
-        <SectionTitle>Requests by Level</SectionTitle>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={sectionLabel}>Requests by Level</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[yearA, yearB].map(y => (
+              <button key={y} onClick={() => setActiveLevelYear(y)} style={{
+                padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                border: `1px solid ${activeLevelYear === y ? C.accent : C.border}`,
+                background: activeLevelYear === y ? C.accent : '#FFF',
+                color: activeLevelYear === y ? '#FFF' : '#555',
+              }}>{y}</button>
+            ))}
+          </div>
+        </div>
         {levelLineData.length === 0 ? (
           <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>Loading levels…</div>
         ) : (
@@ -1142,17 +1155,20 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
               <XAxis dataKey="level" tick={{ fontSize: 10, fill: C.muted }} />
               <YAxis hide />
               <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : String(v)) as any} />
-              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 6 }} />
-              <Line type="monotone" dataKey={yearA} name={String(yearA)} stroke={C.seeded} strokeWidth={3} dot={false} activeDot={false}
-                label={((p: any) => {
-                  if (typeof p.value !== 'number' || p.value < 1) return <g />;
-                  return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.seeded} fontWeight={700}>{p.value}</text>;
-                }) as any} />
-              <Line type="monotone" dataKey={yearB} name={String(yearB)} stroke={C.retail} strokeWidth={3} dot={false} activeDot={false}
-                label={((p: any) => {
-                  if (typeof p.value !== 'number' || p.value < 1) return <g />;
-                  return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.retail} fontWeight={700}>{p.value}</text>;
-                }) as any} />
+              {activeLevelYear === yearA && (
+                <Line type="monotone" dataKey={yearA} name={String(yearA)} stroke={C.seeded} strokeWidth={3} dot={false} activeDot={false}
+                  label={((p: any) => {
+                    if (typeof p.value !== 'number' || p.value < 1) return <g />;
+                    return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.seeded} fontWeight={700}>{p.value}</text>;
+                  }) as any} />
+              )}
+              {activeLevelYear === yearB && (
+                <Line type="monotone" dataKey={yearB} name={String(yearB)} stroke={C.retail} strokeWidth={3} dot={false} activeDot={false}
+                  label={((p: any) => {
+                    if (typeof p.value !== 'number' || p.value < 1) return <g />;
+                    return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.retail} fontWeight={700}>{p.value}</text>;
+                  }) as any} />
+              )}
             </LineChart>
           </ResponsiveContainer>
         )}
