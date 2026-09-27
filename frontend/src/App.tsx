@@ -14,6 +14,7 @@ import Recruitment from './pages/Recruitment';
 import Admin from './pages/Admin';
 import Import from './pages/Import';
 import Headcount from './pages/Headcount';
+import Summary from './pages/Summary';
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
               <Route path="/change-requests" element={<ChangeRequests />} />
               <Route path="/recruitment"     element={<Recruitment />} />
               <Route path="/headcount"       element={<Headcount />} />
+              <Route path="/summary"         element={<Summary />} />
               <Route path="/admin"           element={<Admin />} />
               <Route path="/import"          element={<Import />} />
             </Route>
