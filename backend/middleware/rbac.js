@@ -25,6 +25,7 @@ const PROFILES = Object.freeze({
 });
 
 const ALL_PROFILES = Object.values(PROFILES);
+const ALL_ROLES = [...Object.values(ROLES), ...ALL_PROFILES]; // backward-compat alias
 
 // Access tiers (the second axis — overrides profile permissions upward)
 const ACCESS_TIERS = Object.freeze({
@@ -85,7 +86,7 @@ function requireRole(...allowedRoles) {
 }
 
 module.exports = {
-  ROLES, PROFILES, ALL_PROFILES, ACCESS_TIERS,
+  ROLES, PROFILES, ALL_PROFILES, ALL_ROLES, ACCESS_TIERS,
   WRITER_ROLES, SENIOR_ROLES,
   effectiveRole, isAdmin, requireRole,
 };
