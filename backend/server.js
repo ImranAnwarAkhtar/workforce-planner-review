@@ -106,6 +106,9 @@ const pool = require('./db/pool');
 pool.query(`
   ALTER TABLE people ADD COLUMN IF NOT EXISTS notes TEXT;
   ALTER TABLE people ADD COLUMN IF NOT EXISTS planning_year INTEGER;
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS system_profile VARCHAR(50);
+  ALTER TABLE users  ADD COLUMN IF NOT EXISTS system_profile VARCHAR(50);
+  ALTER TABLE users  ADD COLUMN IF NOT EXISTS access_tier    VARCHAR(20) NOT NULL DEFAULT 'standard';
   UPDATE levels SET level_name = 'Contingent' WHERE short_code = 'Cons' AND level_name = 'Consultant';
 `).catch(err => logger.error('Startup migration failed', { error: err.message }));
 
