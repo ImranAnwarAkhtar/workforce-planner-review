@@ -307,25 +307,12 @@ app.use('/api/smartsheet', wrapAsync(smartsheetRouter));
 app.use(express.static(path.join(__dirname, 'public')));
 const indexHtml = path.join(__dirname, 'public', 'index.html');
 
-/*
- * REVIEW_MODE: set REVIEW_MODE=true in the Railway *review* service environment variables.
- * Leave unset (or false) on production. No frontend rebuild needed.
- * The React login page reads window.__REVIEW_MODE__ to show/hide the gold evaluation badge.
- */
-const REVIEW_SCRIPT = process.env.REVIEW_MODE === 'true'
-  ? '<script>window.__REVIEW_MODE__=true;</script>'
-  : '';
-
 app.get('/*splat', (req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
   const fs = require('fs');
   fs.access(indexHtml, (err) => {
     if (err) return next();
-    if (!REVIEW_SCRIPT) return res.sendFile(indexHtml);
-    fs.readFile(indexHtml, 'utf8', (readErr, html) => {
-      if (readErr) return res.sendFile(indexHtml);
-      res.type('html').send(html.replace('</head>', REVIEW_SCRIPT + '</head>'));
-    });
+    res.sendFile(indexHtml);
   });
 });
 
