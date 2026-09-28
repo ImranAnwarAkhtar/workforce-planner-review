@@ -22,7 +22,7 @@ function errMsg(e: unknown): string {
   return (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Operation failed';
 }
 
-interface User { id: number; name: string; email: string; role: string; is_active: boolean }
+interface User { id: number; name: string; email: string; role: string; system_profile: string | null; access_tier: string; is_active: boolean; created_at: string }
 
 // ---------------------------------------------------------------------------
 // Loading placeholder
@@ -617,39 +617,269 @@ function RegionsTab() {
   );
 }
 
-function UsersTab() {
-  const [data, setData] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+const USER_PROFILES = [
+  'Senior PMO', 'PMO Team', 'Workforce Planning', 'Administration',
+  'Senior TA', 'Talent Acquisition', 'Finance', 'Department Head', 'Hub Lead', 'EVP',
+];
+const ACCESS_TIERS = ['standard', 'approver', 'administrator'];
+const TIER_STYLE: Record<string, React.CSSProperties> = {
+  standard:      { background: '#F3F4F6', color: '#374151', border: '1px solid #D1D5DB' },
+  approver:      { background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' },
+  administrator: { background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' },
+};
+
+const PROFILE_DEFS = [
+  { name: 'Senior PMO',         colour: '#E91C24', description: 'Full planning authority. Manages planning cycles from draft through approval, edits all people and projects, and can approve hire requests.', caps: ['Edit people & projects', 'All cycle stages', 'Approve hire requests', 'Manage admin settings'] },
+  { name: 'PMO Team',           colour: '#F97316', description: 'Core planning team. Edits people, projects, and allocations during active and under-review cycle stages.', caps: ['Edit people & projects', 'Active & review stages'] },
+  { name: 'Workforce Planning', colour: '#0057B7', description: 'Workforce data management. Maintains people records and allocation data during active planning.', caps: ['Edit people & projects', 'Active & review stages'] },
+  { name: 'Administration',     colour: '#6366F1', description: 'Administrative support. Edit access to people and project data during active cycle stages.', caps: ['Edit people & projects', 'Active & review stages'] },
+  { name: 'Senior TA',          colour: '#059669', description: 'Senior talent acquisition. Reviews, raises, and approves hire requests and manages the recruitment pipeline.', caps: ['Create hire requests', 'Approve hire requests', 'View pipeline'] },
+  { name: 'Talent Acquisition', colour: '#10B981', description: 'Talent acquisition team. Manages the recruitment pipeline and raises hire and change requests.', caps: ['Create hire requests', 'View pipeline'] },
+  { name: 'Finance',            colour: '#B45309', description: 'Finance team. Read access across planning data with visibility of financial and headcount reporting.', caps: ['View all data', 'Financial reports'] },
+  { name: 'Department Head',    colour: '#7C3AED', description: 'Departmental leadership. Edits own project allocations, participates in review stage, and approves departmental hire requests.', caps: ['Edit people & projects', 'Active & review stages', 'Approve hire requests'] },
+  { name: 'Hub Lead',           colour: '#DB2777', description: 'Regional hub leadership. Same edit and approval rights as Department Head, scoped to their regional hub.', caps: ['Edit people & projects', 'Active & review stages', 'Approve hire requests'] },
+  { name: 'EVP',                colour: '#64748B', description: 'Executive leadership. Read access across all planning data with hire request approval authority.', caps: ['View all data', 'Approve hire requests'] },
+];
+
+const TIER_DEFS = [
+  { tier: 'Standard',      colour: '#374151', bg: '#F3F4F6', border: '#D1D5DB', description: 'Access defined entirely by the assigned System Profile. This is the default for all users.' },
+  { tier: 'Approver',      colour: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE', description: 'All profile access, plus the ability to approve hire requests and change requests regardless of profile assignment.' },
+  { tier: 'Administrator', colour: '#92400E', bg: '#FEF3C7', border: '#FDE68A', description: 'Bypasses all profile-based restrictions. Full access to every function in the system. Assign with care.' },
+];
+
+// ── Permission matrix data ─────────────────────────────────────────────────────
+
+const PERM_PROFILES = [
+  { name: 'Senior PMO',         short: 'Sr PMO',     colour: '#E91C24' },
+  { name: 'PMO Team',           short: 'PMO Team',   colour: '#F97316' },
+  { name: 'Workforce Planning', short: 'W. Plan',    colour: '#0057B7' },
+  { name: 'Administration',     short: 'Admin',      colour: '#6366F1' },
+  { name: 'Senior TA',          short: 'Sr TA',      colour: '#059669' },
+  { name: 'Talent Acquisition', short: 'Talent Acq', colour: '#10B981' },
+  { name: 'Finance',            short: 'Finance',    colour: '#B45309' },
+  { name: 'Department Head',    short: 'Dept Head',  colour: '#7C3AED' },
+  { name: 'Hub Lead',           short: 'Hub Lead',   colour: '#DB2777' },
+  { name: 'EVP',                short: 'EVP',        colour: '#64748B' },
+];
+
+const SECTION_ROWS: Array<{ key: string; label: string; group: boolean }> = [
+  { key: 'people',            label: 'People',                group: true  },
+  { key: 'people.view',       label: 'View people list',      group: false },
+  { key: 'people.edit',       label: 'Add & edit person',     group: false },
+  { key: 'people.deactivate', label: 'Deactivate person',     group: false },
+  { key: 'people.delete',     label: 'Hard delete',           group: false },
+  { key: 'projects',          label: 'Projects',              group: true  },
+  { key: 'projects.view',     label: 'View projects',         group: false },
+  { key: 'projects.edit',     label: 'Create & edit',         group: false },
+  { key: 'allocations',       label: 'Allocations',           group: true  },
+  { key: 'allocations.view',  label: 'View allocations',      group: false },
+  { key: 'allocations.edit',  label: 'Edit allocations',      group: false },
+  { key: 'cycles',            label: 'Planning Cycles',       group: true  },
+  { key: 'cycles.view',       label: 'View cycles',           group: false },
+  { key: 'cycles.manage',     label: 'Create & manage',       group: false },
+  { key: 'cycles.draft',      label: 'Edit: Draft stage',     group: false },
+  { key: 'cycles.active',     label: 'Edit: Active stage',    group: false },
+  { key: 'cycles.review',     label: 'Edit: Review stage',    group: false },
+  { key: 'talent',            label: 'Talent Acquisition',    group: true  },
+  { key: 'talent.view',       label: 'View pipeline',         group: false },
+  { key: 'talent.create',     label: 'Create hire requests',  group: false },
+  { key: 'talent.approve',    label: 'Approve hire requests', group: false },
+  { key: 'changes',           label: 'Change Requests',       group: true  },
+  { key: 'changes.view',      label: 'View changes',          group: false },
+  { key: 'changes.create',    label: 'Create requests',       group: false },
+  { key: 'changes.status',    label: 'Update plan status',    group: false },
+  { key: 'reports',           label: 'Reports & Dashboard',   group: true  },
+  { key: 'reports.view',      label: 'View dashboard',        group: false },
+  { key: 'reports.finance',   label: 'Finance data',          group: false },
+  { key: 'admin',             label: 'Administration',        group: true  },
+  { key: 'admin.view',        label: 'View admin panel',      group: false },
+  { key: 'admin.refdata',     label: 'Edit reference data',   group: false },
+  { key: 'admin.access',      label: 'Manage user access',    group: false },
+];
+
+type PermLevel = 'none' | 'view' | 'edit' | 'full';
+const LEVEL_CYCLE: PermLevel[] = ['none', 'view', 'edit', 'full'];
+const LEVEL_CFG: Record<PermLevel, { label: string; bg: string; color: string; border: string }> = {
+  none: { label: '—',    bg: '#F9FAFB', color: '#9CA3AF', border: '#E5E7EB' },
+  view: { label: 'View', bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  edit: { label: 'Edit', bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+  full: { label: 'Full', bg: '#FFF1F2', color: '#E91C24', border: '#FECDD3' },
+};
+
+const W = ['Senior PMO', 'PMO Team', 'Workforce Planning', 'Administration', 'Department Head', 'Hub Lead'];
+const S = ['Senior PMO', 'Senior TA', 'Department Head', 'Hub Lead', 'EVP'];
+
+function defaultPermLevel(sectionKey: string, profile: string): PermLevel {
+  switch (sectionKey) {
+    case 'people.view':       return 'view';
+    case 'people.edit':       return W.includes(profile) ? 'edit' : 'none';
+    case 'people.deactivate': return W.includes(profile) ? 'edit' : 'none';
+    case 'people.delete':     return ['Senior PMO', 'Workforce Planning'].includes(profile) ? 'full' : 'none';
+    case 'projects.view':     return 'view';
+    case 'projects.edit':     return W.includes(profile) ? 'edit' : 'none';
+    case 'allocations.view':  return 'view';
+    case 'allocations.edit':  return W.includes(profile) ? 'edit' : 'none';
+    case 'cycles.view':       return 'view';
+    case 'cycles.manage':     return profile === 'Senior PMO' ? 'full' : 'none';
+    case 'cycles.draft':      return profile === 'Senior PMO' ? 'edit' : 'none';
+    case 'cycles.active':     return W.includes(profile) ? 'edit' : 'none';
+    case 'cycles.review':     return W.includes(profile) ? 'edit' : 'none';
+    case 'talent.view':       return 'view';
+    case 'talent.create':     return 'edit';
+    case 'talent.approve':    return S.includes(profile) ? 'full' : 'none';
+    case 'changes.view':      return 'view';
+    case 'changes.create':    return 'edit';
+    case 'changes.status':    return 'edit';
+    case 'reports.view':      return 'view';
+    case 'reports.finance':   return ['Senior PMO', 'PMO Team', 'Finance'].includes(profile) ? 'view' : 'none';
+    case 'admin.view':        return ['Senior PMO', 'PMO Team', 'Workforce Planning', 'Administration'].includes(profile) ? 'view' : 'none';
+    case 'admin.refdata':     return ['Senior PMO', 'PMO Team', 'Workforce Planning'].includes(profile) ? 'edit' : 'none';
+    case 'admin.access':      return profile === 'Senior PMO' ? 'full' : 'none';
+    default:                  return 'none';
+  }
+}
+
+function UserAccessTab() {
+  const [dbPerms, setDbPerms]   = useState<Record<string, Record<string, PermLevel>>>({});
+  const [local, setLocal]       = useState<Record<string, Record<string, PermLevel>>>({});
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
   useEffect(() => {
-    rawClient.get<{ data: User[] }>('/admin/users')
-      .then(r => setData(r.data.data))
-      .catch(() => setError(true))
+    rawClient.get<{ data: Array<{ profile: string; section_key: string; level: PermLevel }> }>('/admin/profile-permissions')
+      .then(r => {
+        const map: Record<string, Record<string, PermLevel>> = {};
+        for (const row of r.data.data) {
+          if (!map[row.profile]) map[row.profile] = {};
+          map[row.profile][row.section_key] = row.level;
+        }
+        setDbPerms(map);
+      })
+      .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function getLevel(sectionKey: string, profile: string): PermLevel {
+    return local[profile]?.[sectionKey] ?? dbPerms[profile]?.[sectionKey] ?? defaultPermLevel(sectionKey, profile);
+  }
+
+  function cycleCell(sectionKey: string, profile: string) {
+    const cur = getLevel(sectionKey, profile);
+    const next = LEVEL_CYCLE[(LEVEL_CYCLE.indexOf(cur) + 1) % LEVEL_CYCLE.length];
+    setLocal(prev => ({ ...prev, [profile]: { ...(prev[profile] ?? {}), [sectionKey]: next } }));
+  }
+
+  const unsaved = Object.entries(local).reduce((n, [prof, secs]) =>
+    n + Object.entries(secs).filter(([k, v]) => v !== (dbPerms[prof]?.[k] ?? defaultPermLevel(k, prof))).length, 0);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const allPerms = PERM_PROFILES.flatMap(p =>
+        SECTION_ROWS.filter(r => !r.group).map(r => ({ profile: p.name, section_key: r.key, level: getLevel(r.key, p.name) }))
+      );
+      await rawClient.put('/admin/profile-permissions/save', { permissions: allPerms });
+      setDbPerms(prev => {
+        const next = { ...prev };
+        for (const [prof, secs] of Object.entries(local)) next[prof] = { ...(next[prof] ?? {}), ...secs };
+        return next;
+      });
+      setLocal({});
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2500);
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  const leafRows = SECTION_ROWS.filter(r => !r.group);
+
   return (
-    <div style={card}>
-      {error && <div style={{ padding: '12px 16px', fontSize: 13, color: '#996600', background: '#FFFBEB', borderBottom: '1px solid #F5DFA0' }}>⚠ Requires PMO role — data may not be available</div>}
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={th}>ID</th><th style={th}>Name</th><th style={th}>Email</th><th style={th}>Role</th><th style={th}>Active</th></tr></thead>
-        <tbody>
-          {loading ? <LoadingRows cols={5} /> : data.length === 0 ? (
-            <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: '#555' }}>No users or insufficient permissions</td></tr>
-          ) : data.map(u => (
-            <tr key={u.id}>
-              <td style={td}>{u.id}</td>
-              <td style={{ ...td, color: '#111111', fontWeight: 500 }}>{u.name}</td>
-              <td style={td}>{u.email}</td>
-              <td style={td}><span style={{ padding: '1px 8px', borderRadius: 10, background: '#F0ECFF', color: '#6644BB', border: '1px solid #C5B8F0', fontSize: 11, fontWeight: 600 }}>{u.role}</span></td>
-              <td style={td}>
-                <span style={{ color: u.is_active ? '#33A85C' : '#E91C24', fontSize: 12, fontWeight: 600 }}>
-                  {u.is_active ? 'Active' : 'Inactive'}
-                </span>
-              </td>
+    <div>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: '#666' }}>
+          Click any cell to cycle: <strong style={{ color: '#9CA3AF' }}>—</strong> → <strong style={{ color: '#1D4ED8' }}>View</strong> → <strong style={{ color: '#15803D' }}>Edit</strong> → <strong style={{ color: '#E91C24' }}>Full</strong>
+        </span>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {unsaved > 0 && (
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 5, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A' }}>
+              {unsaved} unsaved {unsaved === 1 ? 'change' : 'changes'}
+            </span>
+          )}
+          {savedFlash && (
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 5, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' }}>Saved ✓</span>
+          )}
+          <button onClick={handleSave} disabled={saving || unsaved === 0}
+            style={{ padding: '7px 18px', background: unsaved > 0 ? '#E91C24' : '#D5D5D5', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: unsaved > 0 ? 'pointer' : 'default', transition: 'background 0.15s' }}>
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+
+      {/* Matrix table */}
+      <div style={{ overflowX: 'auto', border: '1px solid #E5E5E5', borderRadius: 8 }}>
+        <table style={{ borderCollapse: 'collapse', minWidth: 900 }}>
+          <thead>
+            <tr style={{ background: '#F8F9FA' }}>
+              <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, background: '#F8F9FA', zIndex: 2, borderRight: '2px solid #E0E0E0', borderBottom: '1px solid #E0E0E0', minWidth: 190, whiteSpace: 'nowrap' }}>Section / Action</th>
+              {PERM_PROFILES.map(p => (
+                <th key={p.name} style={{ padding: '8px 6px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: p.colour, textTransform: 'uppercase', letterSpacing: '0.05em', borderLeft: '1px solid #EEEEEE', borderBottom: '1px solid #E0E0E0', minWidth: 72, whiteSpace: 'nowrap' }}>
+                  {p.short}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={PERM_PROFILES.length + 1} style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: '#888' }}>Loading permissions…</td></tr>
+            ) : SECTION_ROWS.map((row, idx) => {
+              if (row.group) {
+                return (
+                  <tr key={row.key} style={{ background: '#F2F3F4' }}>
+                    <td colSpan={PERM_PROFILES.length + 1} style={{ padding: '7px 16px', fontSize: 10, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.08em', borderTop: idx > 0 ? '2px solid #D1D5DB' : undefined, position: 'sticky', left: 0 }}>
+                      {row.label}
+                    </td>
+                  </tr>
+                );
+              }
+              const rowBg = leafRows.indexOf(row) % 2 === 0 ? '#FFFFFF' : '#FAFAFA';
+              return (
+                <tr key={row.key} style={{ background: rowBg }}>
+                  <td style={{ padding: '6px 16px 6px 26px', fontSize: 12, color: '#374151', position: 'sticky', left: 0, background: rowBg, borderRight: '2px solid #E0E0E0', borderBottom: '1px solid #F0F0F0', whiteSpace: 'nowrap' }}>
+                    {row.label}
+                  </td>
+                  {PERM_PROFILES.map(p => {
+                    const level = getLevel(row.key, p.name);
+                    const cfg = LEVEL_CFG[level];
+                    const isDirty = local[p.name]?.[row.key] !== undefined &&
+                      local[p.name]?.[row.key] !== (dbPerms[p.name]?.[row.key] ?? defaultPermLevel(row.key, p.name));
+                    return (
+                      <td key={p.name} style={{ padding: '4px 3px', textAlign: 'center', borderLeft: '1px solid #F0F0F0', borderBottom: '1px solid #F0F0F0' }}>
+                        <button onClick={() => cycleCell(row.key, p.name)}
+                          title={`${p.name} — ${level} — click to change`}
+                          style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 4, cursor: 'pointer', minWidth: 40, outline: isDirty ? '2px solid #F59E0B' : 'none', outlineOffset: 1 }}>
+                          {cfg.label}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap', fontSize: 11, color: '#666' }}>
+        {(Object.entries(LEVEL_CFG) as [PermLevel, typeof LEVEL_CFG[PermLevel]][]).map(([level, cfg]) => (
+          <span key={level} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ padding: '1px 6px', borderRadius: 3, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontWeight: 700, fontSize: 10 }}>{cfg.label}</span>
+            <span>{level === 'none' ? 'No access' : level === 'view' ? 'Read only' : level === 'edit' ? 'Create & modify' : 'Full incl. admin actions'}</span>
+          </span>
+        ))}
+        <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>Unsaved changes highlighted in amber</span>
+      </div>
     </div>
   );
 }
@@ -1070,7 +1300,7 @@ function GearingRatiosTab() {
 // Admin page
 // ---------------------------------------------------------------------------
 
-const TABS = ['Planning Cycles', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'Users', 'Gearing Ratios'] as const;
+const TABS = ['Planning Cycles', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'User Access', 'Gearing Ratios'] as const;
 type Tab = typeof TABS[number];
 
 export default function Admin() {
@@ -1101,7 +1331,7 @@ export default function Admin() {
       {activeTab === 'Levels'         && <LevelsTab />}
       {activeTab === 'Contract Types' && <ContractTypesTab />}
       {activeTab === 'Regions'        && <RegionsTab />}
-      {activeTab === 'Users'          && <UsersTab />}
+      {activeTab === 'User Access'     && <UserAccessTab />}
       {activeTab === 'Gearing Ratios' && <GearingRatiosTab />}
     </div>
   );

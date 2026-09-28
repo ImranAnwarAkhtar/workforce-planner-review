@@ -369,4 +369,46 @@ router.delete('/contract-types/:id', requireAuth, requireRole(ROLES.PMO, ROLES.W
   }
 });
 
+// ── Profile permissions matrix ────────────────────────────────────────────────
+
+router.get('/profile-permissions', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT profile, section_key, level FROM profile_permissions');
+    res.json({ data: rows });
+  } catch {
+    res.json({ data: [] });
+  }
+});
+
+router.put('/profile-permissions/save', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  const { permissions } = req.body;
+  if (!Array.isArray(permissions) || permissions.length === 0) {
+    return res.status(400).json({ error: 'permissions array required' });
+  }
+  const VALID_LEVELS = ['none', 'view', 'edit', 'full'];
+  const clean = permissions.filter(p => p.profile && p.section_key && VALID_LEVELS.includes(p.level));
+  if (!clean.length) return res.status(400).json({ error: 'No valid permission entries' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const placeholders = clean.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3}, NOW())`).join(', ');
+    const values = clean.flatMap(p => [p.profile, p.section_key, p.level]);
+    await client.query(
+      `INSERT INTO profile_permissions (profile, section_key, level, updated_at)
+       VALUES ${placeholders}
+       ON CONFLICT (profile, section_key) DO UPDATE SET level = EXCLUDED.level, updated_at = NOW()`,
+      values
+    );
+    await client.query('COMMIT');
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'profile_permissions', newValues: { saved: clean.length }, ipAddress: req.ip });
+    res.json({ data: { saved: clean.length } });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

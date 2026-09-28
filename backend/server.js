@@ -112,6 +112,16 @@ pool.query(`
   UPDATE levels SET level_name = 'Contingent' WHERE short_code = 'Cons' AND level_name = 'Consultant';
 `).catch(err => logger.error('Startup migration failed', { error: err.message }));
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS profile_permissions (
+    profile     VARCHAR(50)  NOT NULL,
+    section_key VARCHAR(100) NOT NULL,
+    level       VARCHAR(10)  NOT NULL DEFAULT 'none',
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (profile, section_key)
+  );
+`).catch(err => logger.error('Profile permissions table migration failed', { error: err.message }));
+
 
 // Planning cycles migration
 (async () => {
