@@ -1,12 +1,29 @@
 const pool = require('../db/pool');
+const { isAdmin, effectiveRole } = require('./rbac');
 
-// Roles permitted to edit projects/allocations/people in each planning cycle stage
+// Roles/profiles permitted to edit projects/allocations/people in each cycle stage.
+// Both legacy role names and new profile names are listed for backward compatibility.
 const STAGE_EDIT_ROLES = {
-  draft:        ['PMO'],
-  active:       ['PMO', 'Workforce Planning', 'Department Lead', 'Function Lead', 'Head of Department'],
-  under_review: ['PMO', 'Workforce Planning', 'Department Lead', 'Function Lead', 'Head of Department', 'Head of Commercial'],
-  approved:     [],  // locked — approval actions only
-  closed:       [],  // fully locked
+  draft: [
+    'PMO', 'Senior PMO',
+  ],
+  active: [
+    'PMO', 'Senior PMO', 'PMO Team',
+    'Workforce Planning', 'Administration',
+    'Department Lead', 'Department Head',
+    'Function Lead',   'Hub Lead',
+    'Head of Department',
+  ],
+  under_review: [
+    'PMO', 'Senior PMO', 'PMO Team',
+    'Workforce Planning', 'Administration',
+    'Department Lead', 'Department Head',
+    'Function Lead',   'Hub Lead',
+    'Head of Department',
+    'Head of Commercial',
+  ],
+  approved: [],
+  closed:   [],
 };
 
 const STAGE_LABELS = {
@@ -20,9 +37,12 @@ const STAGE_LABELS = {
 /**
  * Looks up a cycle's stage and checks whether req.user may edit.
  * Returns true if allowed; sends 403 + returns false if denied.
+ * Administrator-tier users always pass.
  */
 async function guardCycleEdit(cycleId, req, res) {
   if (!cycleId) return true;
+  // Administrator tier bypasses all cycle-stage restrictions
+  if (isAdmin(req.user)) return true;
   const { rows } = await pool.query(
     'SELECT status FROM planning_cycles WHERE id = $1',
     [parseInt(cycleId, 10)]
@@ -30,9 +50,10 @@ async function guardCycleEdit(cycleId, req, res) {
   if (!rows.length) return true;
   const status = rows[0].status;
   const allowed = STAGE_EDIT_ROLES[status] ?? [];
-  if (!allowed.includes(req.user?.role)) {
+  const role = effectiveRole(req.user);
+  if (!allowed.includes(role)) {
     res.status(403).json({
-      error: `This planning cycle is in "${STAGE_LABELS[status] ?? status}" — your role (${req.user?.role ?? 'unknown'}) cannot make changes at this stage.`,
+      error: `This planning cycle is in "${STAGE_LABELS[status] ?? status}" — your role (${role ?? 'unknown'}) cannot make changes at this stage.`,
       cycle_status: status,
     });
     return false;

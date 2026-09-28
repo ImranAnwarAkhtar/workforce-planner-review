@@ -43,10 +43,12 @@ async function requireAuth(req, res, next) {
   if (AUTH_MODE !== 'production') {
     // Dev bypass — inert when AUTH_MODE=production
     req.user = {
-      id:    null,
-      name:  process.env.DEMO_USER_NAME  || 'Demo User',
-      email: process.env.DEMO_USER_EMAIL || 'demo@equinix.com',
-      role:  'Workforce Planning',
+      id:             null,
+      name:           process.env.DEMO_USER_NAME    || 'Demo User',
+      email:          process.env.DEMO_USER_EMAIL   || 'demo@equinix.com',
+      role:           process.env.DEMO_USER_ROLE    || 'Workforce Planning',
+      system_profile: process.env.DEMO_USER_PROFILE || null,
+      access_tier:    process.env.DEMO_USER_TIER    || 'administrator',
     };
     return next();
   }
@@ -72,11 +74,13 @@ async function requireAuth(req, res, next) {
         return res.status(401).json({ error: 'Invalid or expired token' });
       }
       req.user = {
-        id:    decoded.sub,
-        name:  decoded.name || decoded.preferred_username || 'Unknown',
-        email: decoded.email || '',
-        // IT_HANDOVER: adjust the claim name below to match your IdP's role claim
-        role:  decoded['https://equinix.com/role'] || decoded.role || 'Workforce Planning',
+        id:             decoded.sub,
+        name:           decoded.name || decoded.preferred_username || 'Unknown',
+        email:          decoded.email || '',
+        // IT_HANDOVER: adjust claim names below to match your IdP's claims
+        role:           decoded['https://equinix.com/role']    || decoded.role    || 'Workforce Planning',
+        system_profile: decoded['https://equinix.com/profile'] || decoded.profile || null,
+        access_tier:    decoded['https://equinix.com/tier']    || decoded.tier    || 'standard',
       };
       next();
     }

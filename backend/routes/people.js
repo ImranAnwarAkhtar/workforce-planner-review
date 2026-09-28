@@ -24,7 +24,7 @@ router.get('/', requireAuth, async (req, res) => {
   if (contract_category) {
     const cats = contract_category.split(',').map(c => c.trim()).filter(Boolean);
     const placeholders = cats.map(() => `$${i++}`).join(', ');
-    conditions.push(`ct.category IN (${placeholders})`);
+    conditions.push(`(ct.category IN (${placeholders}) OR pe.contract_type_id IS NULL)`);
     params.push(...cats);
   }
   if (region_id) {
@@ -37,7 +37,8 @@ router.get('/', requireAuth, async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT pe.id, pe.name, pe.contracted_fte, pe.is_active, pe.workday_jr_id, pe.notes,
-            pe.created_at, pe.updated_at,
+            pe.system_profile, pe.created_at, pe.updated_at,
+            pe.contract_type_id,
             ct.code AS contract_type_code, ct.description AS contract_type_description,
             ct.colour_hex, ct.category AS contract_category,
             l.level_name, l.short_code AS level_code, l.id AS level_id,
@@ -92,16 +93,16 @@ router.get('/:id', requireAuth, async (req, res) => {
 
 router.post('/', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => {
   const { name, contract_type_id, level_id, discipline_id, contracted_fte = 1.0,
-          tbh_code_id, workday_jr_id, region_ids = [], country_ids = [] } = req.body;
+          tbh_code_id, workday_jr_id, system_profile, region_ids = [], country_ids = [] } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
-      `INSERT INTO people (name, contract_type_id, level_id, discipline_id, contracted_fte, tbh_code_id, workday_jr_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [name, contract_type_id ?? null, level_id ?? null, discipline_id ?? null, contracted_fte, tbh_code_id ?? null, workday_jr_id ?? null]
+      `INSERT INTO people (name, contract_type_id, level_id, discipline_id, contracted_fte, tbh_code_id, workday_jr_id, system_profile)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [name, contract_type_id ?? null, level_id ?? null, discipline_id ?? null, contracted_fte, tbh_code_id ?? null, workday_jr_id ?? null, system_profile ?? null]
     );
     const personId = rows[0].id;
 
@@ -151,7 +152,8 @@ router.post('/bulk-delete', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_
 
 router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => {
   const { name, contract_type_id, level_id, discipline_id, contracted_fte,
-          tbh_code_id, workday_jr_id, is_active, notes, region_ids, country_ids } = req.body;
+          tbh_code_id, workday_jr_id, is_active, notes, system_profile,
+          region_ids, country_ids } = req.body;
   const sets = [];
   const params = [];
   let i = 1;
@@ -165,6 +167,7 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
   if (workday_jr_id    !== undefined) { sets.push(`workday_jr_id = $${i++}`);     params.push(workday_jr_id); }
   if (is_active        !== undefined) { sets.push(`is_active = $${i++}`);         params.push(is_active); }
   if (notes            !== undefined) { sets.push(`notes = $${i++}`);             params.push(notes); }
+  if (system_profile   !== undefined) { sets.push(`system_profile = $${i++}`);   params.push(system_profile || null); }
 
   const client = await pool.connect();
   try {

@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
-const { requireRole, ROLES } = require('../middleware/rbac');
+const { requireRole, ROLES, PROFILES, isAdmin } = require('../middleware/rbac');
 const { writeAudit } = require('../db/auditLog');
 
 const router = Router();
@@ -40,22 +40,25 @@ router.get('/contract-types', requireAuth, async (req, res) => {
   res.json({ data: rows });
 });
 
-// ── Users (PMO only) ──────────────────────────────────────────────────────────
+// ── Users (administrator tier or Senior PMO) ──────────────────────────────────
 
-router.get('/users', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
+router.get('/users', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT id, name, email, role, is_active, created_at FROM users ORDER BY name ASC'
+    `SELECT id, name, email, role, system_profile, access_tier, is_active, created_at
+     FROM users ORDER BY name ASC`
   );
   res.json({ data: rows });
 });
 
-router.post('/users', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
+router.post('/users', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
   const { auth0_id, name, email, role } = req.body;
   if (!auth0_id || !name || !email || !role) {
     return res.status(400).json({ error: 'auth0_id, name, email, and role are required' });
   }
   const { rows } = await pool.query(
-    'INSERT INTO users (auth0_id, name, email, role) VALUES ($1,$2,$3,$4) RETURNING id, name, email, role, is_active, created_at',
+    `INSERT INTO users (auth0_id, name, email, role)
+     VALUES ($1,$2,$3,$4)
+     RETURNING id, name, email, role, system_profile, access_tier, is_active, created_at`,
     [auth0_id, name, email, role]
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'user', resourceId: rows[0].id, newValue: rows[0] });
@@ -63,22 +66,25 @@ router.post('/users', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
   res.status(201).json({ data: rows[0] });
 });
 
-router.put('/users/:id', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
-  const { name, email, role, is_active } = req.body;
+router.put('/users/:id', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  const { name, email, role, system_profile, access_tier, is_active } = req.body;
   const sets = [];
   const params = [];
   let i = 1;
 
-  if (name      !== undefined) { sets.push(`name = $${i++}`);      params.push(name); }
-  if (email     !== undefined) { sets.push(`email = $${i++}`);     params.push(email); }
-  if (role      !== undefined) { sets.push(`role = $${i++}`);      params.push(role); }
-  if (is_active !== undefined) { sets.push(`is_active = $${i++}`); params.push(is_active); }
+  if (name           !== undefined) { sets.push(`name = $${i++}`);           params.push(name); }
+  if (email          !== undefined) { sets.push(`email = $${i++}`);          params.push(email); }
+  if (role           !== undefined) { sets.push(`role = $${i++}`);           params.push(role); }
+  if (system_profile !== undefined) { sets.push(`system_profile = $${i++}`); params.push(system_profile || null); }
+  if (access_tier    !== undefined) { sets.push(`access_tier = $${i++}`);    params.push(access_tier); }
+  if (is_active      !== undefined) { sets.push(`is_active = $${i++}`);      params.push(is_active); }
 
   if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
   params.push(req.params.id);
 
   const { rows } = await pool.query(
-    `UPDATE users SET ${sets.join(', ')} WHERE id = $${i} RETURNING id, name, email, role, is_active`,
+    `UPDATE users SET ${sets.join(', ')} WHERE id = $${i}
+     RETURNING id, name, email, role, system_profile, access_tier, is_active`,
     params
   );
   if (!rows.length) return res.status(404).json({ error: 'User not found' });

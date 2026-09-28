@@ -422,6 +422,17 @@ CREATE TRIGGER trg_prevent_audit_log_modification
     BEFORE UPDATE OR DELETE ON audit_log
     FOR EACH ROW EXECUTE FUNCTION prevent_audit_log_modification();
 
+-- =============================================================================
+-- ACCESS PROFILES MIGRATION (idempotent — safe to re-run)
+-- =============================================================================
+
+-- People: visible system profile badge in the People section
+ALTER TABLE people ADD COLUMN IF NOT EXISTS system_profile VARCHAR(50);
+
+-- Users: new profile name + access tier override
+ALTER TABLE users ADD COLUMN IF NOT EXISTS system_profile VARCHAR(50);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS access_tier    VARCHAR(20) NOT NULL DEFAULT 'standard';
+
 -- Auto-update updated_at on every table that carries that column
 CREATE TRIGGER trg_tbh_codes_updated_at
     BEFORE UPDATE ON tbh_codes
