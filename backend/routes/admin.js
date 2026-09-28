@@ -51,15 +51,17 @@ router.get('/users', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), a
 });
 
 router.post('/users', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
-  const { auth0_id, name, email, role } = req.body;
-  if (!auth0_id || !name || !email || !role) {
-    return res.status(400).json({ error: 'auth0_id, name, email, and role are required' });
+  const { name, email, role, system_profile, access_tier } = req.body;
+  if (!name || !email) {
+    return res.status(400).json({ error: 'name and email are required' });
   }
+  const auth0_id = req.body.auth0_id || email;
+  const effectiveRole = role || system_profile || 'Workforce Planning';
   const { rows } = await pool.query(
-    `INSERT INTO users (auth0_id, name, email, role)
-     VALUES ($1,$2,$3,$4)
+    `INSERT INTO users (auth0_id, name, email, role, system_profile, access_tier)
+     VALUES ($1,$2,$3,$4,$5,$6)
      RETURNING id, name, email, role, system_profile, access_tier, is_active, created_at`,
-    [auth0_id, name, email, role]
+    [auth0_id, name, email, effectiveRole, system_profile || null, access_tier || 'standard']
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'user', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'users', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
