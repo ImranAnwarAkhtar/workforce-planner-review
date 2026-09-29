@@ -6,7 +6,8 @@ const { requireRole, ROLES } = require('../middleware/rbac');
 const router = Router();
 
 const GEARING_SELECT = `
-  SELECT gc.id, gc.discipline_id, gc.project_type, gc.min_divisor, gc.max_divisor, gc.updated_at,
+  SELECT gc.id, gc.discipline_id, gc.project_type,
+         gc.divisor, gc.min_divisor, gc.max_divisor, gc.updated_at,
          d.name AS discipline_name, u.name AS updated_by_name
   FROM gearing_constants gc
   JOIN disciplines d ON gc.discipline_id = d.id
@@ -120,27 +121,52 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 router.put('/:id', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
-  const { min_divisor, max_divisor } = req.body;
-  if (min_divisor === undefined && max_divisor === undefined) {
-    return res.status(400).json({ error: 'min_divisor or max_divisor required' });
+  const { divisor } = req.body;
+  if (divisor === undefined || isNaN(Number(divisor)) || Number(divisor) <= 0) {
+    return res.status(400).json({ error: 'divisor must be a positive number' });
   }
-  const sets = [];
-  const params = [];
-  let i = 1;
-
-  if (min_divisor !== undefined) { sets.push(`min_divisor = $${i++}`); params.push(min_divisor); }
-  if (max_divisor !== undefined) { sets.push(`max_divisor = $${i++}`); params.push(max_divisor); }
-  sets.push(`updated_by = $${i++}`);
-  params.push(req.user.id);
-  params.push(req.params.id);
+  const d = Number(divisor);
+  const minDiv = d;
+  const maxDiv = Math.round((d / 2) * 100) / 100;
 
   const { rows } = await pool.query(
-    `UPDATE gearing_constants SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`,
-    params
+    `UPDATE gearing_constants
+     SET divisor = $1, min_divisor = $2, max_divisor = $3, updated_by = $4
+     WHERE id = $5 RETURNING *`,
+    [d, minDiv, maxDiv, req.user.id, req.params.id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Gearing constant not found' });
   await req.auditLog({ actionType: 'UPDATE', resourceType: 'gearing_constant', resourceId: rows[0].id, newValue: rows[0] });
   res.json({ data: rows[0] });
+});
+
+router.post('/', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
+  const { discipline_id, project_type, divisor } = req.body;
+  if (!discipline_id || !project_type || !divisor) {
+    return res.status(400).json({ error: 'discipline_id, project_type, and divisor are required' });
+  }
+  if (isNaN(Number(divisor)) || Number(divisor) <= 0) {
+    return res.status(400).json({ error: 'divisor must be a positive number' });
+  }
+  const d = Number(divisor);
+  const minDiv = d;
+  const maxDiv = Math.round((d / 2) * 100) / 100;
+
+  const { rows: exists } = await pool.query(
+    'SELECT id FROM gearing_constants WHERE discipline_id = $1 AND project_type = $2',
+    [discipline_id, project_type]
+  );
+  if (exists.length) {
+    return res.status(409).json({ error: 'A gearing ratio already exists for this discipline and project type' });
+  }
+
+  const { rows } = await pool.query(
+    `INSERT INTO gearing_constants (discipline_id, project_type, divisor, min_divisor, max_divisor, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [discipline_id, project_type, d, minDiv, maxDiv, req.user.id]
+  );
+  await req.auditLog({ actionType: 'CREATE', resourceType: 'gearing_constant', resourceId: rows[0].id, newValue: rows[0] });
+  res.status(201).json({ data: rows[0] });
 });
 
 module.exports = router;

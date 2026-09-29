@@ -113,11 +113,20 @@ export const cycleApproversApi = {
     client.delete(`/planning-cycles/${cycleId}/approvers/${approverId}`),
 };
 
-// Roles permitted to edit in each cycle stage (mirrors backend cycleAccess.js)
+// Roles/profiles permitted to edit in each cycle stage (mirrors backend cycleAccess.js)
+// Both legacy role names and new profile names are listed for backward compatibility.
 export const STAGE_EDIT_ROLES: Record<string, string[]> = {
-  draft:        ['PMO'],
-  active:       ['PMO', 'Workforce Planning', 'Department Lead', 'Function Lead', 'Head of Department'],
-  under_review: ['PMO', 'Workforce Planning', 'Department Lead', 'Function Lead', 'Head of Department', 'Head of Commercial'],
+  draft:        ['PMO', 'Senior PMO'],
+  active:       ['PMO', 'Senior PMO', 'PMO Team',
+                  'Workforce Planning', 'Administration',
+                  'Department Lead', 'Department Head',
+                  'Function Lead',   'Hub Lead',
+                  'Head of Department'],
+  under_review: ['PMO', 'Senior PMO', 'PMO Team',
+                  'Workforce Planning', 'Administration',
+                  'Department Lead', 'Department Head',
+                  'Function Lead',   'Hub Lead',
+                  'Head of Department', 'Head of Commercial'],
   approved:     [],
   closed:       [],
 };
@@ -133,6 +142,7 @@ export interface Person {
   is_active: boolean;
   workday_jr_id: string | null;
   notes: string | null;
+  system_profile: string | null;
   created_at: string;
   updated_at: string;
   contract_type_code: string | null;
@@ -175,9 +185,33 @@ export interface CreatePersonBody {
   tbh_code_id?: number | null;
   workday_jr_id?: string | null;
   notes?: string | null;
+  system_profile?: string | null;
   region_ids?: number[];
   country_ids?: number[];
 }
+
+// ---------------------------------------------------------------------------
+// Admin Users
+// ---------------------------------------------------------------------------
+
+export interface AppUser {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  system_profile: string | null;
+  access_tier: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const adminUsersApi = {
+  list: () =>
+    client.get<ListResponse<AppUser>>('/admin/users').then(r => r.data.data),
+
+  update: (id: number, body: { system_profile?: string | null; access_tier?: string; is_active?: boolean }) =>
+    client.put<ItemResponse<AppUser>>(`/admin/users/${id}`, body).then(r => r.data.data),
+};
 
 export type UpdatePersonBody = Partial<CreatePersonBody> & { is_active?: boolean };
 
@@ -719,6 +753,7 @@ export interface GearingConstant {
   discipline_id: number;
   discipline_name: string;
   project_type: string;
+  divisor?: number;
   min_divisor: number;
   max_divisor: number;
   updated_at: string;
@@ -727,6 +762,8 @@ export interface GearingConstant {
 
 export const gearingApi = {
   list: () => client.get<ListResponse<GearingConstant>>('/gearing').then(r => r.data.data),
+  create: (body: { discipline_id: number; project_type: string; divisor: number }) =>
+    client.post<ItemResponse<GearingConstant>>('/gearing', body).then(r => r.data.data),
 };
 
 // ---------------------------------------------------------------------------

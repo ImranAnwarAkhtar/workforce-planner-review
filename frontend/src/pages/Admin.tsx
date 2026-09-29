@@ -1195,29 +1195,48 @@ function PlanningCyclesTab() {
 // Gearing Ratios tab
 // ---------------------------------------------------------------------------
 
+const PROJECT_TYPES = ['Retail', 'xScale', 'EM'];
+
 function GearingRatiosTab() {
-  const [data, setData]           = useState<GearingConstant[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm]   = useState({ min_divisor: '', max_divisor: '' });
-  const [saving, setSaving]       = useState(false);
+  const [data, setData]               = useState<GearingConstant[]>([]);
+  const [disciplines, setDisciplines] = useState<Discipline[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [editingId, setEditingId]     = useState<number | null>(null);
+  const [editDiv, setEditDiv]         = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [creating, setCreating]       = useState(false);
+  const [newForm, setNewForm]         = useState({ discipline_id: '', project_type: 'Retail', divisor: '' });
 
   function load() {
     setLoading(true);
-    gearingApi.list().then(setData).catch(() => {}).finally(() => setLoading(false));
+    Promise.all([
+      gearingApi.list(),
+      refDataApi.disciplines(),
+    ]).then(([g, d]) => { setData(g); setDisciplines(d); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleUpdate(id: number) {
-    const minVal = parseFloat(editForm.min_divisor);
-    const maxVal = parseFloat(editForm.max_divisor);
-    if (isNaN(minVal) || isNaN(maxVal) || minVal <= 0 || maxVal <= 0) {
-      toast.error('Min and Max divisors must be positive numbers'); return;
-    }
+    const val = parseFloat(editDiv);
+    if (isNaN(val) || val <= 0) { toast.error('Divisor must be a positive number'); return; }
     setSaving(true);
     try {
-      await rawClient.put(`/gearing/${id}`, { min_divisor: minVal, max_divisor: maxVal });
+      await rawClient.put(`/gearing/${id}`, { divisor: val });
       load(); setEditingId(null);
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleCreate() {
+    const val = parseFloat(newForm.divisor);
+    if (!newForm.discipline_id) { toast.error('Select a discipline'); return; }
+    if (isNaN(val) || val <= 0) { toast.error('Divisor must be a positive number'); return; }
+    setSaving(true);
+    try {
+      await gearingApi.create({ discipline_id: parseInt(newForm.discipline_id, 10), project_type: newForm.project_type, divisor: val });
+      load(); setCreating(false); setNewForm({ discipline_id: '', project_type: 'Retail', divisor: '' });
+      toast.success('Gearing ratio created');
     } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
   }
 
@@ -1225,41 +1244,82 @@ function GearingRatiosTab() {
 
   return (
     <div>
-      <p style={{ fontSize: 13, color: '#666', marginBottom: 14 }}>
-        Gearing constants control the min/max headcount ratios per discipline and project type. The divisor is the number of staff one lead can oversee (e.g. 4 = 1:4 ratio).
-      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 16 }}>
+        <p style={{ fontSize: 13, color: '#666', margin: 0, maxWidth: 580, lineHeight: 1.55 }}>
+          Set one gearing divisor per discipline and project type combination.
+          The divisor is the number of projects one person can cover (e.g. 4 = one person per 4 projects).
+          The system automatically derives the min and max headcount range from this value.
+        </p>
+        <button onClick={() => { setCreating(true); setEditingId(null); }}
+          style={{ padding: '7px 14px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+          + New Ratio
+        </button>
+      </div>
+
+      {creating && (
+        <div style={{ ...card, marginBottom: 16, padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 12 }}>New Gearing Ratio</div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' as const, alignItems: 'flex-end' }}>
+            <div style={{ flex: '2 1 180px' }}>
+              <label style={lbl}>Discipline *</label>
+              <select value={newForm.discipline_id} onChange={e => setNewForm(f => ({ ...f, discipline_id: e.target.value }))}
+                style={{ ...inp }}>
+                <option value="">Select discipline…</option>
+                {disciplines.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: '1 1 140px' }}>
+              <label style={lbl}>Project Type *</label>
+              <select value={newForm.project_type} onChange={e => setNewForm(f => ({ ...f, project_type: e.target.value }))}
+                style={{ ...inp }}>
+                {PROJECT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: '1 1 120px' }}>
+              <label style={lbl}>Divisor *</label>
+              <input type="number" step="0.5" min="0.1" value={newForm.divisor} placeholder="e.g. 4"
+                onChange={e => setNewForm(f => ({ ...f, divisor: e.target.value }))}
+                style={{ ...inp }} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+            <button onClick={() => { setCreating(false); setNewForm({ discipline_id: '', project_type: 'Retail', divisor: '' }); }}
+              style={btnSecondary}>Cancel</button>
+            <button onClick={handleCreate} disabled={saving}
+              style={{ padding: '7px 16px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
+              {saving ? 'Saving…' : 'Create'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={card}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               <th style={th}>Discipline</th>
               <th style={th}>Project Type</th>
-              <th style={{ ...th, width: 130 }}>Min Divisor</th>
-              <th style={{ ...th, width: 130 }}>Max Divisor</th>
-              <th style={{ ...th, width: 160 }}>Last Updated By</th>
-              <th style={{ ...th, width: 100 }}>Actions</th>
+              <th style={{ ...th, width: 120 }}>Divisor</th>
+              <th style={{ ...th, width: 100 }}>Ratio</th>
+              <th style={{ ...th, width: 180 }}>Last Updated By</th>
+              <th style={{ ...th, width: 80 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? <LoadingRows cols={6} /> : data.length === 0 ? (
               <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: '#555' }}>No gearing constants configured</td></tr>
             ) : data.map(g => {
+              const divisorVal = g.divisor ?? g.min_divisor;
               if (editingId === g.id) return (
                 <tr key={g.id} style={{ background: '#FAFAFA' }}>
                   <td style={{ ...td, color: '#111', fontWeight: 500 }}>{g.discipline_name}</td>
                   <td style={td}>{g.project_type}</td>
                   <td style={td}>
-                    <input type="number" step="0.1" min="0.1"
-                      value={editForm.min_divisor}
-                      onChange={e => setEditForm(f => ({ ...f, min_divisor: e.target.value }))}
+                    <input type="number" step="0.5" min="0.1" value={editDiv}
+                      onChange={e => setEditDiv(e.target.value)}
                       style={{ ...inp, width: 90 }} />
                   </td>
-                  <td style={td}>
-                    <input type="number" step="0.1" min="0.1"
-                      value={editForm.max_divisor}
-                      onChange={e => setEditForm(f => ({ ...f, max_divisor: e.target.value }))}
-                      style={{ ...inp, width: 90 }} />
-                  </td>
+                  <td style={{ ...td, color: '#888', fontSize: 12 }}>1 : {editDiv || '?'}</td>
                   <td style={td} />
                   <td style={td}>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -1274,16 +1334,13 @@ function GearingRatiosTab() {
                 <tr key={g.id}>
                   <td style={{ ...td, color: '#111', fontWeight: 500 }}>{g.discipline_name}</td>
                   <td style={td}>{g.project_type}</td>
-                  <td style={td}>{g.min_divisor}</td>
-                  <td style={td}>{g.max_divisor}</td>
+                  <td style={{ ...td, fontWeight: 600 }}>{divisorVal}</td>
+                  <td style={{ ...td, color: '#555', fontSize: 12 }}>1 : {divisorVal}</td>
                   <td style={{ ...td, fontSize: 12, color: '#888' }}>
-                    {g.updated_by_name
-                      ? `${g.updated_by_name} · ${fmtDate(g.updated_at)}`
-                      : fmtDate(g.updated_at)}
+                    {g.updated_by_name ? `${g.updated_by_name} · ${fmtDate(g.updated_at)}` : fmtDate(g.updated_at)}
                   </td>
                   <td style={td}>
-                    <button
-                      onClick={() => { setEditingId(g.id); setEditForm({ min_divisor: String(g.min_divisor), max_divisor: String(g.max_divisor) }); }}
+                    <button onClick={() => { setEditingId(g.id); setEditDiv(String(divisorVal)); }}
                       style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Edit</button>
                   </td>
                 </tr>

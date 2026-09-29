@@ -122,6 +122,11 @@ pool.query(`
   );
 `).catch(err => logger.error('Profile permissions table migration failed', { error: err.message }));
 
+pool.query(`
+  ALTER TABLE gearing_constants ADD COLUMN IF NOT EXISTS divisor DECIMAL(5,2);
+  UPDATE gearing_constants SET divisor = min_divisor WHERE divisor IS NULL;
+`).catch(err => logger.error('Gearing divisor column migration failed', { error: err.message }));
+
 
 // Planning cycles migration
 (async () => {
