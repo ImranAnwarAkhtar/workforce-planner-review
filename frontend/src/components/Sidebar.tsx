@@ -39,7 +39,7 @@ const NAV = [
   { to: '/projects',        label: 'Projects',           icon: 'projects'    },
   { to: '/allocations',     label: 'Resources',          icon: 'allocations' },
   { to: '/summary',         label: 'Summary',            icon: 'summary'     },
-  { to: '/headcount',       label: 'Headcount',          icon: 'headcount'   },
+  { to: '/headcount',       label: 'Headcount Requests', icon: 'headcount'   },
   { to: '/change-requests', label: 'Change Requests',    icon: 'changes'     },
   { to: '/recruitment',     label: 'Talent Acquisition', icon: 'recruitment' },
   { to: '/people',          label: 'People',             icon: 'people'      },

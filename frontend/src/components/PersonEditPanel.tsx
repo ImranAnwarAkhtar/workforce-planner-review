@@ -254,7 +254,7 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
         }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#111111' }}>
-              {isPlaceholder ? 'Headcount Placeholder' : 'Edit Person'}
+              {isPlaceholder ? 'Headcount Request' : 'Edit Person'}
             </div>
             <div style={{ fontSize: 12, color: '#777777', marginTop: 3 }}>
               {person.contract_type_code && (

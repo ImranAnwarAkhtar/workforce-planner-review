@@ -6,7 +6,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/allocations':     'Allocations',
   '/summary':         'Summary',
   '/people':          'People',
-  '/headcount':       'Headcount',
+  '/headcount':       'Headcount Requests',
   '/requests':        'Hire Requests',
   '/change-requests': 'Change Requests',
   '/recruitment':     'Talent Acquisition',
