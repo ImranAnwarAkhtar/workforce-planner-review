@@ -834,8 +834,11 @@ function UserAccessTab() {
             <tr>
               <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#444444', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, top: 0, background: '#E4E6EA', zIndex: 4, borderRight: '2px solid #C8CCD4', borderBottom: '2px solid #C8CCD4', minWidth: 190, whiteSpace: 'nowrap' }}>Section / Action</th>
               {PERM_PROFILES.map(p => (
-                <th key={p.name} style={{ padding: '8px 6px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: p.colour, textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', top: 0, background: '#E4E6EA', zIndex: 1, borderLeft: '1px solid #D0D4DA', borderBottom: '2px solid #C8CCD4', minWidth: 72, whiteSpace: 'nowrap' }}>
-                  {p.short}
+                <th key={p.name} style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#333333', position: 'sticky', top: 0, background: '#E4E6EA', zIndex: 1, borderLeft: '1px solid #D0D4DA', borderBottom: '2px solid #C8CCD4', minWidth: 88, verticalAlign: 'bottom' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: p.colour, flexShrink: 0, display: 'inline-block' }} />
+                    <span style={{ lineHeight: 1.3 }}>{p.name}</span>
+                  </div>
                 </th>
               ))}
             </tr>
