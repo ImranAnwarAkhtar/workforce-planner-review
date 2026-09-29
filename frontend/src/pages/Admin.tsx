@@ -816,14 +816,25 @@ function UserAccessTab() {
         </div>
       </div>
 
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap', fontSize: 11, color: '#666', alignItems: 'center' }}>
+        {(Object.entries(LEVEL_CFG) as [PermLevel, typeof LEVEL_CFG[PermLevel]][]).map(([level, cfg]) => (
+          <span key={level} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ padding: '1px 6px', borderRadius: 3, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontWeight: 700, fontSize: 10 }}>{cfg.label}</span>
+            <span>{level === 'none' ? 'No access' : level === 'view' ? 'Read only' : level === 'edit' ? 'Create & modify' : 'Full incl. admin actions'}</span>
+          </span>
+        ))}
+        <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>Unsaved changes highlighted in amber</span>
+      </div>
+
       {/* Matrix table */}
-      <div style={{ overflowX: 'auto', border: '1px solid #E5E5E5', borderRadius: 8 }}>
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 220px)', border: '1px solid #E5E5E5', borderRadius: 8 }}>
         <table style={{ borderCollapse: 'collapse', minWidth: 900 }}>
           <thead>
-            <tr style={{ background: '#F8F9FA' }}>
-              <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, background: '#F8F9FA', zIndex: 2, borderRight: '2px solid #E0E0E0', borderBottom: '1px solid #E0E0E0', minWidth: 190, whiteSpace: 'nowrap' }}>Section / Action</th>
+            <tr>
+              <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, top: 0, background: '#F8F9FA', zIndex: 4, borderRight: '2px solid #E0E0E0', borderBottom: '1px solid #E0E0E0', minWidth: 190, whiteSpace: 'nowrap' }}>Section / Action</th>
               {PERM_PROFILES.map(p => (
-                <th key={p.name} style={{ padding: '8px 6px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: p.colour, textTransform: 'uppercase', letterSpacing: '0.05em', borderLeft: '1px solid #EEEEEE', borderBottom: '1px solid #E0E0E0', minWidth: 72, whiteSpace: 'nowrap' }}>
+                <th key={p.name} style={{ padding: '8px 6px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: p.colour, textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', top: 0, background: '#F8F9FA', zIndex: 1, borderLeft: '1px solid #EEEEEE', borderBottom: '1px solid #E0E0E0', minWidth: 72, whiteSpace: 'nowrap' }}>
                   {p.short}
                 </th>
               ))}
@@ -870,16 +881,6 @@ function UserAccessTab() {
         </table>
       </div>
 
-      {/* Legend */}
-      <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap', fontSize: 11, color: '#666' }}>
-        {(Object.entries(LEVEL_CFG) as [PermLevel, typeof LEVEL_CFG[PermLevel]][]).map(([level, cfg]) => (
-          <span key={level} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ padding: '1px 6px', borderRadius: 3, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontWeight: 700, fontSize: 10 }}>{cfg.label}</span>
-            <span>{level === 'none' ? 'No access' : level === 'view' ? 'Read only' : level === 'edit' ? 'Create & modify' : 'Full incl. admin actions'}</span>
-          </span>
-        ))}
-        <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>Unsaved changes highlighted in amber</span>
-      </div>
     </div>
   );
 }
