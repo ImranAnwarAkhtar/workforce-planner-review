@@ -894,12 +894,15 @@ function PeopleTab({ yearA, yearB, dataA, dataB, allRegionNames, regionCodeMap }
       {/* Year comparison stacked area */}
       <div style={{ ...cardStyle, padding: '14px 16px' }}>
         <SectionTitle>Total Headcount: {yearA} vs {yearB} Comparison</SectionTitle>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: 12 }}>
           {[
-            { label: 'Exist VP/Dir',  vA: dataA.headcount.reduce((s,r)=>s+r.exist_vp_dir,0),   vB: dataB.headcount.reduce((s,r)=>s+r.exist_vp_dir,0),   color: C.vpDir },
-            { label: 'Exist FTE',     vA: dataA.headcount.reduce((s,r)=>s+r.exist_fte,0),       vB: dataB.headcount.reduce((s,r)=>s+r.exist_fte,0),       color: C.fte },
-            { label: 'Contingent',    vA: dataA.headcount.reduce((s,r)=>s+r.exist_con,0),       vB: dataB.headcount.reduce((s,r)=>s+r.exist_con,0),       color: C.con },
-            { label: 'Total Heads',   vA: totalA,                                               vB: totalB,                                               color: '#111' },
+            { label: 'Exist VP/Dir',   vA: dataA.headcount.reduce((s,r)=>s+r.exist_vp_dir,0), vB: dataB.headcount.reduce((s,r)=>s+r.exist_vp_dir,0), color: C.vpDir   },
+            { label: 'Exist FTE',      vA: dataA.headcount.reduce((s,r)=>s+r.exist_fte,0),     vB: dataB.headcount.reduce((s,r)=>s+r.exist_fte,0),     color: C.fte     },
+            { label: 'Contingent',     vA: dataA.headcount.reduce((s,r)=>s+r.exist_con,0),     vB: dataB.headcount.reduce((s,r)=>s+r.exist_con,0),     color: C.con     },
+            { label: 'Approved FTE',   vA: dataA.headcount.reduce((s,r)=>s+r.appr_fte,0),      vB: dataB.headcount.reduce((s,r)=>s+r.appr_fte,0),      color: C.apprFte },
+            { label: 'Requested FTE',  vA: dataA.headcount.reduce((s,r)=>s+r.req_fte,0),       vB: dataB.headcount.reduce((s,r)=>s+r.req_fte,0),       color: C.reqFte  },
+            { label: 'Req Contractor', vA: dataA.headcount.reduce((s,r)=>s+r.req_con,0),       vB: dataB.headcount.reduce((s,r)=>s+r.req_con,0),       color: C.reqCon  },
+            { label: 'Total Heads',    vA: totalA,                                              vB: totalB,                                              color: '#111'    },
           ].map(row => (
             <div key={row.label} style={{ background: '#F8F9FA', borderRadius: 7, padding: '12px 14px', borderLeft: `3px solid ${row.color}` }}>
               <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, marginBottom: 8 }}>{row.label}</div>
