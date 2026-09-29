@@ -13,7 +13,7 @@ const rawClient = axios.create({ baseURL: BASE });
 
 const tk = { bg2: '#FFFFFF', border: '#E5E5E5', accent: '#E91C24', muted: '#666666' };
 const card: React.CSSProperties = { background: tk.bg2, border: `1px solid ${tk.border}`, borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' };
-const th: React.CSSProperties = { padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tk.muted, background: '#F8F9FA', borderBottom: `1px solid ${tk.border}`, whiteSpace: 'nowrap' };
+const th: React.CSSProperties = { padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#444444', background: '#E4E6EA', borderBottom: '2px solid #C8CCD4', whiteSpace: 'nowrap' };
 const td: React.CSSProperties = { padding: '10px 14px', borderBottom: '1px solid #F0F0F0', fontSize: 14, color: '#333333' };
 const btnSecondary: React.CSSProperties = { padding: '8px 14px', background: 'transparent', color: '#555555', border: '1px solid #D5D5D5', borderRadius: 6, fontSize: 13, cursor: 'pointer' };
 const lbl: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: '0.07em' };
@@ -832,9 +832,9 @@ function UserAccessTab() {
         <table style={{ borderCollapse: 'collapse', minWidth: 900 }}>
           <thead>
             <tr>
-              <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, top: 0, background: '#F8F9FA', zIndex: 4, borderRight: '2px solid #E0E0E0', borderBottom: '1px solid #E0E0E0', minWidth: 190, whiteSpace: 'nowrap' }}>Section / Action</th>
+              <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#444444', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, top: 0, background: '#E4E6EA', zIndex: 4, borderRight: '2px solid #C8CCD4', borderBottom: '2px solid #C8CCD4', minWidth: 190, whiteSpace: 'nowrap' }}>Section / Action</th>
               {PERM_PROFILES.map(p => (
-                <th key={p.name} style={{ padding: '8px 6px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: p.colour, textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', top: 0, background: '#F8F9FA', zIndex: 1, borderLeft: '1px solid #EEEEEE', borderBottom: '1px solid #E0E0E0', minWidth: 72, whiteSpace: 'nowrap' }}>
+                <th key={p.name} style={{ padding: '8px 6px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: p.colour, textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', top: 0, background: '#E4E6EA', zIndex: 1, borderLeft: '1px solid #D0D4DA', borderBottom: '2px solid #C8CCD4', minWidth: 72, whiteSpace: 'nowrap' }}>
                   {p.short}
                 </th>
               ))}
