@@ -18,6 +18,9 @@ Copy-Item "$root\frontend\build" $dest -Recurse
 Write-Host "Committing and pushing..." -ForegroundColor Cyan
 Set-Location $root
 git add backend/public
+git add backend/routes
+git add backend/server.js
+git add backend/db
 git commit -m $Message
 git push origin master
 
