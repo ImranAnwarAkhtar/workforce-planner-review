@@ -69,7 +69,13 @@ router.get('/', requireAuth, async (req, res) => {
   params.push(parseInt(limit, 10), parseInt(offset, 10));
 
   const { rows } = await pool.query(
-    `SELECT t.*, r.name AS region_name
+    `SELECT t.id, t.tbh_id, t.old_tbh, t.in_summary, t.status_query, t.pmo_comments,
+            t.wfp_comments, t.funding_year, t.hire_type, t.region_id, t.project_type,
+            t.legal_entity, t.location_code, t.cost_centre, t.job_profile,
+            t.replaced_emp_name, t.manager_name, t.target_hire_date, t.jr_id,
+            t.req_status, t.ta_contact, t.candidate_name, t.estimated_hire_date,
+            t.ta_status_comments, t.tbh_description, t.fp_and_a_approver_notes,
+            t.fp_and_a_notes, t.created_at, t.updated_at, r.name AS region_name
      FROM tbh_codes t
      LEFT JOIN regions r ON t.region_id = r.id
      ${where}
@@ -146,6 +152,10 @@ router.post('/import', requireAuth, requireRole(...WRITE_ROLES), upload.single('
     const params = [
       tbhId,
       clean(oldTbh),
+      clean(cell(row, 'In Summary')),
+      clean(cell(row, 'Status / Query')),
+      clean(cell(row, 'PMO Comments')),
+      clean(cell(row, 'Workforce Planning Comments')),
       extractYear(cell(row, 'FUNDING')),
       hireType,
       regionId,
@@ -164,18 +174,23 @@ router.post('/import', requireAuth, requireRole(...WRITE_ROLES), upload.single('
       parseExcelDate(cell(row, 'TA (Estimated) Hire Date')),
       taComments,
       clean(cell(row, 'TBH Description')),
-      clean(cell(row, 'Note from FP&A', 'Note from FP&A Approver')),
+      clean(cell(row, 'Note from FP&A Approver')),
+      clean(cell(row, 'Note from FP&A')),
     ];
 
     const { rows: r } = await pool.query(
       `INSERT INTO tbh_codes
-         (tbh_id, old_tbh, funding_year, hire_type, region_id, project_type, legal_entity,
+         (tbh_id, old_tbh, in_summary, status_query, pmo_comments, wfp_comments,
+          funding_year, hire_type, region_id, project_type, legal_entity,
           location_code, cost_centre, job_profile, replaced_emp_name, manager_name,
           target_hire_date, jr_id, req_status, ta_contact, candidate_name,
-          estimated_hire_date, ta_status_comments, tbh_description, fp_and_a_notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+          estimated_hire_date, ta_status_comments, tbh_description,
+          fp_and_a_approver_notes, fp_and_a_notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
        ON CONFLICT (tbh_id) DO UPDATE SET
-         old_tbh = EXCLUDED.old_tbh, funding_year = EXCLUDED.funding_year,
+         old_tbh = EXCLUDED.old_tbh, in_summary = EXCLUDED.in_summary,
+         status_query = EXCLUDED.status_query, pmo_comments = EXCLUDED.pmo_comments,
+         wfp_comments = EXCLUDED.wfp_comments, funding_year = EXCLUDED.funding_year,
          hire_type = EXCLUDED.hire_type, region_id = EXCLUDED.region_id,
          project_type = EXCLUDED.project_type, legal_entity = EXCLUDED.legal_entity,
          location_code = EXCLUDED.location_code, cost_centre = EXCLUDED.cost_centre,
@@ -185,7 +200,9 @@ router.post('/import', requireAuth, requireRole(...WRITE_ROLES), upload.single('
          ta_contact = EXCLUDED.ta_contact, candidate_name = EXCLUDED.candidate_name,
          estimated_hire_date = EXCLUDED.estimated_hire_date,
          ta_status_comments = EXCLUDED.ta_status_comments,
-         tbh_description = EXCLUDED.tbh_description, fp_and_a_notes = EXCLUDED.fp_and_a_notes,
+         tbh_description = EXCLUDED.tbh_description,
+         fp_and_a_approver_notes = EXCLUDED.fp_and_a_approver_notes,
+         fp_and_a_notes = EXCLUDED.fp_and_a_notes,
          updated_at = NOW()
        RETURNING (xmax = 0) AS is_insert`,
       params
@@ -210,27 +227,32 @@ router.get('/:id', requireAuth, async (req, res) => {
 
 router.post('/', requireAuth, requireRole(...WRITE_ROLES), async (req, res) => {
   const {
-    tbh_id, old_tbh, funding_year, hire_type, region_id, project_type, legal_entity,
+    tbh_id, old_tbh, in_summary, status_query, pmo_comments, wfp_comments,
+    funding_year, hire_type, region_id, project_type, legal_entity,
     location_code, cost_centre, job_profile, replaced_emp_name, manager_name,
     target_hire_date, jr_id, req_status, ta_contact, candidate_name,
-    estimated_hire_date, ta_status_comments, tbh_description, fp_and_a_notes,
+    estimated_hire_date, ta_status_comments, tbh_description,
+    fp_and_a_approver_notes, fp_and_a_notes,
   } = req.body;
   if (!tbh_id) return res.status(400).json({ error: 'tbh_id is required' });
 
   const { rows } = await pool.query(
     `INSERT INTO tbh_codes
-       (tbh_id, old_tbh, funding_year, hire_type, region_id, project_type, legal_entity,
+       (tbh_id, old_tbh, in_summary, status_query, pmo_comments, wfp_comments,
+        funding_year, hire_type, region_id, project_type, legal_entity,
         location_code, cost_centre, job_profile, replaced_emp_name, manager_name,
         target_hire_date, jr_id, req_status, ta_contact, candidate_name,
-        estimated_hire_date, ta_status_comments, tbh_description, fp_and_a_notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+        estimated_hire_date, ta_status_comments, tbh_description,
+        fp_and_a_approver_notes, fp_and_a_notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
      RETURNING *`,
-    [tbh_id, old_tbh ?? null, funding_year ?? null, hire_type ?? null, region_id ?? null,
+    [tbh_id, old_tbh ?? null, in_summary ?? null, status_query ?? null, pmo_comments ?? null,
+     wfp_comments ?? null, funding_year ?? null, hire_type ?? null, region_id ?? null,
      project_type ?? null, legal_entity ?? null, location_code ?? null, cost_centre ?? null,
      job_profile ?? null, replaced_emp_name ?? null, manager_name ?? null,
      target_hire_date ?? null, jr_id ?? null, req_status ?? null, ta_contact ?? null,
      candidate_name ?? null, estimated_hire_date ?? null, ta_status_comments ?? null,
-     tbh_description ?? null, fp_and_a_notes ?? null]
+     tbh_description ?? null, fp_and_a_approver_notes ?? null, fp_and_a_notes ?? null]
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'tbh_code', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'tbh_codes', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
@@ -239,10 +261,12 @@ router.post('/', requireAuth, requireRole(...WRITE_ROLES), async (req, res) => {
 
 router.put('/:id', requireAuth, requireRole(...WRITE_ROLES), async (req, res) => {
   const fields = [
-    'old_tbh','funding_year','hire_type','region_id','project_type','legal_entity',
+    'old_tbh','in_summary','status_query','pmo_comments','wfp_comments',
+    'funding_year','hire_type','region_id','project_type','legal_entity',
     'location_code','cost_centre','job_profile','replaced_emp_name','manager_name',
     'target_hire_date','jr_id','req_status','ta_contact','candidate_name',
-    'estimated_hire_date','ta_status_comments','tbh_description','fp_and_a_notes',
+    'estimated_hire_date','ta_status_comments','tbh_description',
+    'fp_and_a_approver_notes','fp_and_a_notes',
   ];
   const sets = [];
   const params = [];

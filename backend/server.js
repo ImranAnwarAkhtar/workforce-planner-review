@@ -127,6 +127,17 @@ pool.query(`
   UPDATE gearing_constants SET divisor = min_divisor WHERE divisor IS NULL;
 `).catch(err => logger.error('Gearing divisor column migration failed', { error: err.message }));
 
+pool.query(`
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS in_summary           TEXT;
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS status_query         TEXT;
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS pmo_comments         TEXT;
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS wfp_comments         TEXT;
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS fp_and_a_approver_notes TEXT;
+`).catch(err => logger.error('TBH codes column migration failed', { error: err.message }));
+
+const { seedTbhCodes } = require('./db/seedTbh');
+seedTbhCodes().catch(err => logger.error('TBH seed failed', { error: err.message }));
+
 // Merge VP + Sr Director levels and VP + Dr contract types into a single SNR (Senior Staff) entry
 (async () => {
   try {
