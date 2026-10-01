@@ -219,7 +219,8 @@ async function fetchShared() {
       ORDER BY d.name, r.name
     `),
     pool.query(`
-      SELECT year, status, COUNT(*)::int AS count
+      SELECT year, status, COUNT(*)::int AS count,
+             COALESCE(SUM(power_kw), 0)::float AS power_kw
       FROM projects
       WHERE is_active = TRUE AND year IS NOT NULL
       GROUP BY year, status
