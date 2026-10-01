@@ -168,12 +168,13 @@ function buildSummary(projRow, hcRows) {
   const req_con    = hcRows.filter(r => ['R CON', 'R CON>FTE'].includes(r.contract_code)).reduce((s, r) => s + Number(r.headcount), 0);
   return {
     projects: {
-      total:        Number(projRow.total_projects  || 0),
-      retail:       Number(projRow.retail_count    || 0),
-      xscale:       Number(projRow.xscale_count    || 0),
-      total_weight: Number(projRow.total_weight    || 0),
-      retail_weight:Number(projRow.retail_weight   || 0),
-      xscale_weight:Number(projRow.xscale_weight   || 0),
+      total:          Number(projRow.total_projects  || 0),
+      retail:         Number(projRow.retail_count    || 0),
+      xscale:         Number(projRow.xscale_count    || 0),
+      total_weight:   Number(projRow.total_weight    || 0),
+      retail_weight:  Number(projRow.retail_weight   || 0),
+      xscale_weight:  Number(projRow.xscale_weight   || 0),
+      total_power_kw: Number(projRow.total_power_kw  || 0),
     },
     exist_hc: { total: perm + contingent, perm, contingent },
     appr_hc:  { total: appr_fte + appr_con, fte: appr_fte, con: appr_con },
@@ -261,7 +262,8 @@ async function fetchForYear(year) {
              COUNT(*) FILTER (WHERE type = 'xScale')::int AS xscale_count,
              COALESCE(SUM(weight), 0)::float AS total_weight,
              COALESCE(SUM(weight) FILTER (WHERE type = 'Retail'), 0)::float AS retail_weight,
-             COALESCE(SUM(weight) FILTER (WHERE type = 'xScale'), 0)::float AS xscale_weight
+             COALESCE(SUM(weight) FILTER (WHERE type = 'xScale'), 0)::float AS xscale_weight,
+             COALESCE(SUM(power_kw), 0)::float AS total_power_kw
       FROM projects
       WHERE is_active = TRUE AND year = $1
     `, [y]),

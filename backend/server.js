@@ -127,6 +127,56 @@ pool.query(`
   UPDATE gearing_constants SET divisor = min_divisor WHERE divisor IS NULL;
 `).catch(err => logger.error('Gearing divisor column migration failed', { error: err.message }));
 
+// Merge VP + Sr Director levels and VP + Dr contract types into a single SNR (Senior Staff) entry
+(async () => {
+  try {
+    // --- Contract types ---
+    await pool.query(`
+      INSERT INTO contract_types (code, description, category, colour_hex)
+      SELECT 'SNR', 'Senior Staff', 'existing', '2D2D2D'
+      WHERE NOT EXISTS (SELECT 1 FROM contract_types WHERE code = 'SNR');
+    `);
+    await pool.query(`
+      UPDATE people
+        SET contract_type_id = (SELECT id FROM contract_types WHERE code = 'SNR')
+        WHERE contract_type_id IN (SELECT id FROM contract_types WHERE code IN ('VP', 'Dr'));
+      UPDATE hire_requests
+        SET contract_type_id = (SELECT id FROM contract_types WHERE code = 'SNR')
+        WHERE contract_type_id IN (SELECT id FROM contract_types WHERE code IN ('VP', 'Dr'));
+      DELETE FROM contract_types WHERE code IN ('VP', 'Dr');
+    `);
+    // --- Levels ---
+    await pool.query(`
+      INSERT INTO levels (level_number, level_name, short_code)
+      SELECT 28, 'Senior Staff', 'SNR'
+      WHERE NOT EXISTS (SELECT 1 FROM levels WHERE short_code = 'SNR');
+    `);
+    await pool.query(`
+      UPDATE people
+        SET level_id = (SELECT id FROM levels WHERE short_code = 'SNR')
+        WHERE level_id IN (SELECT id FROM levels WHERE short_code IN ('VP', 'S Dr'));
+      UPDATE hire_requests
+        SET level_id = (SELECT id FROM levels WHERE short_code = 'SNR')
+        WHERE level_id IN (SELECT id FROM levels WHERE short_code IN ('VP', 'S Dr'));
+      UPDATE change_requests
+        SET new_level_id = (SELECT id FROM levels WHERE short_code = 'SNR')
+        WHERE new_level_id IN (SELECT id FROM levels WHERE short_code IN ('VP', 'S Dr'));
+      DELETE FROM levels WHERE short_code IN ('VP', 'S Dr');
+    `);
+  } catch (err) {
+    logger.error('SNR merge migration failed', { error: err.message });
+  }
+})();
+
+
+// Power kW migration
+(async () => {
+  try {
+    await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS power_kw NUMERIC;`);
+  } catch (err) {
+    logger.error('power_kw migration failed', { error: err.message });
+  }
+})();
 
 // Planning cycles migration
 (async () => {
