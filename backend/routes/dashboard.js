@@ -10,6 +10,35 @@ const router = Router();
 
 const GEARING_DISCIPLINES = ['Construction', 'Design', 'Commercial', 'Commissioning'];
 
+function parseTbhCreationDate(tbhId) {
+  const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  const m = String(tbhId || '').match(/[_\s-]([A-Za-z]{3})[\s_-]?(\d{2})$/i);
+  if (!m) return null;
+  const mon = MONTHS[m[1].toLowerCase()];
+  if (mon === undefined) return null;
+  return new Date(2000 + parseInt(m[2], 10), mon, 1);
+}
+
+function computeAvgHireDays(rows) {
+  const groups = {};
+  for (const row of rows) {
+    const created = parseTbhCreationDate(row.tbh_id);
+    if (!created || !row.estimated_hire_date) continue;
+    const hireDate = new Date(row.estimated_hire_date);
+    const days = Math.round((hireDate - created) / (1000 * 60 * 60 * 24));
+    if (days < 0 || days > 1095) continue;
+    const key = row.req_status || 'Not Raised';
+    if (!groups[key]) groups[key] = { sum: 0, count: 0 };
+    groups[key].sum += days;
+    groups[key].count++;
+  }
+  const result = {};
+  for (const [key, val] of Object.entries(groups)) {
+    result[key] = Math.round(val.sum / val.count);
+  }
+  return result;
+}
+
 function buildPipelineRows(projRows) {
   const byRegion = {};
   for (const row of projRows) {
@@ -187,7 +216,7 @@ function buildSummary(projRow, hcRows) {
 // ---------------------------------------------------------------------------
 
 async function fetchShared() {
-  const [gcRes, hcRes, pdRes, trendRes, tbhRes, regRes, allRegRes] = await Promise.all([
+  const [gcRes, hcRes, pdRes, trendRes, tbhRes, tbhAvgRes, regRes, allRegRes] = await Promise.all([
     pool.query(`
       SELECT d.name AS discipline_name, gc.project_type,
              gc.min_divisor::float AS min_divisor,
@@ -227,12 +256,16 @@ async function fetchShared() {
       ORDER BY year, status
     `),
     pool.query(`
-      SELECT COALESCE(funding_year, 0) AS funding_year,
-             COALESCE(req_status, 'Not Raised') AS req_status,
+      SELECT COALESCE(req_status, 'Not Raised') AS req_status,
              COUNT(*)::int AS count
       FROM tbh_codes
-      GROUP BY funding_year, req_status
-      ORDER BY funding_year, count DESC
+      GROUP BY req_status
+      ORDER BY count DESC
+    `),
+    pool.query(`
+      SELECT tbh_id, req_status, estimated_hire_date
+      FROM tbh_codes
+      WHERE estimated_hire_date IS NOT NULL
     `),
     pool.query(`SELECT name, code FROM regions WHERE name != 'Global' ORDER BY sort_order`),
     pool.query(`SELECT name, code FROM regions ORDER BY sort_order`),
@@ -244,6 +277,7 @@ async function fetchShared() {
     peopleByDiscRegion:       pdRes.rows,
     projectTrend:             trendRes.rows,
     tbhStatus:                tbhRes.rows,
+    tbhAvgHireDays:           computeAvgHireDays(tbhAvgRes.rows),
     allRegionNames:           regRes.rows.map(r => r.name),
     allRegionNamesWithGlobal: allRegRes.rows.map(r => r.name),
     regionCodeMap:            codeMap,
@@ -388,7 +422,8 @@ router.get('/hub-iq', requireAuth, async (req, res) => {
     all_region_names:      shared.allRegionNamesWithGlobal,
     region_code_map:       shared.regionCodeMap,
     project_trend: shared.projectTrend,
-    tbh_status:    shared.tbhStatus,
+    tbh_status:         shared.tbhStatus,
+    tbh_avg_hire_days:  shared.tbhAvgHireDays,
     years: {
       [yearA]: buildYear(dataA),
       [yearB]: buildYear(dataB),
