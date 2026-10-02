@@ -216,7 +216,7 @@ function buildSummary(projRow, hcRows) {
 // ---------------------------------------------------------------------------
 
 async function fetchShared() {
-  const [gcRes, hcRes, pdRes, trendRes, tbhRes, tbhAvgRes, regRes, allRegRes] = await Promise.all([
+  const [gcRes, hcRes, pdRes, trendRes, tbhRes, tbhAvgRes, tbhHireTypeRes, tbhOverdueRes, tbhForecastRes, tbhJobProfileRes, regRes, allRegRes] = await Promise.all([
     pool.query(`
       SELECT d.name AS discipline_name, gc.project_type,
              gc.min_divisor::float AS min_divisor,
@@ -267,6 +267,41 @@ async function fetchShared() {
       FROM tbh_codes
       WHERE estimated_hire_date IS NOT NULL
     `),
+    pool.query(`
+      SELECT COALESCE(hire_type, 'Not Set') AS hire_type, COUNT(*)::int AS count
+      FROM tbh_codes
+      GROUP BY hire_type ORDER BY count DESC
+    `),
+    pool.query(`
+      SELECT t.tbh_id, t.old_tbh, t.req_status, t.hire_type,
+             r.name AS region_name, t.estimated_hire_date::text,
+             (CURRENT_DATE - t.estimated_hire_date)::int AS days_overdue
+      FROM tbh_codes t
+      LEFT JOIN regions r ON t.region_id = r.id
+      WHERE t.estimated_hire_date < CURRENT_DATE
+        AND (t.req_status IS NULL OR t.req_status != 'Filled')
+      ORDER BY t.estimated_hire_date ASC
+      LIMIT 50
+    `),
+    pool.query(`
+      SELECT TO_CHAR(DATE_TRUNC('month', estimated_hire_date), 'YYYY-MM') AS month,
+             COUNT(*)::int AS count
+      FROM tbh_codes
+      WHERE estimated_hire_date IS NOT NULL
+        AND estimated_hire_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '2 months'
+        AND estimated_hire_date <= DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '11 months'
+        AND (req_status IS NULL OR req_status != 'Filled')
+      GROUP BY DATE_TRUNC('month', estimated_hire_date)
+      ORDER BY DATE_TRUNC('month', estimated_hire_date)
+    `),
+    pool.query(`
+      SELECT COALESCE(NULLIF(TRIM(job_profile), ''), 'Not Set') AS job_profile,
+             COUNT(*)::int AS count
+      FROM tbh_codes
+      GROUP BY job_profile
+      ORDER BY count DESC
+      LIMIT 12
+    `),
     pool.query(`SELECT name, code FROM regions WHERE name != 'Global' ORDER BY sort_order`),
     pool.query(`SELECT name, code FROM regions ORDER BY sort_order`),
   ]);
@@ -278,6 +313,10 @@ async function fetchShared() {
     projectTrend:             trendRes.rows,
     tbhStatus:                tbhRes.rows,
     tbhAvgHireDays:           computeAvgHireDays(tbhAvgRes.rows),
+    tbhHireType:              tbhHireTypeRes.rows,
+    tbhOverdue:               tbhOverdueRes.rows,
+    tbhMonthlyForecast:       tbhForecastRes.rows,
+    tbhJobProfile:            tbhJobProfileRes.rows,
     allRegionNames:           regRes.rows.map(r => r.name),
     allRegionNamesWithGlobal: allRegRes.rows.map(r => r.name),
     regionCodeMap:            codeMap,
@@ -422,8 +461,12 @@ router.get('/hub-iq', requireAuth, async (req, res) => {
     all_region_names:      shared.allRegionNamesWithGlobal,
     region_code_map:       shared.regionCodeMap,
     project_trend: shared.projectTrend,
-    tbh_status:         shared.tbhStatus,
-    tbh_avg_hire_days:  shared.tbhAvgHireDays,
+    tbh_status:           shared.tbhStatus,
+    tbh_avg_hire_days:    shared.tbhAvgHireDays,
+    tbh_hire_type:        shared.tbhHireType,
+    tbh_overdue:          shared.tbhOverdue,
+    tbh_monthly_forecast: shared.tbhMonthlyForecast,
+    tbh_job_profile:      shared.tbhJobProfile,
     years: {
       [yearA]: buildYear(dataA),
       [yearB]: buildYear(dataB),
