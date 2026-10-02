@@ -76,7 +76,7 @@ router.get('/', requireAuth, async (req, res) => {
             t.req_status, t.ta_contact, t.candidate_name, t.estimated_hire_date,
             t.ta_status_comments, t.tbh_description, t.fp_and_a_approver_notes,
             t.fp_and_a_notes, t.created_at, t.updated_at, r.name AS region_name,
-            EXISTS (SELECT 1 FROM people WHERE tbh_code_id = t.id) AS is_in_plan
+            EXISTS (SELECT 1 FROM people pe WHERE pe.tbh_code_id = t.id AND pe.is_active = TRUE) AS is_in_plan
      FROM tbh_codes t
      LEFT JOIN regions r ON t.region_id = r.id
      ${where}
