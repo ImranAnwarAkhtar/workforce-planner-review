@@ -283,6 +283,7 @@ export interface Project {
   type: string;
   status: string;
   weight: number;
+  power_kw: number | null;
   region_id: number | null;
   country_id: number | null;
   metro: string | null;
@@ -313,6 +314,7 @@ export interface CreateProjectBody {
   type: string;
   status: string;
   weight?: number;
+  power_kw?: number | null;
   region_id?: number | null;
   country_id?: number | null;
   metro?: string | null;
@@ -338,6 +340,15 @@ export const projectsApi = {
 
   deactivate: (id: number) =>
     client.delete(`/projects/${id}`),
+
+  upload: (file: File, planningCycleId?: number | null) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (planningCycleId) fd.append('planning_cycle_id', String(planningCycleId));
+    return client.post<{ data: { inserted: number; skipped: number; errors: { row: number; name: string; error: string }[] } }>(
+      '/projects/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }
+    ).then(r => r.data.data);
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -666,6 +677,10 @@ export interface TbhCode {
   id: number;
   tbh_id: string;
   old_tbh: string | null;
+  in_summary: string | null;
+  status_query: string | null;
+  pmo_comments: string | null;
+  wfp_comments: string | null;
   funding_year: number | null;
   hire_type: string | null;
   region_id: number | null;
@@ -684,8 +699,10 @@ export interface TbhCode {
   estimated_hire_date: string | null;
   ta_status_comments: string | null;
   tbh_description: string | null;
+  fp_and_a_approver_notes: string | null;
   fp_and_a_notes: string | null;
   region_name: string | null;
+  is_in_plan: boolean;
 }
 
 export interface TbhCodesQuery {
@@ -824,6 +841,7 @@ export const dashboardApi = {
 export interface HubIqProjectSummary {
   total: number; retail: number; xscale: number;
   total_weight: number; retail_weight: number; xscale_weight: number;
+  total_power_kw: number;
 }
 export interface HubIqHcGroup   { total: number; fte: number; con: number }
 export interface HubIqExistHc   { total: number; perm: number; contingent: number }
@@ -875,17 +893,32 @@ export interface HubIqYearData {
   meta:      HubIqMeta;
 }
 
-export interface HubIqTrendRow   { year: number; status: string; count: number }
-export interface HubIqTbhStatus  { funding_year: number; req_status: string; count: number }
+export interface HubIqTrendRow   { year: number; status: string; count: number; power_kw: number }
+export interface HubIqTbhStatus    { req_status: string; count: number; funding_year: number }
+export interface HubIqTbhHireType  { hire_type: string; count: number; funding_year: number }
+export interface HubIqTbhForecast  { month: string; count: number; funding_year: number }
+export interface HubIqTbhJobProfile { job_profile: string; count: number; funding_year: number }
+export interface HubIqTbhDiscRegion { job_profile: string; region_name: string; count: number; funding_year: number }
+export interface HubIqTbhOverdue   {
+  tbh_id: string; old_tbh: string | null; req_status: string | null;
+  hire_type: string | null; region_name: string | null;
+  estimated_hire_date: string; days_overdue: number; funding_year: number | null;
+}
 
 export interface HubIqResponse {
-  available_years:    number[];
+  available_years:      number[];
   yearA: number;
   yearB: number;
-  region_names:       string[];
-  all_region_names:   string[];
-  region_code_map:    Record<string, string>;
-  project_trend:      HubIqTrendRow[];
-  tbh_status:         HubIqTbhStatus[];
+  region_names:         string[];
+  all_region_names:     string[];
+  region_code_map:      Record<string, string>;
+  project_trend:        HubIqTrendRow[];
+  tbh_status:           HubIqTbhStatus[];
+  tbh_avg_hire_days:    Record<string, Record<string, number>>;
+  tbh_hire_type:        HubIqTbhHireType[];
+  tbh_overdue:          HubIqTbhOverdue[];
+  tbh_monthly_forecast: HubIqTbhForecast[];
+  tbh_job_profile:      HubIqTbhJobProfile[];
+  tbh_disc_region:      HubIqTbhDiscRegion[];
   years: Record<number, HubIqYearData>;
 }

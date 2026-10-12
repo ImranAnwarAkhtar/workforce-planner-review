@@ -223,7 +223,7 @@ function buildSummary(projRow, hcRows) {
 // ---------------------------------------------------------------------------
 
 async function fetchShared() {
-  const [gcRes, hcRes, pdRes, trendRes, tbhRes, tbhAvgRes, tbhHireTypeRes, tbhOverdueRes, tbhForecastRes, tbhJobProfileRes, regRes, allRegRes] = await Promise.all([
+  const [gcRes, hcRes, pdRes, trendRes, tbhRes, tbhAvgRes, tbhHireTypeRes, tbhOverdueRes, tbhForecastRes, tbhJobProfileRes, tbhDiscRegionRes, regRes, allRegRes] = await Promise.all([
     pool.query(`
       SELECT d.name AS discipline_name, gc.project_type,
              gc.min_divisor::float AS min_divisor,
@@ -314,6 +314,16 @@ async function fetchShared() {
       GROUP BY job_profile, funding_year
       ORDER BY count DESC
     `),
+    pool.query(`
+      SELECT COALESCE(NULLIF(TRIM(t.job_profile), ''), 'Not Set') AS job_profile,
+             COALESCE(r.name, 'Unknown') AS region_name,
+             COALESCE(t.funding_year, 0) AS funding_year,
+             COUNT(*)::int AS count
+      FROM tbh_codes t
+      LEFT JOIN regions r ON t.region_id = r.id
+      GROUP BY t.job_profile, r.name, t.funding_year
+      ORDER BY count DESC
+    `),
     pool.query(`SELECT name, code FROM regions WHERE name != 'Global' ORDER BY sort_order`),
     pool.query(`SELECT name, code FROM regions ORDER BY sort_order`),
   ]);
@@ -329,6 +339,7 @@ async function fetchShared() {
     tbhOverdue:               tbhOverdueRes.rows,
     tbhMonthlyForecast:       tbhForecastRes.rows,
     tbhJobProfile:            tbhJobProfileRes.rows,
+    tbhDiscRegion:            tbhDiscRegionRes.rows,
     allRegionNames:           regRes.rows.map(r => r.name),
     allRegionNamesWithGlobal: allRegRes.rows.map(r => r.name),
     regionCodeMap:            codeMap,
@@ -479,6 +490,7 @@ router.get('/hub-iq', requireAuth, async (req, res) => {
     tbh_overdue:          shared.tbhOverdue,
     tbh_monthly_forecast: shared.tbhMonthlyForecast,
     tbh_job_profile:      shared.tbhJobProfile,
+    tbh_disc_region:      shared.tbhDiscRegion,
     years: {
       [yearA]: buildYear(dataA),
       [yearB]: buildYear(dataB),
