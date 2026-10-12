@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import equinixFortressRed from '../assets/equinix-fortress-red.svg';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
@@ -194,10 +194,53 @@ function TopBanner({ yearA, yearB, dataA, dataB }: { yearA: number; yearB: numbe
 // Tab bar
 // ---------------------------------------------------------------------------
 
-function TabBar({ active, onChange, availableYears, selectedYear, onYearChange }: {
+function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange }: {
   active: Tab; onChange: (t: Tab) => void;
-  availableYears: number[]; selectedYear: number | 'all'; onYearChange: (y: number | 'all') => void;
+  availableYears: number[];
+  yearRange: [number, number] | null;
+  onYearRangeChange: (r: [number, number] | null) => void;
 }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const n = availableYears.length;
+  const startIdx = yearRange ? Math.max(0, availableYears.indexOf(yearRange[0])) : 0;
+  const endIdx   = yearRange ? Math.max(0, availableYears.indexOf(yearRange[1])) : Math.max(0, n - 1);
+  const startPct = n > 1 ? (startIdx / (n - 1)) * 100 : 0;
+  const endPct   = n > 1 ? (endIdx   / (n - 1)) * 100 : 100;
+
+  function getIdx(clientX: number) {
+    const track = trackRef.current;
+    if (!track) return 0;
+    const rect = track.getBoundingClientRect();
+    return Math.round(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * (n - 1));
+  }
+
+  function makeHandle(type: 'start' | 'end') {
+    return {
+      onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+      },
+      onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+        const idx = getIdx(e.clientX);
+        const newRange: [number, number] = type === 'start'
+          ? [availableYears[Math.min(idx, endIdx)], availableYears[endIdx]]
+          : [availableYears[startIdx], availableYears[Math.max(idx, startIdx)]];
+        onYearRangeChange(newRange);
+      },
+      onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      },
+    };
+  }
+
+  const HANDLE: React.CSSProperties = {
+    position: 'absolute', width: 14, height: 14, borderRadius: '50%',
+    background: C.accent, cursor: 'ew-resize', touchAction: 'none',
+    zIndex: 2, boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+    top: '50%', transform: 'translate(-50%, -50%)',
+  };
+
   return (
     <div style={{ display: 'flex', alignItems: 'stretch', background: '#FFFFFF', borderBottom: `1px solid ${C.border}`, padding: '0 20px', flexShrink: 0 }}>
       {TABS.map(tab => (
@@ -209,29 +252,43 @@ function TabBar({ active, onChange, availableYears, selectedYear, onYearChange }
           cursor: 'pointer', marginBottom: -1, whiteSpace: 'nowrap',
         }}>{tab}</button>
       ))}
-      {active === 'Hire Status' && availableYears.length > 0 && (() => {
-        const opts: (number | 'all')[] = ['all', ...availableYears];
-        const idx = Math.max(0, opts.indexOf(selectedYear as any));
-        return (
-          <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingLeft: 20, paddingRight: 4, gap: 2, minWidth: 180 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              {opts.map(y => (
-                <span key={String(y)} style={{ fontSize: 8, color: idx === opts.indexOf(y) ? C.accent : C.muted, fontWeight: idx === opts.indexOf(y) ? 700 : 400, textAlign: 'center' }}>
-                  {y === 'all' ? 'All' : String(y)}
-                </span>
-              ))}
+      {active === 'Hire Status' && n > 0 && (
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 16, paddingRight: 8 }}>
+          <span style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Select year</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 220 }}>
+            {/* Year labels — compact, sit above track */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, paddingRight: 6 }}>
+              {availableYears.map((y, i) => {
+                const inRange = yearRange === null || (i >= startIdx && i <= endIdx);
+                return (
+                  <span key={y} style={{ fontSize: 9, color: inRange ? C.accent : C.muted, fontWeight: inRange ? 700 : 500, lineHeight: 1 }}>
+                    '{String(y).slice(2)}
+                  </span>
+                );
+              })}
             </div>
-            <input
-              type="range" min={0} max={opts.length - 1} step={1} value={idx}
-              onChange={e => onYearChange(opts[Number(e.target.value)] as number | 'all')}
-              style={{ width: '100%', cursor: 'pointer', accentColor: C.accent, height: 4 }}
-            />
-            <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: C.accent }}>
-              {selectedYear === 'all' ? 'All Years' : String(selectedYear)}
+            {/* Dual-handle track */}
+            <div ref={trackRef} style={{ position: 'relative', height: 16, display: 'flex', alignItems: 'center' }}>
+              <div style={{ position: 'absolute', left: 0, right: 0, height: 3, background: '#E0E3E8', borderRadius: 2 }} />
+              <div style={{
+                position: 'absolute',
+                left: `${startPct}%`,
+                width: `${Math.max(0, endPct - startPct)}%`,
+                height: 3, background: C.accent, borderRadius: 2,
+              }} />
+              <div {...makeHandle('start')} style={{ ...HANDLE, left: `${startPct}%`, width: 12, height: 12 }} />
+              <div {...makeHandle('end')}   style={{ ...HANDLE, left: `${endPct}%`, width: 12, height: 12 }} />
             </div>
           </div>
-        );
-      })()}
+          <button onClick={() => onYearRangeChange(null)} style={{
+            padding: '2px 8px', fontSize: 9, fontWeight: 700, flexShrink: 0,
+            background: yearRange === null ? C.accent : '#F3F4F6',
+            color: yearRange === null ? '#FFF' : C.muted,
+            border: 'none', borderRadius: 3, cursor: 'pointer', whiteSpace: 'nowrap',
+            textTransform: 'uppercase', letterSpacing: '0.04em',
+          }}>All</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1491,7 +1548,7 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
 // HIRE STATUS TAB
 // ---------------------------------------------------------------------------
 
-function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbhMonthlyForecast, tbhJobProfile, tbhDiscRegion, availableYears, selectedYear }: {
+function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbhMonthlyForecast, tbhJobProfile, tbhDiscRegion, yearRange, regionCodeMap, regionNamesAll }: {
   yearA: number; yearB: number;
   tbhStatus: { req_status: string; count: number; funding_year: number }[];
   tbhAvgHireDays: Record<string, Record<string, number>>;
@@ -1500,8 +1557,9 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
   tbhMonthlyForecast: { month: string; count: number; funding_year: number }[];
   tbhJobProfile: { job_profile: string; count: number; funding_year: number }[];
   tbhDiscRegion: HubIqTbhDiscRegion[];
-  availableYears: number[];
-  selectedYear: number | 'all';
+  yearRange: [number, number] | null;
+  regionCodeMap: Record<string, string>;
+  regionNamesAll: string[];
 }) {
   const STAGE_COLORS: Record<string, string> = {
     'Filled': '#E91C24', 'Open': '#C71B36', 'In Progress': '#A61B49',
@@ -1513,16 +1571,18 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
   const GRAD: string[] = ['#E91C24','#D4193B','#BF1852','#A61B49','#8E1A5A','#841A5B','#6E1A67','#631A6E','#4E1878','#411980'];
 
   const filterYear = (rows: { funding_year: number }[]) =>
-    selectedYear === 'all' ? rows : rows.filter(r => r.funding_year === selectedYear);
+    yearRange === null ? rows : rows.filter(r => r.funding_year >= yearRange[0] && r.funding_year <= yearRange[1]);
 
-  const avgHireDays: Record<string, number> = selectedYear === 'all'
-    ? (tbhAvgHireDays['all'] ?? {})
-    : (tbhAvgHireDays[String(selectedYear)] ?? {});
+  const avgHireDays: Record<string, number> =
+    yearRange === null ? (tbhAvgHireDays['all'] ?? {})
+    : yearRange[0] === yearRange[1] ? (tbhAvgHireDays[String(yearRange[0])] ?? tbhAvgHireDays['all'] ?? {})
+    : (tbhAvgHireDays['all'] ?? {});
 
   const filteredStatus   = filterYear(tbhStatus)   as typeof tbhStatus;
   const filteredHireType = filterYear(tbhHireType) as typeof tbhHireType;
-  const filteredOverdue  = filterYear(tbhOverdue.map(r => ({ ...r, funding_year: r.funding_year ?? 0 }))) as (typeof tbhOverdue[0] & { funding_year: number })[];
-  const filteredForecast = filterYear(tbhMonthlyForecast) as typeof tbhMonthlyForecast;
+  // Overdue and forecast are time-based views — backend already scopes by date, don't filter by year range
+  const filteredOverdue  = tbhOverdue;
+  const filteredForecast = tbhMonthlyForecast;
   const filteredJobProfileRaw = filterYear(tbhJobProfile) as typeof tbhJobProfile;
   const filteredDiscRegion    = filterYear(tbhDiscRegion) as typeof tbhDiscRegion;
 
@@ -1536,18 +1596,23 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
   const forecastAgg: Record<string, number> = {};
   for (const r of filteredForecast) forecastAgg[r.month] = (forecastAgg[r.month] ?? 0) + r.count;
 
-  // Disc + region aggregation for horizontal bar chart
-  const discRegionMap: Record<string, Record<string, number>> = {};
+  // Region aggregation: use DB code map + all known regions as placeholders
+  const regionAgg: Record<string, number> = {};
   for (const r of filteredDiscRegion) {
-    if (!discRegionMap[r.job_profile]) discRegionMap[r.job_profile] = {};
-    discRegionMap[r.job_profile][r.region_name] = (discRegionMap[r.job_profile][r.region_name] ?? 0) + r.count;
+    regionAgg[r.region_name] = (regionAgg[r.region_name] ?? 0) + r.count;
   }
-  const discRegionData = Object.entries(discRegionMap)
-    .map(([job_profile, regions]) => ({ job_profile, total: Object.values(regions).reduce((s, v) => s + v, 0), ...regions }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 12);
-  const discRegionKeys = Array.from(new Set(filteredDiscRegion.map(r => r.region_name)));
-  const REGION_PALETTE = ['#E91C24','#086AE3','#33A85C','#FDB90D','#7739D9','#00737A','#411980','#8B93A3'];
+  const codeToCount: Record<string, number> = {};
+  for (const name of regionNamesAll) {
+    const code = regionCodeMap[name] ?? name;
+    if (codeToCount[code] === undefined) codeToCount[code] = 0;
+  }
+  for (const [name, count] of Object.entries(regionAgg)) {
+    const code = regionCodeMap[name] ?? name;
+    codeToCount[code] = (codeToCount[code] ?? 0) + count;
+  }
+  const regionBarData = Object.entries(codeToCount)
+    .map(([region_name, count]) => ({ region_name, count }))
+    .sort((a, b) => b.count - a.count || a.region_name.localeCompare(b.region_name));
 
   const sorted = Object.entries(statusAgg).map(([req_status, count]) => ({ req_status, count })).sort((a, b) => b.count - a.count);
   const hireTypeSorted = Object.entries(hireTypeAgg).map(([hire_type, count]) => ({ hire_type, count })).sort((a, b) => b.count - a.count);
@@ -1572,8 +1637,8 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* ── Row 1: bar chart + Hire Type Breakdown ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      {/* ── Row 1: Status bars + Hire Type donut + Region bars ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.7fr 1.6fr', gap: 14 }}>
 
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
           <div style={{ marginBottom: 10 }}>
@@ -1619,24 +1684,22 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
           </div>
         </div>
 
-        {/* Hire Type breakdown donut */}
-        <div style={{ ...cardStyle, padding: '14px 16px' }}>
-          <div style={{ marginBottom: 10 }}>
-            <div style={sectionLabel}>Hire Type Breakdown</div>
-          </div>
+        {/* Hire Type breakdown donut — centered */}
+        <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ ...sectionLabel, textAlign: 'center', marginBottom: 10 }}>Hire Type Breakdown</div>
           {hireTypeSorted.length === 0 ? (
             <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No data</div>
           ) : (
             <>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={190}>
                 <PieChart>
                   <Pie data={hireTypeSorted.map(r => ({ name: r.hire_type, value: r.count }))}
                     dataKey="value" nameKey="name" cx="50%" cy="50%"
-                    innerRadius={44} outerRadius={68} paddingAngle={2}
+                    innerRadius={50} outerRadius={76} paddingAngle={2}
                     startAngle={45} endAngle={405}
                     label={(props: any) => (
                       <text x={props.x} y={props.y} textAnchor="middle" dominantBaseline="central"
-                        fontSize={12} fontWeight={700} fill={HIRE_TYPE_COLORS[props.name] ?? '#555'}>
+                        fontSize={11} fontWeight={700} fill={HIRE_TYPE_COLORS[props.name] ?? '#555'}>
                         {`${Math.round((props.percent ?? 0) * 100)}%`}
                       </text>
                     )}
@@ -1646,52 +1709,44 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
                   <Tooltip formatter={(v: any) => `${v} roles`} contentStyle={{ fontSize: 11 }} />
                 </PieChart>
               </ResponsiveContainer>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '5px 14px', marginTop: 30 }}>
                 {hireTypeSorted.map((r, i) => (
-                  <div key={r.hire_type} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: HIRE_TYPE_COLORS[r.hire_type] ?? GRAD[i % GRAD.length], flexShrink: 0 }} />
-                    <span style={{ fontSize: 10, color: '#444', flex: 1 }}>{r.hire_type}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#111' }}>{r.count}</span>
+                  <div key={r.hire_type} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: HIRE_TYPE_COLORS[r.hire_type] ?? GRAD[i % GRAD.length], flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, color: '#444' }}>{r.hire_type}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#111', marginLeft: 2 }}>{r.count}</span>
                   </div>
                 ))}
               </div>
             </>
           )}
         </div>
+
+        {/* TBH Hires by Region — horizontal bar chart */}
+        <div style={{ ...cardStyle, padding: '14px 12px 14px 14px' }}>
+          <div style={{ marginBottom: 10 }}>
+            <div style={sectionLabel}>TBH Hires by Region</div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Total TBH roles by region</div>
+          </div>
+          <ResponsiveContainer width="100%" height={Math.max(180, regionBarData.length * 30)}>
+            <BarChart data={regionBarData} layout="vertical" margin={{ top: 2, right: 14, bottom: 2, left: 0 }}>
+              <XAxis type="number" hide />
+              <YAxis type="category" dataKey="region_name" width={54} tick={{ fontSize: 10, fill: '#444', fontWeight: 600 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} roles`, 'Total']} />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                {regionBarData.map((entry, i) => (
+                  <Cell key={i} fill={entry.count > 0 ? GRAD[Math.round(i * (GRAD.length - 1) / Math.max(regionBarData.length - 1, 1))] : '#EAECF0'} />
+                ))}
+                <LabelList dataKey="count" position="insideRight" style={{ fontSize: 11, fill: '#FFFFFF', fontWeight: 700 }} formatter={(v: any) => (v > 0 ? String(v) : '')} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
       </div>
 
-      {/* ── Row 2: Role Type donut + Overdue tile ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-
-        {/* TBH Hires by Discipline & Region — horizontal stacked bar */}
-        <div style={{ ...cardStyle, padding: '14px 16px' }}>
-          <div style={{ marginBottom: 10 }}>
-            <div style={sectionLabel}>TBH Hires by Discipline</div>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Roles by job profile · stacked by region</div>
-          </div>
-          {discRegionData.length === 0 ? (
-            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No data</div>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={Math.max(180, discRegionData.length * 22)}>
-                <BarChart data={discRegionData} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 9, fill: C.muted }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="job_profile" width={110} tick={{ fontSize: 9, fill: '#444' }} />
-                  <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} roles`]} />
-                  <Legend wrapperStyle={{ fontSize: 9, paddingTop: 6 }} />
-                  {discRegionKeys.map((region, i) => (
-                    <Bar key={region} dataKey={region} stackId="a" fill={REGION_PALETTE[i % REGION_PALETTE.length]} radius={i === discRegionKeys.length - 1 ? [0, 3, 3, 0] : [0, 0, 0, 0]}>
-                      {i === discRegionKeys.length - 1 && (
-                        <LabelList dataKey="total" position="right" style={{ fontSize: 9, fill: '#555', fontWeight: 600 }} />
-                      )}
-                    </Bar>
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            </>
-          )}
-        </div>
+      {/* ── Row 2: Overdue tile ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
 
         {/* Overdue tile */}
         <div style={{ ...cardStyle, padding: '14px 16px', ...(overdueCount > 0 ? { background: 'rgba(233,28,36,0.03)', borderColor: 'rgba(233,28,36,0.25)' } : {}) }}>
@@ -1793,7 +1848,7 @@ export default function Dashboard() {
   const [error, setError]       = useState<string | null>(null);
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('Projects');
-  const [hireYear, setHireYear]   = useState<number | 'all'>('all');
+  const [hireYearRange, setHireYearRange] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     dashboardApi.planningYears()
@@ -1858,7 +1913,7 @@ export default function Dashboard() {
       </div>
 
       {/* Tab bar */}
-      <TabBar active={activeTab} onChange={setActiveTab} availableYears={hubData?.available_years ?? []} selectedYear={hireYear} onYearChange={setHireYear} />
+      <TabBar active={activeTab} onChange={setActiveTab} availableYears={hubData?.available_years ?? []} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} />
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
@@ -1879,7 +1934,7 @@ export default function Dashboard() {
             {activeTab === 'People'      && <PeopleTab      yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} allRegionNames={hubData?.all_region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Gearing'     && <GearingTab     yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
-            {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} availableYears={hubData!.available_years ?? []} selectedYear={hireYear} />}
+            {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} />}
           </>
         )}
       </div>

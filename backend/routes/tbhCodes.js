@@ -55,6 +55,32 @@ function clean(v) {
 
 const router = Router();
 
+// ONE-TIME: seed sample estimated_hire_date values — remove after use
+router.post('/seed-sample-dates', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANNING), async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, tbh_id FROM tbh_codes
+     WHERE (req_status IS NULL OR req_status NOT IN ('Filled','Cancelled'))
+     ORDER BY id ASC LIMIT 20`
+  );
+  if (!rows.length) return res.json({ message: 'No eligible TBH codes', updated: 0 });
+  const dates = [
+    '2026-07-10','2026-08-22','2026-09-05',
+    '2026-10-28','2026-11-12','2026-11-27',
+    '2026-12-10','2027-01-15','2027-01-30',
+    '2027-02-18','2027-03-07','2027-04-11',
+    '2027-05-09','2027-06-20','2027-07-03',
+    '2026-08-14','2026-09-28','2026-10-15',
+    '2027-02-05','2027-03-22',
+  ];
+  const updated = [];
+  for (let i = 0; i < rows.length; i++) {
+    const d = dates[i % dates.length];
+    await pool.query(`UPDATE tbh_codes SET estimated_hire_date = $1 WHERE id = $2`, [d, rows[i].id]);
+    updated.push({ tbh_id: rows[i].tbh_id, estimated_hire_date: d });
+  }
+  res.json({ message: `Updated ${updated.length} records`, updated });
+});
+
 router.get('/', requireAuth, async (req, res) => {
   const { region_id, funding_year, req_status, limit = 100, offset = 0 } = req.query;
   const conditions = [];
