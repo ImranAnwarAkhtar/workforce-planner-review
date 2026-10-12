@@ -20,21 +20,28 @@ function parseTbhCreationDate(tbhId) {
 }
 
 function computeAvgHireDays(rows) {
-  const groups = {};
+  const buckets = { all: {} };
   for (const row of rows) {
     const created = parseTbhCreationDate(row.tbh_id);
     if (!created || !row.estimated_hire_date) continue;
     const hireDate = new Date(row.estimated_hire_date);
     const days = Math.round((hireDate - created) / (1000 * 60 * 60 * 24));
     if (days < 0 || days > 1095) continue;
-    const key = row.req_status || 'Not Raised';
-    if (!groups[key]) groups[key] = { sum: 0, count: 0 };
-    groups[key].sum += days;
-    groups[key].count++;
+    const status = row.req_status || 'Not Raised';
+    const yr = row.funding_year ? String(row.funding_year) : null;
+    for (const key of ['all', ...(yr ? [yr] : [])]) {
+      if (!buckets[key]) buckets[key] = {};
+      if (!buckets[key][status]) buckets[key][status] = { sum: 0, count: 0 };
+      buckets[key][status].sum += days;
+      buckets[key][status].count++;
+    }
   }
   const result = {};
-  for (const [key, val] of Object.entries(groups)) {
-    result[key] = Math.round(val.sum / val.count);
+  for (const [bucketKey, statuses] of Object.entries(buckets)) {
+    result[bucketKey] = {};
+    for (const [status, val] of Object.entries(statuses)) {
+      result[bucketKey][status] = Math.round(val.sum / val.count);
+    }
   }
   return result;
 }
@@ -257,25 +264,29 @@ async function fetchShared() {
     `),
     pool.query(`
       SELECT COALESCE(req_status, 'Not Raised') AS req_status,
+             COALESCE(funding_year, 0) AS funding_year,
              COUNT(*)::int AS count
       FROM tbh_codes
-      GROUP BY req_status
+      GROUP BY req_status, funding_year
       ORDER BY count DESC
     `),
     pool.query(`
-      SELECT tbh_id, req_status, estimated_hire_date
+      SELECT tbh_id, req_status, estimated_hire_date, funding_year
       FROM tbh_codes
       WHERE estimated_hire_date IS NOT NULL
     `),
     pool.query(`
-      SELECT COALESCE(hire_type, 'Not Set') AS hire_type, COUNT(*)::int AS count
+      SELECT COALESCE(hire_type, 'Not Set') AS hire_type,
+             COALESCE(funding_year, 0) AS funding_year,
+             COUNT(*)::int AS count
       FROM tbh_codes
-      GROUP BY hire_type ORDER BY count DESC
+      GROUP BY hire_type, funding_year ORDER BY count DESC
     `),
     pool.query(`
       SELECT t.tbh_id, t.old_tbh, t.req_status, t.hire_type,
              r.name AS region_name, t.estimated_hire_date::text,
-             (CURRENT_DATE - t.estimated_hire_date)::int AS days_overdue
+             (CURRENT_DATE - t.estimated_hire_date)::int AS days_overdue,
+             t.funding_year
       FROM tbh_codes t
       LEFT JOIN regions r ON t.region_id = r.id
       WHERE t.estimated_hire_date < CURRENT_DATE
@@ -285,22 +296,23 @@ async function fetchShared() {
     `),
     pool.query(`
       SELECT TO_CHAR(DATE_TRUNC('month', estimated_hire_date), 'YYYY-MM') AS month,
+             COALESCE(funding_year, 0) AS funding_year,
              COUNT(*)::int AS count
       FROM tbh_codes
       WHERE estimated_hire_date IS NOT NULL
         AND estimated_hire_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '2 months'
         AND estimated_hire_date <= DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '11 months'
         AND (req_status IS NULL OR req_status != 'Filled')
-      GROUP BY DATE_TRUNC('month', estimated_hire_date)
+      GROUP BY DATE_TRUNC('month', estimated_hire_date), funding_year
       ORDER BY DATE_TRUNC('month', estimated_hire_date)
     `),
     pool.query(`
       SELECT COALESCE(NULLIF(TRIM(job_profile), ''), 'Not Set') AS job_profile,
+             COALESCE(funding_year, 0) AS funding_year,
              COUNT(*)::int AS count
       FROM tbh_codes
-      GROUP BY job_profile
+      GROUP BY job_profile, funding_year
       ORDER BY count DESC
-      LIMIT 12
     `),
     pool.query(`SELECT name, code FROM regions WHERE name != 'Global' ORDER BY sort_order`),
     pool.query(`SELECT name, code FROM regions ORDER BY sort_order`),
