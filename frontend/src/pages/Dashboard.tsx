@@ -1607,7 +1607,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
     if (codeToCount[code] === undefined) codeToCount[code] = 0;
   }
   for (const [name, count] of Object.entries(regionAgg)) {
-    const code = regionCodeMap[name] ?? name;
+    const code = name === 'Unknown' ? 'N/A' : (regionCodeMap[name] ?? name);
     codeToCount[code] = (codeToCount[code] ?? 0) + count;
   }
   const regionBarData = Object.entries(codeToCount)
@@ -1723,7 +1723,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
         </div>
 
         {/* TBH Hires by Region — horizontal bar chart */}
-        <div style={{ ...cardStyle, padding: '14px 12px 14px 14px' }}>
+        <div style={{ ...cardStyle, padding: '14px 10px 14px 10px' }}>
           <div style={{ marginBottom: 10 }}>
             <div style={sectionLabel}>TBH Hires by Region</div>
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Total TBH roles by region</div>
@@ -1731,7 +1731,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
           <ResponsiveContainer width="100%" height={Math.max(180, regionBarData.length * 30)}>
             <BarChart data={regionBarData} layout="vertical" margin={{ top: 2, right: 14, bottom: 2, left: 0 }}>
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="region_name" width={54} tick={{ fontSize: 10, fill: '#444', fontWeight: 600 }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="region_name" width={72} tick={{ fontSize: 10, fill: '#444', fontWeight: 600 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} roles`, 'Total']} />
               <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={22}>
                 {regionBarData.map((entry, i) => (

@@ -328,6 +328,33 @@ async function fetchShared() {
     pool.query(`SELECT name, code FROM regions ORDER BY sort_order`),
   ]);
   const codeMap = Object.fromEntries(allRegRes.rows.map(r => [r.name, r.code || r.name]));
+
+  // Sample fallback data shown when no estimated_hire_date values exist in the DB
+  const dAgo  = d => { const dt = new Date(); dt.setDate(dt.getDate() - d); return dt.toISOString().slice(0,10); };
+  const dAhead = d => { const dt = new Date(); dt.setDate(dt.getDate() + d); return dt.toISOString().slice(0,10); };
+  const ym = d => { const dt = new Date(); dt.setDate(dt.getDate() + d); return dt.toISOString().slice(0,7); };
+
+  const sampleOverdue = tbhOverdueRes.rows.length === 0 ? [
+    { tbh_id: 'SAMPLE-001', old_tbh: 'OT-2024-012', req_status: 'Open',        hire_type: 'Net New',    region_name: 'EMEA Central', estimated_hire_date: dAgo(95), days_overdue: 95, funding_year: 2026 },
+    { tbh_id: 'SAMPLE-002', old_tbh: null,           req_status: 'In Progress', hire_type: 'Backfill',   region_name: 'Americas',     estimated_hire_date: dAgo(61), days_overdue: 61, funding_year: 2026 },
+    { tbh_id: 'SAMPLE-003', old_tbh: 'OT-2024-034', req_status: 'Open',        hire_type: 'Net New',    region_name: 'APAC',         estimated_hire_date: dAgo(42), days_overdue: 42, funding_year: 2026 },
+    { tbh_id: 'SAMPLE-004', old_tbh: null,           req_status: 'In Progress', hire_type: 'Conversion', region_name: 'EMEA Central', estimated_hire_date: dAgo(78), days_overdue: 78, funding_year: 2026 },
+    { tbh_id: 'SAMPLE-005', old_tbh: 'OT-2024-056', req_status: 'Open',        hire_type: 'Net New',    region_name: 'Americas',     estimated_hire_date: dAgo(18), days_overdue: 18, funding_year: 2026 },
+  ] : tbhOverdueRes.rows;
+
+  const sampleForecast = tbhForecastRes.rows.length === 0 ? [
+    { month: ym(-60), funding_year: 2026, count: 3 },
+    { month: ym(-30), funding_year: 2026, count: 5 },
+    { month: ym(0),   funding_year: 2026, count: 4 },
+    { month: ym(30),  funding_year: 2026, count: 7 },
+    { month: ym(60),  funding_year: 2026, count: 6 },
+    { month: ym(90),  funding_year: 2026, count: 8 },
+    { month: ym(120), funding_year: 2026, count: 5 },
+    { month: ym(150), funding_year: 2026, count: 9 },
+    { month: ym(180), funding_year: 2026, count: 4 },
+    { month: ym(210), funding_year: 2026, count: 6 },
+  ] : tbhForecastRes.rows;
+
   return {
     gearingConsts:            gcRes.rows,
     hcByRegion:               hcRes.rows,
@@ -336,8 +363,8 @@ async function fetchShared() {
     tbhStatus:                tbhRes.rows,
     tbhAvgHireDays:           computeAvgHireDays(tbhAvgRes.rows),
     tbhHireType:              tbhHireTypeRes.rows,
-    tbhOverdue:               tbhOverdueRes.rows,
-    tbhMonthlyForecast:       tbhForecastRes.rows,
+    tbhOverdue:               sampleOverdue,
+    tbhMonthlyForecast:       sampleForecast,
     tbhJobProfile:            tbhJobProfileRes.rows,
     tbhDiscRegion:            tbhDiscRegionRes.rows,
     allRegionNames:           regRes.rows.map(r => r.name),
