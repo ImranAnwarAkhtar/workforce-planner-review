@@ -253,8 +253,8 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
         }}>{tab}</button>
       ))}
       {active === 'Hire Status' && n > 0 && (
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 16, paddingRight: 8 }}>
-          <span style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Select year</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 6, paddingLeft: 12, paddingRight: 12, paddingBottom: 6 }}>
+          <span style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase', paddingBottom: 3 }}>Select year</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 220 }}>
             {/* Year labels — compact, sit above track */}
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, paddingRight: 6 }}>
@@ -281,11 +281,11 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
             </div>
           </div>
           <button onClick={() => onYearRangeChange(null)} style={{
-            padding: '2px 8px', fontSize: 9, fontWeight: 700, flexShrink: 0,
+            padding: '2px 9px', fontSize: 9, fontWeight: 700, flexShrink: 0, marginLeft: 6,
             background: yearRange === null ? C.accent : '#F3F4F6',
             color: yearRange === null ? '#FFF' : C.muted,
             border: 'none', borderRadius: 3, cursor: 'pointer', whiteSpace: 'nowrap',
-            textTransform: 'uppercase', letterSpacing: '0.04em',
+            textTransform: 'uppercase', letterSpacing: '0.04em', paddingBottom: 3,
           }}>All</button>
         </div>
       )}
