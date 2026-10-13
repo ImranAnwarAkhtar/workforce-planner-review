@@ -900,9 +900,10 @@ export interface HubIqTbhForecast  { month: string; count: number; funding_year:
 export interface HubIqTbhJobProfile { job_profile: string; count: number; funding_year: number }
 export interface HubIqTbhDiscRegion { job_profile: string; region_name: string; count: number; funding_year: number }
 export interface HubIqTbhOverdue   {
-  tbh_id: string; old_tbh: string | null; req_status: string | null;
+  tbh_id: string; req_status: string | null;
   hire_type: string | null; region_name: string | null;
   estimated_hire_date: string; days_overdue: number; funding_year: number | null;
+  date_opened: string | null;
 }
 
 export interface HubIqResponse {

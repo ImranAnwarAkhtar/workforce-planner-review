@@ -253,7 +253,7 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
         }}>{tab}</button>
       ))}
       {active === 'Hire Status' && n > 0 && (
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 6, paddingLeft: 12, paddingRight: 12, paddingBottom: 6 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 16, paddingLeft: 12, paddingRight: 12, paddingBottom: 6 }}>
           <span style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase', paddingBottom: 3 }}>Select year</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 220 }}>
             {/* Year labels — compact, sit above track */}
@@ -1553,7 +1553,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
   tbhStatus: { req_status: string; count: number; funding_year: number }[];
   tbhAvgHireDays: Record<string, Record<string, number>>;
   tbhHireType: { hire_type: string; count: number; funding_year: number }[];
-  tbhOverdue: { tbh_id: string; old_tbh: string | null; req_status: string | null; hire_type: string | null; region_name: string | null; estimated_hire_date: string; days_overdue: number; funding_year: number | null }[];
+  tbhOverdue: { tbh_id: string; req_status: string | null; hire_type: string | null; region_name: string | null; estimated_hire_date: string; days_overdue: number; funding_year: number | null; date_opened: string | null }[];
   tbhMonthlyForecast: { month: string; count: number; funding_year: number }[];
   tbhJobProfile: { job_profile: string; count: number; funding_year: number }[];
   tbhDiscRegion: HubIqTbhDiscRegion[];
@@ -1623,6 +1623,13 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
   const overdueCount = filteredOverdue.length;
   const todayYM = new Date().toISOString().slice(0, 7);
 
+  const avgFilledDays = Math.round(avgHireDays['Filled'] ?? 0);
+  const hireTrendData = Object.entries(tbhAvgHireDays)
+    .filter(([k]) => k !== 'all' && !isNaN(Number(k)))
+    .map(([year, statusMap]) => ({ year: Number(year), days: Math.round(statusMap['Filled'] ?? 0) }))
+    .filter(d => d.days > 0)
+    .sort((a, b) => a.year - b.year);
+
 
   function fmtDays(days: number | undefined): string {
     if (days === undefined) return '—';
@@ -1657,17 +1664,15 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
                 {allRows.map(row => {
                   const barPct = row.count === 0 ? 0 : Math.max((row.count / (sorted[0]?.count || 1)) * 100, 2);
                   const color = STAGE_COLORS[row.req_status] ?? '#8B93A3';
-                  const avg = avgHireDays[row.req_status];
                   const isEmpty = row.count === 0;
                   return (
                     <div key={row.req_status}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0 10px', alignItems: 'baseline', marginBottom: 3 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0 10px', alignItems: 'baseline', marginBottom: 3 }}>
                         <span style={{ fontSize: 11, color: isEmpty ? C.muted : '#333', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0, display: 'inline-block', opacity: isEmpty ? 0.35 : 1 }} />
                           {row.req_status}
                         </span>
                         <span style={{ fontSize: 11, fontWeight: 700, color: isEmpty ? C.muted : color, textAlign: 'right' }}>{row.count}</span>
-                        <span style={{ fontSize: 10, color: C.muted, textAlign: 'right', minWidth: 52 }}>{avg !== undefined ? `avg ${fmtDays(avg)}` : '—'}</span>
                       </div>
                       <div style={{ height: 4, background: '#F0F0F0', borderRadius: 2, overflow: 'hidden', marginLeft: 14 }}>
                         <div style={{ height: '100%', width: `${barPct}%`, background: color, borderRadius: 2, opacity: isEmpty ? 0 : 1, transition: 'width 0.5s ease' }} />
@@ -1731,7 +1736,12 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
           <ResponsiveContainer width="100%" height={Math.max(180, regionBarData.length * 30)}>
             <BarChart data={regionBarData} layout="vertical" margin={{ top: 2, right: 14, bottom: 2, left: 0 }}>
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="region_name" width={72} tick={{ fontSize: 10, fill: '#444', fontWeight: 600 }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="region_name" width={92} axisLine={false} tickLine={false}
+                tick={(props: any) => (
+                  <text x={4} y={props.y} dy={4} textAnchor="start" fill="#444" fontSize={10} fontWeight={600}>
+                    {props.payload.value}
+                  </text>
+                )} />
               <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} roles`, 'Total']} />
               <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={22}>
                 {regionBarData.map((entry, i) => (
@@ -1745,31 +1755,88 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
 
       </div>
 
-      {/* ── Row 2: Overdue tile ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
+      {/* ── Row 2: Avg Hire Time + Overdue tile ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 14 }}>
+
+        {/* Avg Hire Time card */}
+        <div style={{ ...cardStyle, padding: '14px 16px' }}>
+          <div style={{ marginBottom: 8 }}>
+            <div style={sectionLabel}>Avg Hire Time</div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Filled roles · from open to accepted</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
+            <span style={{ fontSize: 48, fontWeight: 900, lineHeight: 1, color: avgFilledDays > 0 ? '#086AE3' : '#8B93A3' }}>
+              {avgFilledDays > 0 ? avgFilledDays : '—'}
+            </span>
+            {avgFilledDays > 0 && <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>days</span>}
+          </div>
+          {avgFilledDays > 0 && (
+            <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>
+              ≈ {(avgFilledDays / 7).toFixed(1)} weeks to fill a role
+            </div>
+          )}
+          {hireTrendData.length >= 2 ? (
+            <>
+              <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Year-over-year trend</div>
+              <ResponsiveContainer width="100%" height={80}>
+                <LineChart data={hireTrendData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                  <XAxis dataKey="year" tick={{ fontSize: 9, fill: C.muted }} />
+                  <YAxis hide domain={['auto', 'auto']} />
+                  <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} days`, 'Avg hire time']} />
+                  <Line type="monotone" dataKey="days" stroke="#086AE3" strokeWidth={2} dot={{ r: 3, fill: '#086AE3' }} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </>
+          ) : avgFilledDays === 0 ? (
+            <div style={{ fontSize: 11, color: C.muted, paddingTop: 8 }}>No filled role data yet</div>
+          ) : null}
+        </div>
 
         {/* Overdue tile */}
         <div style={{ ...cardStyle, padding: '14px 16px', ...(overdueCount > 0 ? { background: 'rgba(233,28,36,0.03)', borderColor: 'rgba(233,28,36,0.25)' } : {}) }}>
-          <div style={{ marginBottom: 4 }}>
+          <div style={{ marginBottom: 10 }}>
             <div style={sectionLabel}>Roles Overdue</div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 0 14px' }}>
-            <div style={{ fontSize: 52, fontWeight: 900, color: overdueCount > 0 ? '#E91C24' : '#8B93A3', lineHeight: 1, marginBottom: 6 }}>{overdueCount}</div>
-            <div style={{ fontSize: 11, color: overdueCount > 0 ? '#C71B36' : C.muted, textAlign: 'center', lineHeight: 1.5 }}>
-              {overdueCount === 0 ? 'No overdue roles' : `role${overdueCount !== 1 ? 's' : ''} past estimated hire date`}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+            {/* Left: big number + label */}
+            <div style={{ flexShrink: 0, minWidth: 80 }}>
+              <div style={{ fontSize: 52, fontWeight: 900, color: overdueCount > 0 ? '#E91C24' : '#8B93A3', lineHeight: 1, marginBottom: 6 }}>{overdueCount}</div>
+              <div style={{ fontSize: 10, color: overdueCount > 0 ? '#C71B36' : C.muted, lineHeight: 1.4 }}>
+                {overdueCount === 0 ? 'No overdue roles' : `role${overdueCount !== 1 ? 's' : ''} past estimated hire date`}
+              </div>
             </div>
-          </div>
-          {overdueCount > 0 && (
-            <div style={{ paddingTop: 10, borderTop: '1px solid rgba(233,28,36,0.18)' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Most overdue</div>
-              {filteredOverdue.slice(0, 3).map(r => (
-                <div key={r.tbh_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                  <span style={{ fontSize: 10, color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>{r.tbh_id}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#E91C24', flexShrink: 0 }}>{r.days_overdue}d</span>
+            {/* Right: full scrollable overdue table */}
+            {overdueCount > 0 && (
+              <div style={{ flex: 1, borderLeft: '1px solid rgba(233,28,36,0.18)', paddingLeft: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Overdue roles</div>
+                <div style={{ overflowY: 'auto', maxHeight: 180, overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+                    <thead style={{ position: 'sticky', top: 0, background: '#F7F8FA', zIndex: 1 }}>
+                      <tr style={{ borderBottom: '2px solid #E0E3E8' }}>
+                        {['TBH ID','Date Opened','Est. Hire Date','Status','Hire Type','Region','Overdue'].map(h => (
+                          <th key={h} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 9, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredOverdue.map((r, i) => (
+                        <tr key={r.tbh_id} style={{ background: i % 2 === 0 ? '#FFF' : '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
+                          <td style={{ padding: '5px 10px', fontSize: 10, color: '#E91C24', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.tbh_id}</td>
+                          <td style={{ padding: '5px 10px', fontSize: 10, color: '#555', whiteSpace: 'nowrap' }}>{r.date_opened ?? '—'}</td>
+                          <td style={{ padding: '5px 10px', fontSize: 10, color: '#333', whiteSpace: 'nowrap' }}>{r.estimated_hire_date}</td>
+                          <td style={{ padding: '5px 10px', fontSize: 10, color: '#333', whiteSpace: 'nowrap' }}>{r.req_status ?? '—'}</td>
+                          <td style={{ padding: '5px 10px', fontSize: 10, color: '#333', whiteSpace: 'nowrap' }}>{r.hire_type ?? '—'}</td>
+                          <td style={{ padding: '5px 10px', fontSize: 10, color: '#333', whiteSpace: 'nowrap' }}>{r.region_name ?? '—'}</td>
+                          <td style={{ padding: '5px 10px', fontSize: 10, fontWeight: 700, color: '#E91C24', whiteSpace: 'nowrap' }}>{r.days_overdue}d</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1786,51 +1853,19 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
             <BarChart data={forecastSorted.map(r => ({ ...r, label: fmtMonth(r.month) }))} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} />
-              <YAxis tick={{ fontSize: 9, fill: C.muted }} allowDecimals={false} width={22} />
+              <YAxis hide />
               <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} roles`, 'Forecast']} />
               <Bar dataKey="count" radius={[3, 3, 0, 0]}>
                 {forecastSorted.map((r, i) => (
                   <Cell key={i} fill={r.month < todayYM ? '#C8CCD4' : '#C71B36'} />
                 ))}
+                <LabelList dataKey="count" position="insideTop" style={{ fontSize: 11, fill: '#FFFFFF', fontWeight: 700 }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      {/* ── Row 4: Overdue detail table (only when overdue roles exist) ── */}
-      {overdueCount > 0 && (
-        <div style={{ ...cardStyle, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={sectionLabel}>Overdue Roles Detail</div>
-            <span style={{ fontSize: 10, color: '#E91C24', fontWeight: 700 }}>{overdueCount} role{overdueCount !== 1 ? 's' : ''} past due</span>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#E4E6EA', borderBottom: '2px solid #C8CCD4' }}>
-                  {['TBH ID','Old TBH','Hire Status','Hire Type','Region','Est. Hire Date','Overdue By'].map(h => (
-                    <th key={h} style={{ padding: '7px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOverdue.map((r, i) => (
-                  <tr key={r.tbh_id} style={{ background: i % 2 === 0 ? '#FFF' : '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
-                    <td style={{ padding: '6px 12px', fontSize: 11, color: '#E91C24', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.tbh_id}</td>
-                    <td style={{ padding: '6px 12px', fontSize: 11, color: '#555' }}>{r.old_tbh ?? '—'}</td>
-                    <td style={{ padding: '6px 12px', fontSize: 11, color: '#333' }}>{r.req_status ?? '—'}</td>
-                    <td style={{ padding: '6px 12px', fontSize: 11, color: '#333' }}>{r.hire_type ?? '—'}</td>
-                    <td style={{ padding: '6px 12px', fontSize: 11, color: '#333' }}>{r.region_name ?? '—'}</td>
-                    <td style={{ padding: '6px 12px', fontSize: 11, color: '#333', whiteSpace: 'nowrap' }}>{r.estimated_hire_date}</td>
-                    <td style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: '#E91C24', whiteSpace: 'nowrap' }}>{r.days_overdue}d</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -283,10 +283,11 @@ async function fetchShared() {
       GROUP BY hire_type, funding_year ORDER BY count DESC
     `),
     pool.query(`
-      SELECT t.tbh_id, t.old_tbh, t.req_status, t.hire_type,
+      SELECT t.tbh_id, t.req_status, t.hire_type,
              r.name AS region_name, t.estimated_hire_date::text,
              (CURRENT_DATE - t.estimated_hire_date)::int AS days_overdue,
-             t.funding_year
+             t.funding_year,
+             t.created_at::date::text AS date_opened
       FROM tbh_codes t
       LEFT JOIN regions r ON t.region_id = r.id
       WHERE t.estimated_hire_date < CURRENT_DATE
@@ -335,11 +336,11 @@ async function fetchShared() {
   const ym = d => { const dt = new Date(); dt.setDate(dt.getDate() + d); return dt.toISOString().slice(0,7); };
 
   const sampleOverdue = tbhOverdueRes.rows.length === 0 ? [
-    { tbh_id: 'SAMPLE-001', old_tbh: 'OT-2024-012', req_status: 'Open',        hire_type: 'Net New',    region_name: 'EMEA Central', estimated_hire_date: dAgo(95), days_overdue: 95, funding_year: 2026 },
-    { tbh_id: 'SAMPLE-002', old_tbh: null,           req_status: 'In Progress', hire_type: 'Backfill',   region_name: 'Americas',     estimated_hire_date: dAgo(61), days_overdue: 61, funding_year: 2026 },
-    { tbh_id: 'SAMPLE-003', old_tbh: 'OT-2024-034', req_status: 'Open',        hire_type: 'Net New',    region_name: 'APAC',         estimated_hire_date: dAgo(42), days_overdue: 42, funding_year: 2026 },
-    { tbh_id: 'SAMPLE-004', old_tbh: null,           req_status: 'In Progress', hire_type: 'Conversion', region_name: 'EMEA Central', estimated_hire_date: dAgo(78), days_overdue: 78, funding_year: 2026 },
-    { tbh_id: 'SAMPLE-005', old_tbh: 'OT-2024-056', req_status: 'Open',        hire_type: 'Net New',    region_name: 'Americas',     estimated_hire_date: dAgo(18), days_overdue: 18, funding_year: 2026 },
+    { tbh_id: 'SAMPLE-001', req_status: 'Open',        hire_type: 'Net New',    region_name: 'EMEA Central', estimated_hire_date: dAgo(95),  days_overdue: 95,  funding_year: 2026, date_opened: dAgo(180) },
+    { tbh_id: 'SAMPLE-002', req_status: 'In Progress', hire_type: 'Backfill',   region_name: 'Americas',     estimated_hire_date: dAgo(61),  days_overdue: 61,  funding_year: 2026, date_opened: dAgo(150) },
+    { tbh_id: 'SAMPLE-003', req_status: 'Open',        hire_type: 'Net New',    region_name: 'APAC',         estimated_hire_date: dAgo(42),  days_overdue: 42,  funding_year: 2026, date_opened: dAgo(120) },
+    { tbh_id: 'SAMPLE-004', req_status: 'In Progress', hire_type: 'Conversion', region_name: 'EMEA Central', estimated_hire_date: dAgo(78),  days_overdue: 78,  funding_year: 2026, date_opened: dAgo(200) },
+    { tbh_id: 'SAMPLE-005', req_status: 'Open',        hire_type: 'Net New',    region_name: 'Americas',     estimated_hire_date: dAgo(18),  days_overdue: 18,  funding_year: 2026, date_opened: dAgo(90)  },
   ] : tbhOverdueRes.rows;
 
   const sampleForecast = tbhForecastRes.rows.length === 0 ? [
