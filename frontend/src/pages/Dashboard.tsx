@@ -1756,7 +1756,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
       </div>
 
       {/* ── Row 2: Avg Hire Time + Overdue tile ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 3.3fr', gap: 14 }}>
 
         {/* Avg Hire Time card */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
