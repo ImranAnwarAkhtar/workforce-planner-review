@@ -5,9 +5,7 @@ import {
   type CreateProjectBody, type ProjectComment,
 } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
-
-// Role assumed in dev-bypass auth — update when real auth is added
-const CURRENT_USER_ROLE = 'Workforce Planning';
+import { getUser } from '../hooks/useAuth';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -73,6 +71,29 @@ const COUNTRY_FLAGS: Record<string, string> = {
 function flagUrl(country: string, w: 20 | 40 = 20): string | null {
   const code = COUNTRY_FLAGS[country];
   return code ? `https://flagcdn.com/w${w}/${code}.png` : null;
+}
+
+const COUNTRY_CODES: Record<string, string> = {
+  'Australia': 'AUS', 'Austria': 'AUT', 'Bahrain': 'BHR', 'Belgium': 'BEL',
+  'Brazil': 'BRA', 'Canada': 'CAN', 'Chile': 'CHL', 'China': 'CHN',
+  'Colombia': 'COL', 'Czech Republic': 'CZE', 'Denmark': 'DNK', 'Egypt': 'EGY',
+  'Finland': 'FIN', 'France': 'FRA', 'Germany': 'DEU', 'Greece': 'GRC',
+  'Hong Kong': 'HKG', 'Hungary': 'HUN', 'India': 'IND', 'Indonesia': 'IDN',
+  'Ireland': 'IRL', 'Israel': 'ISR', 'Italy': 'ITA', 'Japan': 'JPN',
+  'Jordan': 'JOR', 'Kenya': 'KEN', 'Kuwait': 'KWT', 'Luxembourg': 'LUX',
+  'Malaysia': 'MYS', 'Mexico': 'MEX', 'Morocco': 'MAR', 'Netherlands': 'NLD',
+  'New Zealand': 'NZL', 'Nigeria': 'NGA', 'Norway': 'NOR', 'Oman': 'OMN',
+  'Panama': 'PAN', 'Peru': 'PER', 'Philippines': 'PHL', 'Poland': 'POL',
+  'Portugal': 'PRT', 'Qatar': 'QAT', 'Romania': 'ROU', 'Saudi Arabia': 'SAU',
+  'Serbia': 'SRB', 'Singapore': 'SGP', 'Slovakia': 'SVK', 'South Africa': 'ZAF',
+  'South Korea': 'KOR', 'Spain': 'ESP', 'Sweden': 'SWE', 'Switzerland': 'CHE',
+  'Taiwan': 'TWN', 'Thailand': 'THA', 'Turkey': 'TUR',
+  'United Arab Emirates': 'ARE', 'United Kingdom': 'GBR', 'United States': 'USA',
+  'Vietnam': 'VNM', 'UK': 'GBR', 'USA': 'USA', 'UAE': 'ARE', 'Korea': 'KOR',
+};
+
+function countryCode(name: string): string {
+  return COUNTRY_CODES[name] ?? name.slice(0, 3).toUpperCase();
 }
 
 // ---------------------------------------------------------------------------
@@ -174,12 +195,12 @@ function groupByCountry(projects: Project[]): [string, Project[]][] {
 // ---------------------------------------------------------------------------
 
 interface FormState {
-  name: string; type: string; status: string; weight: string;
+  name: string; type: string; status: string; weight: string; power_kw: string;
   year: string; region_id: string; country_id: string; metro: string; phase_code: string;
 }
 
 const emptyForm: FormState = {
-  name: '', type: 'Retail', status: 'Proposed', weight: '1.0',
+  name: '', type: 'Retail', status: 'Proposed', weight: '1.0', power_kw: '',
   year: String(new Date().getFullYear()),
   region_id: '', country_id: '', metro: '', phase_code: '',
 };
@@ -199,7 +220,11 @@ export default function Projects() {
   const { cycles, selectedCycleId, setSelectedCycleId, selectedRegionId, setSelectedRegionId } = usePlanningCycle();
 
   const selectedCycle = cycles.find(c => c.id === selectedCycleId);
-  const canEdit = !selectedCycle || (STAGE_EDIT_ROLES[selectedCycle.status]?.includes(CURRENT_USER_ROLE) ?? true);
+  const _u = getUser();
+  const _uRole = _u?.system_profile ?? _u?.role ?? '';
+  const canEdit = !selectedCycle
+    || _u?.access_tier === 'administrator'
+    || (STAGE_EDIT_ROLES[selectedCycle.status]?.includes(_uRole) ?? true);
 
   const [search,         setSearch]         = useState('');
   const [statusFilter,   setStatusFilter]   = useState('');
@@ -208,6 +233,10 @@ export default function Projects() {
   const [isActiveFilter, setIsActiveFilter] = useState<'true' | 'false' | 'all'>('true');
 
   const [collapsedStatuses, setCollapsedStatuses] = useState<Set<string>>(new Set(PROJECT_STATUSES));
+  const [collapsedCountries, setCollapsedCountries] = useState<Set<string>>(new Set());
+  function toggleCountry(c: string) {
+    setCollapsedCountries(prev => { const n = new Set(prev); n.has(c) ? n.delete(c) : n.add(c); return n; });
+  }
 
   const [modalOpen,    setModalOpen]    = useState(false);
   const [editTarget,   setEditTarget]   = useState<Project | null>(null);
@@ -228,6 +257,13 @@ export default function Projects() {
 
   const [compCycleId,  setCompCycleId]  = useState<number | null>(null);
   const [compProjects, setCompProjects] = useState<Project[]>([]);
+
+  // ── Undo / redo history ───────────────────────────────────────────────────
+  type ProjectSnapshot =
+    | { type: 'update'; id: number; before: CreateProjectBody; after: CreateProjectBody }
+    | { type: 'create'; id: number; body: CreateProjectBody };
+  const [undoStack, setUndoStack] = useState<ProjectSnapshot[]>([]);
+  const [redoStack, setRedoStack] = useState<ProjectSnapshot[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -346,6 +382,7 @@ useEffect(() => {
       retail:      all.filter(p => p.type === 'Retail').length,
       xscale:      all.filter(p => p.type === 'xScale').length,
       totalWeight: all.reduce((s, p) => s + (Number(p.weight) || 1), 0),
+      totalKw:     all.reduce((s, p) => s + (Number(p.power_kw) || 0), 0),
     };
   }, [projects]);
 
@@ -359,6 +396,7 @@ useEffect(() => {
       retail:      all.filter(p => p.type === 'Retail').length,
       xscale:      all.filter(p => p.type === 'xScale').length,
       totalWeight: all.reduce((s, p) => s + (Number(p.weight) || 1), 0),
+      totalKw:     all.reduce((s, p) => s + (Number(p.power_kw) || 0), 0),
     };
   }, [compProjects]);
 
@@ -393,6 +431,7 @@ useEffect(() => {
       type:       PROJECT_TYPES.includes(p.type as ProjectType) ? p.type : 'Retail',
       status:     PROJECT_STATUSES.includes(p.status as ProjectStatus) ? p.status : 'Proposed',
       weight:     String(p.weight),
+      power_kw:   p.power_kw != null ? String(p.power_kw) : '',
       year:       p.year ? String(p.year) : '',
       region_id:  p.region_id  ? String(p.region_id)  : '',
       country_id: p.country_id ? String(p.country_id) : '',
@@ -435,6 +474,7 @@ useEffect(() => {
         type:              form.type,
         status:            form.status,
         weight:            parseFloat(form.weight) || 1.0,
+        power_kw:          form.power_kw.trim() !== '' ? parseFloat(form.power_kw) : null,
         year:              form.year ? parseInt(form.year, 10) : null,
         region_id:         form.region_id  ? parseInt(form.region_id,  10) : null,
         country_id:        form.country_id ? parseInt(form.country_id, 10) : null,
@@ -442,11 +482,55 @@ useEffect(() => {
         phase_code:        form.phase_code.trim() || null,
         planning_cycle_id: selectedCycleId ?? null,
       };
-      if (editTarget) { await projectsApi.update(editTarget.id, body); }
-      else            { await projectsApi.create(body); }
+      if (editTarget) {
+        await projectsApi.update(editTarget.id, body);
+        const before: CreateProjectBody = {
+          name: editTarget.name, type: editTarget.type, status: editTarget.status,
+          weight: editTarget.weight, power_kw: editTarget.power_kw, year: editTarget.year,
+          region_id: editTarget.region_id, country_id: editTarget.country_id,
+          metro: editTarget.metro, phase_code: editTarget.phase_code,
+          planning_cycle_id: editTarget.planning_cycle_id,
+        };
+        setUndoStack(s => [...s, { type: 'update', id: editTarget.id, before, after: body }]);
+        setRedoStack([]);
+      } else {
+        const created = await projectsApi.create(body);
+        setUndoStack(s => [...s, { type: 'create', id: created.id, body }]);
+        setRedoStack([]);
+      }
       setModalOpen(false);
       loadProjects();
     } finally { setSaving(false); }
+  }
+
+  async function handleUndo() {
+    if (undoStack.length === 0) return;
+    const entry = undoStack[undoStack.length - 1];
+    try {
+      if (entry.type === 'update') {
+        await projectsApi.update(entry.id, entry.before);
+      } else {
+        await projectsApi.deactivate(entry.id);
+      }
+      setUndoStack(s => s.slice(0, -1));
+      setRedoStack(s => [...s, entry]);
+      loadProjects();
+    } catch { /* silent */ }
+  }
+
+  async function handleRedo() {
+    if (redoStack.length === 0) return;
+    const entry = redoStack[redoStack.length - 1];
+    try {
+      if (entry.type === 'update') {
+        await projectsApi.update(entry.id, entry.after);
+      } else {
+        await projectsApi.update(entry.id, { ...entry.body, is_active: true });
+      }
+      setRedoStack(s => s.slice(0, -1));
+      setUndoStack(s => [...s, entry]);
+      loadProjects();
+    } catch { /* silent */ }
   }
 
   async function postComment() {
@@ -479,6 +563,7 @@ useEffect(() => {
     { label: 'Retail',   metric: 'count', curr: stats.retail,      comp: compStats.retail,      color: '#00408C' },
     { label: 'xScale',   metric: 'count', curr: stats.xscale,      comp: compStats.xscale,      color: '#411980' },
     { label: 'Weight',   metric: 'wt',    curr: stats.totalWeight, comp: compStats.totalWeight, color: '#E91C24', isFloat: true },
+    { label: 'Power',    metric: 'MW',    curr: stats.totalKw / 1000,     comp: compStats.totalKw / 1000,     color: '#00737A', isFloat: true },
   ];
 
   return (
@@ -494,7 +579,7 @@ useEffect(() => {
           border: '1px solid #E0E3E8', borderBottom: '3px solid #E91C24', overflow: 'hidden',
         }}>
           <div style={{ padding: '9px 16px', borderRight: '1px solid #E0E3E8', flexShrink: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1, whiteSpace: 'nowrap' }}>Projects</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1, whiteSpace: 'nowrap' }}>Project Pipeline</div>
           </div>
           {statItems.map(({ label, metric, curr, comp, color, isFloat }) => (
             <div key={label} style={{
@@ -612,6 +697,16 @@ useEffect(() => {
                 🔒 {selectedCycle.status === 'draft' ? 'Stage 1: Admin Setup' : selectedCycle.status === 'approved' ? 'Stage 4: Global Approval' : 'Closed'} — editing restricted
               </span>
             )}
+            <div style={{ display: 'flex', gap: 2 }}>
+              <button onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last project save"
+                style={{ padding: '4px 7px', background: undoStack.length > 0 ? '#F3F4F6' : '#FAFAFA', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 12, color: undoStack.length > 0 ? '#374151' : '#C0C0C0', cursor: undoStack.length > 0 ? 'pointer' : 'default', lineHeight: 1 }}>
+                ↩
+              </button>
+              <button onClick={handleRedo} disabled={redoStack.length === 0} title="Redo last project save"
+                style={{ padding: '4px 7px', background: redoStack.length > 0 ? '#F3F4F6' : '#FAFAFA', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 12, color: redoStack.length > 0 ? '#374151' : '#C0C0C0', cursor: redoStack.length > 0 ? 'pointer' : 'default', lineHeight: 1 }}>
+                ↪
+              </button>
+            </div>
             <button
               title={collapsedStatuses.size > 0 ? 'Expand all sections' : 'Collapse all sections'}
               onClick={() => {
@@ -657,8 +752,10 @@ useEffect(() => {
               {countriesList.map((country, ci) => {
                 const flag16 = flagUrl(country, 20);
                 const flag32 = flagUrl(country, 40);
+                const isReviewed = collapsedCountries.has(country);
                 return (
                   <div key={country}
+                    onClick={() => toggleCountry(country)}
                     onMouseEnter={e => setHoveredCountryHeader({ name: country, x: e.clientX, y: e.clientY })}
                     onMouseLeave={() => setHoveredCountryHeader(null)}
                     style={{
@@ -666,19 +763,33 @@ useEffect(() => {
                       padding: '7px 10px',
                       borderRight: ci < countriesList.length - 1 ? '1px solid rgba(255,255,255,0.30)' : 'none',
                       display: 'flex', alignItems: 'center', gap: 7,
-                      cursor: 'default',
+                      cursor: 'pointer',
+                      overflow: 'hidden',
+                      position: 'relative',
+                      background: isReviewed ? 'rgba(34,197,94,0.18)' : undefined,
                     }}>
-                    {flag16 && (
-                      <img
-                        src={flag16}
-                        srcSet={flag32 ? `${flag32} 2x` : undefined}
-                        alt={country}
-                        style={{ width: 18, height: 13, objectFit: 'cover', borderRadius: 2, flexShrink: 0, display: 'block' }}
-                      />
+                    {isReviewed ? (
+                      <>
+                        <span style={{ fontSize: 9, writingMode: 'vertical-rl', transform: 'rotate(180deg)', display: 'inline-block', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.05em', whiteSpace: 'nowrap', flex: 1 }}>
+                          {countryCode(country)}
+                        </span>
+                        <span style={{ position: 'absolute', top: 5, right: 6, fontSize: 10, color: '#4ADE80', lineHeight: 1 }}>✓</span>
+                      </>
+                    ) : (
+                      <>
+                        {flag16 && (
+                          <img
+                            src={flag16}
+                            srcSet={flag32 ? `${flag32} 2x` : undefined}
+                            alt={country}
+                            style={{ width: 18, height: 13, objectFit: 'cover', borderRadius: 2, flexShrink: 0, display: 'block' }}
+                          />
+                        )}
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {countryCode(country)}
+                        </span>
+                      </>
                     )}
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {country}
-                    </span>
                   </div>
                 );
               })}
@@ -789,7 +900,7 @@ useEffect(() => {
             <div style={{ marginTop: 8 }}>
               {/* Totals header bar — per-column cells so dividers align with country header */}
               <div style={{ display: 'flex', background: '#000000', border: '1px solid #333333', borderBottom: 'none', overflow: 'hidden' }}>
-                {countriesList.map((_, ci) => (
+                {countriesList.map((country, ci) => (
                   <div key={ci} style={{
                     width: COL_W, flexShrink: 0,
                     padding: '5px 10px',
@@ -1049,6 +1160,29 @@ useEffect(() => {
                 onChange={e => setField('phase_code', e.target.value)}
                 placeholder="e.g. PHASE-1"
               />
+            </div>
+
+            <div style={S.row2}>
+              <div style={S.fg}>
+                <label style={S.lbl}>Power (kW)</label>
+                <input
+                  type="number" min="0" step="any" style={S.inp}
+                  value={form.power_kw}
+                  onChange={e => setField('power_kw', e.target.value)}
+                  placeholder="e.g. 2500"
+                />
+              </div>
+              <div style={S.fg}>
+                <label style={S.lbl}>Power (MW) — auto</label>
+                <input
+                  style={{ ...S.inp, background: '#F7F8FA', color: '#888' }}
+                  readOnly
+                  value={form.power_kw.trim() !== '' && !isNaN(parseFloat(form.power_kw))
+                    ? (parseFloat(form.power_kw) / 1000).toFixed(3)
+                    : ''}
+                  placeholder="Calculated from kW"
+                />
+              </div>
             </div>
 
             {/* Comments — edit mode only */}
