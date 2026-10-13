@@ -1738,7 +1738,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="region_name" width={92} axisLine={false} tickLine={false}
                 tick={(props: any) => (
-                  <text x={4} y={props.y} dy={4} textAnchor="start" fill="#444" fontSize={10} fontWeight={600}>
+                  <text x={props.x - 4} y={props.y} dy={4} textAnchor="end" fill="#444" fontSize={10} fontWeight={600}>
                     {props.payload.value}
                   </text>
                 )} />
