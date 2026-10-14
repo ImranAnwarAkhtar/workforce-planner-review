@@ -37,6 +37,19 @@ const C = {
 const TABS = ['Projects', 'People', 'Requests', 'Gearing', 'Hire Status'] as const;
 type Tab = typeof TABS[number];
 
+const REGION_ORDER = ['APAC', 'AMER', 'AMER Matrix', 'EMEA-C', 'EMEA-N', 'EMEA-S', 'MEA', 'Global'];
+function regionSortIdx(name: string): number {
+  const n = name.toLowerCase().replace(/[-\s]/g, '');
+  for (let i = 0; i < REGION_ORDER.length; i++) {
+    if (REGION_ORDER[i].toLowerCase().replace(/[-\s]/g, '') === n) return i;
+  }
+  for (let i = 0; i < REGION_ORDER.length; i++) {
+    const r = REGION_ORDER[i].toLowerCase().replace(/[-\s]/g, '');
+    if (n.includes(r) || r.includes(n)) return i;
+  }
+  return REGION_ORDER.length;
+}
+
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
@@ -1157,7 +1170,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
   }
   const regionReqData = Object.entries(regionReqAgg)
     .map(([region, count]) => ({ region, count: Math.round(count * 10) / 10 }))
-    .sort((a, b) => b.count - a.count || a.region.localeCompare(b.region));
+    .sort((a, b) => regionSortIdx(a.region) - regionSortIdx(b.region));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1333,9 +1346,9 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
             <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
           ) : (
             <ResponsiveContainer width="100%" height={Math.max(180, regionReqData.length * 32)}>
-              <BarChart data={regionReqData} layout="vertical" margin={{ top: 2, right: 14, bottom: 2, left: 0 }}>
+              <BarChart data={regionReqData} layout="vertical" margin={{ top: 2, right: 14, bottom: 2, left: 8 }}>
                 <XAxis type="number" hide />
-                <YAxis type="category" dataKey="region" width={64} axisLine={false} tickLine={false}
+                <YAxis type="category" dataKey="region" width={90} axisLine={false} tickLine={false}
                   tick={(props: any) => (
                     <text x={props.x - 4} y={props.y} dy={4} textAnchor="end" fill="#444" fontSize={10} fontWeight={600}>
                       {props.payload.value}
@@ -1646,7 +1659,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
   }
   const regionBarData = Object.entries(codeToCount)
     .map(([region_name, count]) => ({ region_name, count }))
-    .sort((a, b) => b.count - a.count || a.region_name.localeCompare(b.region_name));
+    .sort((a, b) => regionSortIdx(a.region_name) - regionSortIdx(b.region_name));
 
   const sorted = Object.entries(statusAgg).map(([req_status, count]) => ({ req_status, count })).sort((a, b) => b.count - a.count);
   const hireTypeSorted = Object.entries(hireTypeAgg).map(([hire_type, count]) => ({ hire_type, count })).sort((a, b) => b.count - a.count);
