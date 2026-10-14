@@ -1685,7 +1685,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
           })()}
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: 8 }}>
             <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Total TBH Codes</span>
-            <span style={{ fontSize: 20, fontWeight: 800, color: '#111' }}>{total}</span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: '#111' }}>{total}</span>
           </div>
         </div>
 
@@ -1765,7 +1765,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Filled roles · from open to accepted</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
-            <span style={{ fontSize: 32, fontWeight: 900, lineHeight: 1, color: avgFilledDays > 0 ? '#086AE3' : '#8B93A3' }}>
+            <span style={{ fontSize: 18, fontWeight: 900, lineHeight: 1, color: avgFilledDays > 0 ? '#086AE3' : '#8B93A3' }}>
               {avgFilledDays > 0 ? avgFilledDays : '—'}
             </span>
             {avgFilledDays > 0 && <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>days</span>}
@@ -1801,7 +1801,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
             {/* Left: big number + label */}
             <div style={{ flexShrink: 0, minWidth: 80 }}>
-              <div style={{ fontSize: 32, fontWeight: 900, color: overdueCount > 0 ? '#E91C24' : '#8B93A3', lineHeight: 1, marginBottom: 6 }}>{overdueCount}</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: overdueCount > 0 ? '#E91C24' : '#8B93A3', lineHeight: 1, marginBottom: 6 }}>{overdueCount}</div>
               <div style={{ fontSize: 10, color: overdueCount > 0 ? '#C71B36' : C.muted, lineHeight: 1.4 }}>
                 {overdueCount === 0 ? 'No overdue roles' : `role${overdueCount !== 1 ? 's' : ''} past estimated hire date`}
               </div>
