@@ -194,11 +194,14 @@ function TopBanner({ yearA, yearB, dataA, dataB }: { yearA: number; yearB: numbe
 // Tab bar
 // ---------------------------------------------------------------------------
 
-function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange }: {
+function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange, yearA, yearB, requestYear, onRequestYearChange }: {
   active: Tab; onChange: (t: Tab) => void;
   availableYears: number[];
   yearRange: [number, number] | null;
   onYearRangeChange: (r: [number, number] | null) => void;
+  yearA: number | null; yearB: number | null;
+  requestYear: number | null;
+  onRequestYearChange: (y: number) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const n = availableYears.length;
@@ -252,6 +255,19 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
           cursor: 'pointer', marginBottom: -1, whiteSpace: 'nowrap',
         }}>{tab}</button>
       ))}
+      {active === 'Requests' && yearA !== null && yearB !== null && (
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 12, paddingRight: 12 }}>
+          <span style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Year</span>
+          {[yearA, yearB].map(y => (
+            <button key={y} onClick={() => onRequestYearChange(y)} style={{
+              padding: '3px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer', borderRadius: 4,
+              border: `1px solid ${requestYear === y ? C.accent : C.border}`,
+              background: requestYear === y ? C.accent : '#FFF',
+              color: requestYear === y ? '#FFF' : '#555',
+            }}>{y}</button>
+          ))}
+        </div>
+      )}
       {active === 'Hire Status' && n > 0 && (
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 16, paddingLeft: 12, paddingRight: 12, paddingBottom: 6 }}>
           <span style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase', paddingBottom: 3 }}>Select year</span>
@@ -1074,11 +1090,9 @@ function PeopleTab({ yearA, yearB, dataA, dataB, allRegionNames, regionCodeMap }
 // REQUESTS TAB
 // ---------------------------------------------------------------------------
 
-function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: number; yearB: number; dataA: HubIqYearData; dataB: HubIqYearData; regionCodeMap: Record<string, string> }) {
+function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: { yearA: number; yearB: number; dataA: HubIqYearData; dataB: HubIqYearData; regionCodeMap: Record<string, string>; activeYear: number }) {
   const rc = (name: string) => regionCodeMap[name] || name;
-  const [activeYear, setActiveYear] = useState(yearA);
   const data = activeYear === yearA ? dataA : dataB;
-  const [activeLevelYear, setActiveLevelYear] = useState(yearA);
   const [levels, setLevels] = useState<Level[]>([]);
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   useEffect(() => { refDataApi.levels().then(setLevels).catch(() => {}); }, []);
@@ -1154,17 +1168,8 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
 
         {/* Bar: by discipline */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ marginBottom: 10 }}>
             <SectionTitle>Requests by Discipline</SectionTitle>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {[yearA, yearB].map(y => (
-                <button key={y} onClick={() => setActiveYear(y)} style={{
-                  padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
-                  border: `1px solid ${activeYear === y ? C.accent : C.border}`,
-                  background: activeYear === y ? C.accent : '#FFF', color: activeYear === y ? '#FFF' : '#555',
-                }}>{y}</button>
-              ))}
-            </div>
           </div>
           {totalRFte === 0 && totalRCon === 0 ? (
             <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
@@ -1243,17 +1248,8 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
 
         {/* Detail table */}
         <div style={{ ...cardStyle, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${C.border}` }}>
             <SectionTitle>Request Details by Discipline / Region / Level / Type</SectionTitle>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {[yearA, yearB].map(y => (
-                <button key={y} onClick={() => setActiveYear(y)} style={{
-                  padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  border: `1px solid ${activeYear === y ? C.accent : C.border}`,
-                  background: activeYear === y ? C.accent : '#FFF', color: activeYear === y ? '#FFF' : '#555',
-                }}>{y}</button>
-              ))}
-            </div>
           </div>
           <div style={{ overflowX: 'auto', maxHeight: 320, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -1298,36 +1294,26 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
 
         {/* Line chart: requests by level */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ marginBottom: 10 }}>
             <div style={sectionLabel}>Requests by Level</div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {[yearA, yearB].map(y => (
-                <button key={y} onClick={() => setActiveLevelYear(y)} style={{
-                  padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
-                  border: `1px solid ${activeLevelYear === y ? C.accent : C.border}`,
-                  background: activeLevelYear === y ? C.accent : '#FFF',
-                  color: activeLevelYear === y ? '#FFF' : '#555',
-                }}>{y}</button>
-              ))}
-            </div>
           </div>
           {levelLineData.length === 0 ? (
             <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>Loading levels…</div>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={levelLineData} margin={{ top: 20, right: 24, bottom: 4, left: 0 }}>
+              <LineChart data={levelLineData} margin={{ top: 20, right: 24, bottom: 4, left: 28 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                 <XAxis dataKey="level" tick={{ fontSize: 10, fill: C.muted }} />
                 <YAxis hide />
                 <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : String(v)) as any} />
-                {activeLevelYear === yearA && (
+                {activeYear === yearA && (
                   <Line type="monotone" dataKey={yearA} name={String(yearA)} stroke={C.seeded} strokeWidth={3} dot={false} activeDot={false}
                     label={((p: any) => {
                       if (typeof p.value !== 'number' || p.value < 1) return <g />;
                       return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.seeded} fontWeight={700}>{p.value}</text>;
                     }) as any} />
                 )}
-                {activeLevelYear === yearB && (
+                {activeYear === yearB && (
                   <Line type="monotone" dataKey={yearB} name={String(yearB)} stroke={C.retail} strokeWidth={3} dot={false} activeDot={false}
                     label={((p: any) => {
                       if (typeof p.value !== 'number' || p.value < 1) return <g />;
@@ -1341,9 +1327,8 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
 
         {/* Horizontal bar: requests by region */}
         <div style={{ ...cardStyle, padding: '14px 10px 14px 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingRight: 6 }}>
+          <div style={{ marginBottom: 10 }}>
             <div style={sectionLabel}>Requests by Region</div>
-            <span style={{ fontSize: 9, color: C.muted, fontWeight: 600 }}>{activeYear}</span>
           </div>
           {regionReqData.length === 0 ? (
             <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
@@ -1935,6 +1920,7 @@ export default function Dashboard() {
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('Projects');
   const [hireYearRange, setHireYearRange] = useState<[number, number] | null>(null);
+  const [requestYear, setRequestYear] = useState<number | null>(null);
 
   useEffect(() => {
     dashboardApi.planningYears()
@@ -1943,8 +1929,9 @@ export default function Dashboard() {
         setAvailableYears(years);
         setYearA(years[0] ?? 2026);
         setYearB(years[1] ?? years[0] ?? 2027);
+        setRequestYear(years[0] ?? 2026);
       })
-      .catch(() => { setYearA(2026); setYearB(2027); });
+      .catch(() => { setYearA(2026); setYearB(2027); setRequestYear(2026); });
   }, []);
 
   const loadData = useCallback(async () => {
@@ -1999,7 +1986,7 @@ export default function Dashboard() {
       </div>
 
       {/* Tab bar */}
-      <TabBar active={activeTab} onChange={setActiveTab} availableYears={hubData?.available_years ?? []} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} />
+      <TabBar active={activeTab} onChange={setActiveTab} availableYears={hubData?.available_years ?? []} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} yearA={yearA} yearB={yearB} requestYear={requestYear ?? yearA} onRequestYearChange={setRequestYear} />
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
@@ -2018,7 +2005,7 @@ export default function Dashboard() {
           <>
             {activeTab === 'Projects'    && <ProjectsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} projectTrend={hubData!.project_trend} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'People'      && <PeopleTab      yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} allRegionNames={hubData?.all_region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
-            {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} />}
+            {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} activeYear={requestYear ?? yearA!} />}
             {activeTab === 'Gearing'     && <GearingTab     yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} />}
           </>
