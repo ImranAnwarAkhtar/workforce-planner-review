@@ -1628,6 +1628,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
     .filter(([k]) => k !== 'all' && !isNaN(Number(k)))
     .map(([year, statusMap]) => ({ year: Number(year), days: Math.round(statusMap['Filled'] ?? 0) }))
     .filter(d => d.days > 0)
+    .filter(d => yearRange === null || (d.year >= yearRange[0] && d.year <= yearRange[1]))
     .sort((a, b) => a.year - b.year);
 
 
