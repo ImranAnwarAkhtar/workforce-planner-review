@@ -1164,14 +1164,15 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr', gap: 14 }}>
 
         {/* Bar: by discipline */}
-        <div style={{ ...cardStyle, padding: '14px 16px' }}>
+        <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ marginBottom: 10 }}>
             <SectionTitle>Requests by Discipline</SectionTitle>
           </div>
           {totalRFte === 0 && totalRCon === 0 ? (
-            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
+            <div style={{ flex: 1, minHeight: 180 }}>
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={discBarData} margin={{ top: 4, right: 6, bottom: 20, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                 <XAxis dataKey="discipline" tickLine={false} tick={(props: any) => (
@@ -1193,6 +1194,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            </div>
           )}
         </div>
 
