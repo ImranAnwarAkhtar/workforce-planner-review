@@ -269,9 +269,9 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
         </div>
       )}
       {active === 'Hire Status' && n > 0 && (
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 16, paddingLeft: 12, paddingRight: 12, paddingBottom: 6 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 24, paddingLeft: 12, paddingRight: 12, paddingBottom: 6 }}>
           <span style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase', paddingBottom: 3 }}>Select year</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 220 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 320 }}>
             {/* Year labels — compact, sit above track */}
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, paddingRight: 6 }}>
               {availableYears.map((y, i) => {
@@ -1986,7 +1986,7 @@ export default function Dashboard() {
       </div>
 
       {/* Tab bar */}
-      <TabBar active={activeTab} onChange={setActiveTab} availableYears={hubData?.available_years ?? []} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} yearA={yearA} yearB={yearB} requestYear={requestYear ?? yearA} onRequestYearChange={setRequestYear} />
+      <TabBar active={activeTab} onChange={setActiveTab} availableYears={Array.from(new Set([2022,2023,2024,2025,2026,2027,2028,...(hubData?.available_years??[])])).sort((a,b)=>a-b)} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} yearA={yearA} yearB={yearB} requestYear={requestYear ?? yearA} onRequestYearChange={setRequestYear} />
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
