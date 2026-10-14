@@ -1148,16 +1148,16 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
     [yearB]: Math.round((levelMapB[l.short_code] ?? 0) * 10) / 10,
   }));
 
-  // Aggregate requests by region for the active year
+  // Aggregate requests by region — pre-populate all known regions as zero placeholders
   const regionReqAgg: Record<string, number> = {};
+  for (const code of Array.from(new Set(Object.values(regionCodeMap))).sort()) regionReqAgg[code] = 0;
   for (const r of data.requests) {
     const code = rc(r.region_name) || r.region_name;
     regionReqAgg[code] = (regionReqAgg[code] ?? 0) + r.contracted_fte;
   }
   const regionReqData = Object.entries(regionReqAgg)
     .map(([region, count]) => ({ region, count: Math.round(count * 10) / 10 }))
-    .filter(d => d.count > 0)
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.count - a.count || a.region.localeCompare(b.region));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1331,7 +1331,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
             <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
           ) : (
             <ResponsiveContainer width="100%" height={Math.max(180, regionReqData.length * 32)}>
-              <BarChart data={regionReqData} layout="vertical" margin={{ top: 2, right: 36, bottom: 2, left: 0 }}>
+              <BarChart data={regionReqData} layout="vertical" margin={{ top: 2, right: 14, bottom: 2, left: 0 }}>
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="region" width={64} axisLine={false} tickLine={false}
                   tick={(props: any) => (
@@ -1341,11 +1341,11 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
                   )} />
                 <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} FTE`, 'Requests']} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={22} fill="#086AE3">
-                  {regionReqData.map((_, i) => {
+                  {regionReqData.map((entry, i) => {
                     const palette = ['#086AE3','#00408C','#411980','#00737A','#33A85C','#FDB90D','#E91C24','#841A5B'];
-                    return <Cell key={i} fill={palette[i % palette.length]} />;
+                    return <Cell key={i} fill={entry.count > 0 ? palette[i % palette.length] : '#EAECF0'} />;
                   })}
-                  <LabelList dataKey="count" position="right" style={{ fontSize: 10, fill: '#444', fontWeight: 700 }} />
+                  <LabelList dataKey="count" position="insideRight" style={{ fontSize: 10, fill: '#FFFFFF', fontWeight: 700 }} formatter={(v: any) => (v > 0 ? String(v) : '')} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
