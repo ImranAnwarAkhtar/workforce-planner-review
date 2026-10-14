@@ -1765,7 +1765,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Filled roles · from open to accepted</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
-            <span style={{ fontSize: 48, fontWeight: 900, lineHeight: 1, color: avgFilledDays > 0 ? '#086AE3' : '#8B93A3' }}>
+            <span style={{ fontSize: 32, fontWeight: 900, lineHeight: 1, color: avgFilledDays > 0 ? '#086AE3' : '#8B93A3' }}>
               {avgFilledDays > 0 ? avgFilledDays : '—'}
             </span>
             {avgFilledDays > 0 && <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>days</span>}
@@ -1779,7 +1779,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
             <>
               <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Year-over-year trend</div>
               <ResponsiveContainer width="100%" height={80}>
-                <LineChart data={hireTrendData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <LineChart data={hireTrendData} margin={{ top: 4, right: 8, bottom: 0, left: 16 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                   <XAxis dataKey="year" tick={{ fontSize: 9, fill: C.muted }} />
                   <YAxis hide domain={['auto', 'auto']} />
@@ -1801,7 +1801,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
             {/* Left: big number + label */}
             <div style={{ flexShrink: 0, minWidth: 80 }}>
-              <div style={{ fontSize: 52, fontWeight: 900, color: overdueCount > 0 ? '#E91C24' : '#8B93A3', lineHeight: 1, marginBottom: 6 }}>{overdueCount}</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: overdueCount > 0 ? '#E91C24' : '#8B93A3', lineHeight: 1, marginBottom: 6 }}>{overdueCount}</div>
               <div style={{ fontSize: 10, color: overdueCount > 0 ? '#C71B36' : C.muted, lineHeight: 1.4 }}>
                 {overdueCount === 0 ? 'No overdue roles' : `role${overdueCount !== 1 ? 's' : ''} past estimated hire date`}
               </div>
