@@ -1117,7 +1117,10 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
   const discPieColor = (name: string, i: number) => C.discColors[name] ?? DISC_PIE_FALLBACK[i % DISC_PIE_FALLBACK.length];
 
   // Aggregate requests by level for both years — senior→junior order (level_number DESC)
-  const sortedLevels = [...levels].sort((a, b) => (b.level_number ?? -1) - (a.level_number ?? -1));
+  const CANONICAL_LEVELS = ['VP', 'Senior Director', 'Director', 'Senior Manager', 'Manager', 'Intern', 'Cons', 'Contingent'];
+  const sortedLevels = [...levels]
+    .filter(l => CANONICAL_LEVELS.some(c => l.level_name.toLowerCase() === c.toLowerCase()))
+    .sort((a, b) => (b.level_number ?? -1) - (a.level_number ?? -1));
   const aggByLevel = (reqs: HubIqYearData['requests']) => {
     const m: Record<string, number> = {};
     for (const r of reqs) {
@@ -1133,6 +1136,17 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
     [yearA]: Math.round((levelMapA[l.short_code] ?? 0) * 10) / 10,
     [yearB]: Math.round((levelMapB[l.short_code] ?? 0) * 10) / 10,
   }));
+
+  // Aggregate requests by region for the active year
+  const regionReqAgg: Record<string, number> = {};
+  for (const r of data.requests) {
+    const code = rc(r.region_name) || r.region_name;
+    regionReqAgg[code] = (regionReqAgg[code] ?? 0) + r.contracted_fte;
+  }
+  const regionReqData = Object.entries(regionReqAgg)
+    .map(([region, count]) => ({ region, count: Math.round(count * 10) / 10 }))
+    .filter(d => d.count > 0)
+    .sort((a, b) => b.count - a.count);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1279,47 +1293,83 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap }: { yearA: num
         </div>
       </div>
 
-      {/* Line chart: requests by level */}
-      <div style={{ ...cardStyle, padding: '14px 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div style={sectionLabel}>Requests by Level</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {[yearA, yearB].map(y => (
-              <button key={y} onClick={() => setActiveLevelYear(y)} style={{
-                padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
-                border: `1px solid ${activeLevelYear === y ? C.accent : C.border}`,
-                background: activeLevelYear === y ? C.accent : '#FFF',
-                color: activeLevelYear === y ? '#FFF' : '#555',
-              }}>{y}</button>
-            ))}
+      {/* Bottom row: Requests by Level + Requests by Region */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 14 }}>
+
+        {/* Line chart: requests by level */}
+        <div style={{ ...cardStyle, padding: '14px 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={sectionLabel}>Requests by Level</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[yearA, yearB].map(y => (
+                <button key={y} onClick={() => setActiveLevelYear(y)} style={{
+                  padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                  border: `1px solid ${activeLevelYear === y ? C.accent : C.border}`,
+                  background: activeLevelYear === y ? C.accent : '#FFF',
+                  color: activeLevelYear === y ? '#FFF' : '#555',
+                }}>{y}</button>
+              ))}
+            </div>
           </div>
+          {levelLineData.length === 0 ? (
+            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>Loading levels…</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={levelLineData} margin={{ top: 20, right: 24, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                <XAxis dataKey="level" tick={{ fontSize: 10, fill: C.muted }} />
+                <YAxis hide />
+                <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : String(v)) as any} />
+                {activeLevelYear === yearA && (
+                  <Line type="monotone" dataKey={yearA} name={String(yearA)} stroke={C.seeded} strokeWidth={3} dot={false} activeDot={false}
+                    label={((p: any) => {
+                      if (typeof p.value !== 'number' || p.value < 1) return <g />;
+                      return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.seeded} fontWeight={700}>{p.value}</text>;
+                    }) as any} />
+                )}
+                {activeLevelYear === yearB && (
+                  <Line type="monotone" dataKey={yearB} name={String(yearB)} stroke={C.retail} strokeWidth={3} dot={false} activeDot={false}
+                    label={((p: any) => {
+                      if (typeof p.value !== 'number' || p.value < 1) return <g />;
+                      return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.retail} fontWeight={700}>{p.value}</text>;
+                    }) as any} />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
-        {levelLineData.length === 0 ? (
-          <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>Loading levels…</div>
-        ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={levelLineData} margin={{ top: 20, right: 24, bottom: 4, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-              <XAxis dataKey="level" tick={{ fontSize: 10, fill: C.muted }} />
-              <YAxis hide />
-              <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : String(v)) as any} />
-              {activeLevelYear === yearA && (
-                <Line type="monotone" dataKey={yearA} name={String(yearA)} stroke={C.seeded} strokeWidth={3} dot={false} activeDot={false}
-                  label={((p: any) => {
-                    if (typeof p.value !== 'number' || p.value < 1) return <g />;
-                    return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.seeded} fontWeight={700}>{p.value}</text>;
-                  }) as any} />
-              )}
-              {activeLevelYear === yearB && (
-                <Line type="monotone" dataKey={yearB} name={String(yearB)} stroke={C.retail} strokeWidth={3} dot={false} activeDot={false}
-                  label={((p: any) => {
-                    if (typeof p.value !== 'number' || p.value < 1) return <g />;
-                    return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill={C.retail} fontWeight={700}>{p.value}</text>;
-                  }) as any} />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
-        )}
+
+        {/* Horizontal bar: requests by region */}
+        <div style={{ ...cardStyle, padding: '14px 10px 14px 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingRight: 6 }}>
+            <div style={sectionLabel}>Requests by Region</div>
+            <span style={{ fontSize: 9, color: C.muted, fontWeight: 600 }}>{activeYear}</span>
+          </div>
+          {regionReqData.length === 0 ? (
+            <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(180, regionReqData.length * 32)}>
+              <BarChart data={regionReqData} layout="vertical" margin={{ top: 2, right: 36, bottom: 2, left: 0 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="region" width={64} axisLine={false} tickLine={false}
+                  tick={(props: any) => (
+                    <text x={props.x - 4} y={props.y} dy={4} textAnchor="end" fill="#444" fontSize={10} fontWeight={600}>
+                      {props.payload.value}
+                    </text>
+                  )} />
+                <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} FTE`, 'Requests']} />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={22} fill="#086AE3">
+                  {regionReqData.map((_, i) => {
+                    const palette = ['#086AE3','#00408C','#411980','#00737A','#33A85C','#FDB90D','#E91C24','#841A5B'];
+                    return <Cell key={i} fill={palette[i % palette.length]} />;
+                  })}
+                  <LabelList dataKey="count" position="right" style={{ fontSize: 10, fill: '#444', fontWeight: 700 }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
       </div>
     </div>
   );
