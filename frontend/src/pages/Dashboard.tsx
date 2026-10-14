@@ -2075,7 +2075,7 @@ function OnboardingTab() {
                 {tableRows.map((r, i) => (
                   <tr key={r.id} style={{ background: i % 2 === 0 ? '#FFF' : '#FAFAFA' }}>
                     <td style={{ ...TD_S, color: C.accent, fontWeight: 600 }}>{r.tbh_id}</td>
-                    <td style={TD_S}>{r.candidate_name || '—'}</td>
+                    <td style={{ ...TD_S, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.candidate_name || '—'}</td>
                     <td style={TD_S}>{r.confirmed_start_date ? new Date(r.confirmed_start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
                     <td style={{ ...TD_S }}><DaysChip d={daysUntil(r.confirmed_start_date!)} /></td>
                     <td style={TD_S}>{r.region_name || '—'}</td>
