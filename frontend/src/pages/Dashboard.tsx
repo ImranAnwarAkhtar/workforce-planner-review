@@ -274,14 +274,11 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 320 }}>
             {/* Year labels — compact, sit above track */}
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, paddingRight: 6 }}>
-              {availableYears.map((y, i) => {
-                const inRange = yearRange === null || (i >= startIdx && i <= endIdx);
-                return (
-                  <span key={y} style={{ fontSize: 9, color: inRange ? C.accent : C.muted, fontWeight: inRange ? 700 : 500, lineHeight: 1 }}>
-                    '{String(y).slice(2)}
-                  </span>
-                );
-              })}
+              {availableYears.map((y) => (
+                <span key={y} style={{ fontSize: 9, color: C.muted, fontWeight: 500, lineHeight: 1 }}>
+                  {String(y).slice(2)}
+                </span>
+              ))}
             </div>
             {/* Dual-handle track */}
             <div ref={trackRef} style={{ position: 'relative', height: 16, display: 'flex', alignItems: 'center' }}>
