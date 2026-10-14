@@ -7,8 +7,8 @@ import {
   ComposedChart, Area,
 } from 'recharts';
 import {
-  dashboardApi, refDataApi,
-  type HubIqResponse, type HubIqYearData, type Level, type Discipline, type HubIqTbhDiscRegion,
+  dashboardApi, refDataApi, tbhCodesApi,
+  type HubIqResponse, type HubIqYearData, type Level, type Discipline, type HubIqTbhDiscRegion, type TbhCode,
 } from '../services/api';
 
 // ---------------------------------------------------------------------------
@@ -34,7 +34,7 @@ const C = {
   discColors: { Construction: '#086AE3', Design: '#33A85C', Commercial: '#FDB90D', Commissioning: '#00737A', Other: '#8B93A3' } as Record<string,string>,
 };
 
-const TABS = ['Projects', 'People', 'Requests', 'Gearing', 'Hire Status'] as const;
+const TABS = ['Projects', 'People', 'Requests', 'Gearing', 'Hire Status', 'Onboarding'] as const;
 type Tab = typeof TABS[number];
 
 const REGION_ORDER = ['APAC', 'AMER', 'AMER Matrix', 'EMEA-C', 'EMEA-N', 'EMEA-S', 'MEA', 'Global'];
@@ -1919,6 +1919,188 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
 }
 
 // ---------------------------------------------------------------------------
+// ONBOARDING TAB
+// ---------------------------------------------------------------------------
+
+function OnboardingTab() {
+  const [rows, setRows] = useState<TbhCode[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    tbhCodesApi.list({ limit: 500 }).then(data => { setRows(data); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+
+  const addDays = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r.toISOString().slice(0, 10); };
+
+  // Only rows with a confirmed start date
+  const starters = rows.filter(r => r.confirmed_start_date);
+
+  // KPIs
+  const thisMonthKey = todayStr.slice(0, 7);
+  const startingThisMonth = starters.filter(r => r.confirmed_start_date!.startsWith(thisMonthKey)).length;
+  const next30End = addDays(today, 30);
+  const next90End = addDays(today, 90);
+  const startingNext30 = starters.filter(r => r.confirmed_start_date! >= todayStr && r.confirmed_start_date! <= next30End).length;
+  const startingNext90 = starters.filter(r => r.confirmed_start_date! >= todayStr && r.confirmed_start_date! <= next90End).length;
+  const externalCount = starters.filter(r => r.hire_source === 'External').length;
+  const internalCount = starters.filter(r => r.hire_source === 'Internal').length;
+
+  // Monthly bar chart — next 6 months
+  const monthlyData: { month: string; External: number; Internal: number; Other: number }[] = [];
+  for (let m = 0; m < 6; m++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + m, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleString('en-GB', { month: 'short', year: '2-digit' });
+    const bucket = starters.filter(r => r.confirmed_start_date!.startsWith(key));
+    monthlyData.push({
+      month: label,
+      External: bucket.filter(r => r.hire_source === 'External').length,
+      Internal: bucket.filter(r => r.hire_source === 'Internal').length,
+      Other: bucket.filter(r => !r.hire_source).length,
+    });
+  }
+
+  // Table sorted by confirmed_start_date ascending
+  const tableRows = [...starters].sort((a, b) => (a.confirmed_start_date ?? '').localeCompare(b.confirmed_start_date ?? ''));
+
+  function daysUntil(dateStr: string): number {
+    return Math.round((new Date(dateStr).getTime() - today.getTime()) / 86400000);
+  }
+
+  function DaysChip({ d }: { d: number }) {
+    const bg = d <= 7 ? '#FEE2E2' : d <= 14 ? '#FEF3C7' : d <= 30 ? '#E0F2FE' : '#F3F4F6';
+    const color = d <= 7 ? '#B91C1C' : d <= 14 ? '#B45309' : d <= 30 ? '#0369A1' : '#6B7280';
+    const label = d < 0 ? `${Math.abs(d)}d ago` : d === 0 ? 'Today' : `${d}d`;
+    return <span style={{ background: bg, color, fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap' }}>{label}</span>;
+  }
+
+  const cardStyle: React.CSSProperties = { background: '#FFF', border: `1px solid ${C.border}`, borderRadius: 8 };
+  const sL: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 };
+  const TH: React.CSSProperties = { padding: '6px 10px', fontSize: 9, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', textAlign: 'left', borderBottom: '2px solid #E0E3E8', background: '#F7F8FA' };
+  const TD_S: React.CSSProperties = { padding: '5px 10px', fontSize: 10, color: '#374151', whiteSpace: 'nowrap', borderBottom: '1px solid #F3F4F6' };
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>Loading onboarding data…</div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      {/* Row 1 — KPI cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {[
+          { label: 'Starting This Month', value: startingThisMonth, color: '#086AE3' },
+          { label: 'Starting Next 30 Days', value: startingNext30, color: '#00737A' },
+          { label: 'Starting Next 90 Days', value: startingNext90, color: '#411980' },
+          { label: 'Total Confirmed Starters', value: starters.length, color: '#333' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ ...cardStyle, padding: '14px 16px' }}>
+            <div style={sL}>{label}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Row 2 — Monthly chart + source split */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 14 }}>
+
+        {/* Starters by month */}
+        <div style={{ ...cardStyle, padding: '14px 16px' }}>
+          <div style={sL}>Confirmed Starters by Month</div>
+          <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>Next 6 months · by hire source</div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
+              <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
+              <Tooltip contentStyle={{ fontSize: 11 }} />
+              <Bar dataKey="External" stackId="s" fill="#086AE3" radius={[0,0,0,0]}>
+                <LabelList dataKey="External" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+              </Bar>
+              <Bar dataKey="Internal" stackId="s" fill="#411980" radius={[0,0,0,0]}>
+                <LabelList dataKey="Internal" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+              </Bar>
+              <Bar dataKey="Other" stackId="s" fill="#8B93A3" radius={[2,2,0,0]}>
+                <LabelList dataKey="Other" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+            {[['#086AE3','External'],['#411980','Internal'],['#8B93A3','Unknown']].map(([col, lbl]) => (
+              <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#555' }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: col, display: 'inline-block' }} />
+                {lbl}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Source split */}
+        <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={sL}>Hire Source</div>
+          {[['External', externalCount, '#086AE3'], ['Internal', internalCount, '#411980'], ['Unknown', starters.length - externalCount - internalCount, '#8B93A3']].map(([lbl, cnt, col]) => (
+            <div key={lbl as string}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 3 }}>
+                <span style={{ color: '#374151', fontWeight: 600 }}>{lbl}</span>
+                <span style={{ color: col as string, fontWeight: 700 }}>{cnt}</span>
+              </div>
+              <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3 }}>
+                <div style={{ height: '100%', borderRadius: 3, background: col as string, width: starters.length > 0 ? `${((cnt as number) / starters.length) * 100}%` : '0%' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Row 3 — Upcoming starters table */}
+      <div style={{ ...cardStyle, padding: '14px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+          <div style={sL}>Upcoming Starters</div>
+          <span style={{ fontSize: 10, color: C.muted }}>{tableRows.length} confirmed start{tableRows.length !== 1 ? 's' : ''}</span>
+        </div>
+        {tableRows.length === 0 ? (
+          <div style={{ padding: '24px 0', textAlign: 'center', color: C.muted, fontSize: 12 }}>No confirmed start dates on record</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+              <thead>
+                <tr>
+                  {['TBH ID','Final Candidate','Confirmed Start','Days','Region','Job Profile','Hire Type','Hire Source','Hire Source Details','Manager'].map(h => (
+                    <th key={h} style={TH}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.map((r, i) => (
+                  <tr key={r.id} style={{ background: i % 2 === 0 ? '#FFF' : '#FAFAFA' }}>
+                    <td style={{ ...TD_S, color: C.accent, fontWeight: 600 }}>{r.tbh_id}</td>
+                    <td style={TD_S}>{r.candidate_name || '—'}</td>
+                    <td style={TD_S}>{r.confirmed_start_date ? new Date(r.confirmed_start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+                    <td style={{ ...TD_S }}><DaysChip d={daysUntil(r.confirmed_start_date!)} /></td>
+                    <td style={TD_S}>{r.region_name || '—'}</td>
+                    <td style={{ ...TD_S, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.job_profile || '—'}</td>
+                    <td style={TD_S}>{r.hire_type || '—'}</td>
+                    <td style={TD_S}>
+                      {r.hire_source ? (
+                        <span style={{ background: r.hire_source === 'External' ? '#EBF3FF' : '#F0EDFF', color: r.hire_source === 'External' ? '#086AE3' : '#411980', fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 7px' }}>{r.hire_source}</span>
+                      ) : '—'}
+                    </td>
+                    <td style={{ ...TD_S, color: C.muted }}>{r.hire_source_details || '—'}</td>
+                    <td style={TD_S}>{r.manager_name || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Dashboard
 // ---------------------------------------------------------------------------
 
@@ -2020,6 +2202,7 @@ export default function Dashboard() {
             {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} activeYear={requestYear ?? yearA!} />}
             {activeTab === 'Gearing'     && <GearingTab     yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} />}
+            {activeTab === 'Onboarding' && <OnboardingTab />}
           </>
         )}
       </div>

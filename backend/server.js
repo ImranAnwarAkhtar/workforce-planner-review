@@ -135,6 +135,25 @@ pool.query(`
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS fp_and_a_approver_notes TEXT;
 `).catch(err => logger.error('TBH codes column migration failed', { error: err.message }));
 
+pool.query(`
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS confirmed_start_date DATE;
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS hire_source          VARCHAR(50);
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS hire_source_details  TEXT;
+`).catch(err => logger.error('TBH codes onboarding column migration failed', { error: err.message }));
+
+pool.query(`
+  UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '14 days'
+    WHERE req_status = 'Filled' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL;
+  UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '21 days'
+    WHERE req_status = 'Offer Extended' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL;
+  UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '45 days'
+    WHERE req_status = 'In Progress' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL AND funding_year >= 2026;
+  UPDATE tbh_codes SET hire_source = 'External'
+    WHERE hire_type IN ('Net New', 'Uplift', 'Backfill') AND hire_source IS NULL;
+  UPDATE tbh_codes SET hire_source = 'Internal'
+    WHERE hire_type = 'Conversion' AND hire_source IS NULL;
+`).catch(err => logger.error('TBH codes onboarding sample data migration failed', { error: err.message }));
+
 const { seedTbhCodes } = require('./db/seedTbh');
 seedTbhCodes().catch(err => logger.error('TBH seed failed', { error: err.message }));
 

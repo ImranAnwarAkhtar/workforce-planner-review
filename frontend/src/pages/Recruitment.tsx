@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { tbhCodesApi, refDataApi, type TbhCode, type Region, type CreateTbhCodeBody } from '../services/api';
+import { useColFilter, type ColDef } from '../hooks/useColFilter';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -31,9 +32,67 @@ function statusMeta(s: string | null) {
   return STATUS_META[s ?? ''] ?? { color: '#6B7280', bg: '#F9FAFB', border: '#E5E7EB' };
 }
 
+// Sticky-column config (first 5 columns frozen)
+const STICKY_WIDTHS: [string, number][] = [
+  ['tbh_id',   211],
+  ['old_tbh',  145],
+  ['req_status', 102],
+];
+const STICKY_LEFT: Record<string, number>  = {};
+const STICKY_WIDTH: Record<string, number> = {};
+let _acc = 0;
+for (const [k, w] of STICKY_WIDTHS) { STICKY_LEFT[k] = _acc; STICKY_WIDTH[k] = w; _acc += w; }
+
+function colWidth(key: string): number {
+  if (STICKY_WIDTH[key] !== undefined) return STICKY_WIDTH[key];
+  if (['pmo_comments','wfp_comments','ta_status_comments','tbh_description',
+       'fp_and_a_notes','fp_and_a_approver_notes'].includes(key)) return 150;
+  return 92;
+}
+
+function stickyTD(key: string): React.CSSProperties {
+  const w = STICKY_WIDTH[key];
+  return { position: 'sticky', left: STICKY_LEFT[key], zIndex: 1, background: '#FFFFFF', width: w, maxWidth: w };
+}
+
+function regionChip(name: string | null): { bg: string; color: string; border: string } | null {
+  if (!name) return null;
+  const n = name.toUpperCase();
+  if (n.includes('ASIA') || (n.includes('APAC') && !n.includes('MATRIX'))) return { bg: '#EBF3FF', color: '#00408C', border: '#BFDBFE' };
+  if (n.includes('MATRIX')) return { bg: '#FFF8EB', color: '#92400E', border: '#FDE68A' };
+  if (n.includes('AMER') || n.includes('AMERICAS')) return { bg: '#EEF2FF', color: '#00408C', border: '#C7D2FE' };
+  if (n.includes('NORTH') || n.includes('EMEA-N') || n.includes('EMEA_N')) return { bg: '#F3EEFF', color: '#411980', border: '#DDD6FE' };
+  if (n.includes('CENTRAL') || n.includes('EMEA-C') || n.includes('EMEA_C')) return { bg: '#F0ECFF', color: '#5B21B6', border: '#D8B4FE' };
+  if (n.includes('SOUTH') || n.includes('EMEA-S') || n.includes('EMEA_S')) return { bg: '#EFF0FF', color: '#3730A3', border: '#C7D2FE' };
+  if (n.includes('EMEA')) return { bg: '#F5F1FF', color: '#411980', border: '#E0CFFE' };
+  if (n.includes('MEA')) return { bg: '#E8F6F7', color: '#00737A', border: '#99E6EA' };
+  if (n.includes('GLOBAL')) return { bg: '#F3F4F6', color: '#374151', border: '#D1D5DB' };
+  return { bg: '#F3F4F6', color: '#374151', border: '#D1D5DB' };
+}
+
+function projectChip(pt: string | null): { bg: string; color: string; border: string } | null {
+  if (!pt) return null;
+  if (pt === 'Retail') return { bg: '#EBF3FF', color: '#00408C', border: '#BFDBFE' };
+  if (pt === 'xScale') return { bg: '#F3EEFF', color: '#411980', border: '#DDD6FE' };
+  if (pt === 'Matrix') return { bg: '#E8F6F7', color: '#00737A', border: '#99E6EA' };
+  return { bg: '#F3F4F6', color: '#374151', border: '#D1D5DB' };
+}
+
 function fmtDate(d: string | null) {
   if (!d) return null;
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+const MONTH_ABBR: Record<string, string> = {
+  jan:'Jan',feb:'Feb',mar:'Mar',apr:'Apr',may:'May',jun:'Jun',
+  jul:'Jul',aug:'Aug',sep:'Sep',oct:'Oct',nov:'Nov',dec:'Dec',
+};
+function parseTbhDate(tbhId: string): string | null {
+  const m = tbhId.match(/[_\s-]([A-Za-z]{3})[\s_-]?(\d{2})$/i);
+  if (!m) return null;
+  const mon = MONTH_ABBR[m[1].toLowerCase()];
+  if (!mon) return null;
+  return `${mon} ${2000 + parseInt(m[2], 10)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -42,50 +101,98 @@ function fmtDate(d: string | null) {
 
 const tk = { bg2: '#FFFFFF', border: '#E5E5E5', accent: '#E91C24', muted: '#666666' };
 const card: React.CSSProperties    = { background: tk.bg2, border: `1px solid ${tk.border}`, borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' };
-const TH: React.CSSProperties     = { padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tk.muted, background: '#F8F9FA', borderBottom: `1px solid ${tk.border}`, whiteSpace: 'nowrap' };
-const TD: React.CSSProperties     = { padding: '7px 12px', borderBottom: '1px solid #F0F0F0', verticalAlign: 'middle', fontSize: 13, color: '#111111' };
-const inputSt: React.CSSProperties  = { width: '100%', padding: '8px 11px', background: '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 6, color: '#111111', fontSize: 14, outline: 'none', boxSizing: 'border-box' };
+const TH: React.CSSProperties     = { padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tk.muted, background: '#E4E6EA', borderBottom: '2px solid #C8CCD4', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 2 };
+const TD: React.CSSProperties     = { padding: '5px 8px', borderBottom: '1px solid #F0F0F0', verticalAlign: 'middle', fontSize: 11, color: '#111111' };
+const inputSt: React.CSSProperties  = { width: '100%', padding: '4px 7px', background: '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 4, color: '#111111', fontSize: 12, outline: 'none', boxSizing: 'border-box' };
 const selectSt: React.CSSProperties = { ...inputSt, cursor: 'pointer' };
-const labelSt: React.CSSProperties  = { display: 'block', fontSize: 11, fontWeight: 700, color: tk.muted, marginBottom: 4, letterSpacing: '0.07em', textTransform: 'uppercase' };
-const btnPrimary: React.CSSProperties    = { padding: '8px 16px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer' };
+const labelSt: React.CSSProperties  = { display: 'block', fontSize: 10, fontWeight: 700, color: tk.muted, marginBottom: 2, letterSpacing: '0.07em', textTransform: 'uppercase' };
+const btnPrimary: React.CSSProperties    = { padding: '5px 12px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' };
 const btnCompact: React.CSSProperties   = { padding: '4px 10px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' as const };
-const btnSecondary: React.CSSProperties = { padding: '8px 16px', background: 'transparent', color: '#555555', border: '1px solid #D5D5D5', borderRadius: 6, fontSize: 14, cursor: 'pointer' };
+const btnSecondary: React.CSSProperties = { padding: '5px 12px', background: 'transparent', color: '#555555', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 12, cursor: 'pointer' };
 const overlay: React.CSSProperties   = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 };
-const modalBox: React.CSSProperties  = { background: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: 10, width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto', padding: '26px 30px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' };
-const modalFooter: React.CSSProperties = { display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22, paddingTop: 18, borderTop: '1px solid #EEEEEE' };
-const row2: React.CSSProperties     = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 };
+const modalBox: React.CSSProperties  = { background: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: 8, width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto', padding: '16px 20px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' };
+const modalFooter: React.CSSProperties = { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12, paddingTop: 10, borderTop: '1px solid #EEEEEE' };
+const row2: React.CSSProperties     = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 };
+
+// ---------------------------------------------------------------------------
+// Column definitions
+// ---------------------------------------------------------------------------
+
+const REC_COL_DEFS: ColDef<TbhCode>[] = [
+  { key: 'tbh_id',                  label: 'TBH ID',                          get: t => t.tbh_id },
+  { key: 'old_tbh',                 label: 'Old TBH',                         get: t => t.old_tbh ?? '' },
+  { key: 'req_status',              label: 'Hire Status',                     get: t => t.req_status ?? '' },
+  { key: 'creation_date',           label: 'Created',                         get: t => parseTbhDate(t.tbh_id) ?? '' },
+  { key: 'in_summary',              label: 'In Summary',                      get: t => t.in_summary ?? '' },
+  { key: 'status_query',            label: 'Status / Query',                  get: t => t.status_query ?? '' },
+  { key: 'pmo_comments',            label: 'PMO Comments',                    get: t => t.pmo_comments ?? '' },
+  { key: 'wfp_comments',            label: 'Workforce Planning Comments',     get: t => t.wfp_comments ?? '' },
+  { key: 'funding_year',            label: 'Funding',                         get: t => t.funding_year ? String(t.funding_year) : '' },
+  { key: 'hire_type',               label: 'Hire Type',                       get: t => t.hire_type ?? '' },
+  { key: 'region',                  label: 'Region',                          get: t => t.region_name ?? '' },
+  { key: 'project_type',            label: 'Project',                         get: t => t.project_type ?? '' },
+  { key: 'legal_entity',            label: 'Legal Entity Final',              get: t => t.legal_entity ?? '' },
+  { key: 'location_code',           label: 'Location',                        get: t => t.location_code ?? '' },
+  { key: 'cost_centre',             label: 'Cost Center',                     get: t => t.cost_centre ?? '' },
+  { key: 'job_profile',             label: 'Job Profile',                     get: t => t.job_profile ?? '' },
+  { key: 'manager_name',            label: 'Manager Name',                    get: t => t.manager_name ?? '' },
+  { key: 'replaced_emp_name',       label: 'Replaced Emp Name',               get: t => t.replaced_emp_name ?? '' },
+  { key: 'jr_id',                   label: 'Job Req ID',                      get: t => t.jr_id ?? '' },
+  { key: 'ta_contact',              label: 'TA Contact',                      get: t => t.ta_contact ?? '' },
+  { key: 'candidate_name',          label: 'Final Candidate',                 get: t => t.candidate_name ?? '' },
+  { key: 'estimated_hire_date',     label: 'TA (Est.) Hire Date',             get: t => t.estimated_hire_date ?? '' },
+  { key: 'confirmed_start_date',    label: 'Confirmed Start Date',            get: t => t.confirmed_start_date ?? '' },
+  { key: 'hire_source',             label: 'Hire Source',                     get: t => t.hire_source ?? '' },
+  { key: 'hire_source_details',     label: 'Hire Source Details - Co/Dept',   get: t => t.hire_source_details ?? '' },
+  { key: 'target_hire_date',        label: 'Hire Date',                       get: t => t.target_hire_date ?? '' },
+  { key: 'fp_and_a_approver_notes', label: 'Note from FP&A Approver',         get: t => t.fp_and_a_approver_notes ?? '' },
+  { key: 'fp_and_a_notes',          label: 'Note from FP&A',                  get: t => t.fp_and_a_notes ?? '' },
+  { key: 'tbh_description',         label: 'TBH Description',                 get: t => t.tbh_description ?? '' },
+  { key: 'ta_status_comments',      label: 'TA Status Comments',              get: t => t.ta_status_comments ?? '' },
+];
 
 // ---------------------------------------------------------------------------
 // Form state
 // ---------------------------------------------------------------------------
 
 interface FormState {
-  tbh_id: string; old_tbh: string; funding_year: string; hire_type: string;
+  tbh_id: string; old_tbh: string; in_summary: string; status_query: string;
+  pmo_comments: string; wfp_comments: string; funding_year: string; hire_type: string;
   region_id: string; project_type: string; legal_entity: string; location_code: string;
   cost_centre: string; job_profile: string; replaced_emp_name: string; manager_name: string;
   target_hire_date: string; jr_id: string; req_status: string; ta_contact: string;
   candidate_name: string; estimated_hire_date: string; ta_status_comments: string;
-  tbh_description: string; fp_and_a_notes: string;
+  tbh_description: string; fp_and_a_approver_notes: string; fp_and_a_notes: string;
+  confirmed_start_date: string; hire_source: string; hire_source_details: string;
 }
 
 const emptyForm: FormState = {
-  tbh_id: '', old_tbh: '', funding_year: String(new Date().getFullYear()),
+  tbh_id: '', old_tbh: '', in_summary: '', status_query: '', pmo_comments: '', wfp_comments: '',
+  funding_year: String(new Date().getFullYear()),
   hire_type: 'Net New', region_id: '', project_type: '', legal_entity: '', location_code: '',
   cost_centre: '', job_profile: '', replaced_emp_name: '', manager_name: '',
   target_hire_date: '', jr_id: '', req_status: 'Open', ta_contact: '', candidate_name: '',
-  estimated_hire_date: '', ta_status_comments: '', tbh_description: '', fp_and_a_notes: '',
+  estimated_hire_date: '', ta_status_comments: '', tbh_description: '',
+  fp_and_a_approver_notes: '', fp_and_a_notes: '',
+  confirmed_start_date: '', hire_source: '', hire_source_details: '',
 };
 
 function tbhToForm(t: TbhCode): FormState {
   return {
-    tbh_id: t.tbh_id, old_tbh: t.old_tbh ?? '', funding_year: t.funding_year ? String(t.funding_year) : '',
+    tbh_id: t.tbh_id, old_tbh: t.old_tbh ?? '',
+    in_summary: t.in_summary ?? '', status_query: t.status_query ?? '',
+    pmo_comments: t.pmo_comments ?? '', wfp_comments: t.wfp_comments ?? '',
+    funding_year: t.funding_year ? String(t.funding_year) : '',
     hire_type: t.hire_type ?? 'Net New', region_id: t.region_id ? String(t.region_id) : '',
     project_type: t.project_type ?? '', legal_entity: t.legal_entity ?? '', location_code: t.location_code ?? '',
     cost_centre: t.cost_centre ?? '', job_profile: t.job_profile ?? '', replaced_emp_name: t.replaced_emp_name ?? '',
     manager_name: t.manager_name ?? '', target_hire_date: t.target_hire_date ? t.target_hire_date.slice(0, 10) : '',
     jr_id: t.jr_id ?? '', req_status: t.req_status ?? 'Open', ta_contact: t.ta_contact ?? '',
     candidate_name: t.candidate_name ?? '', estimated_hire_date: t.estimated_hire_date ? t.estimated_hire_date.slice(0, 10) : '',
-    ta_status_comments: t.ta_status_comments ?? '', tbh_description: t.tbh_description ?? '', fp_and_a_notes: t.fp_and_a_notes ?? '',
+    ta_status_comments: t.ta_status_comments ?? '', tbh_description: t.tbh_description ?? '',
+    fp_and_a_approver_notes: t.fp_and_a_approver_notes ?? '', fp_and_a_notes: t.fp_and_a_notes ?? '',
+    confirmed_start_date: t.confirmed_start_date ? t.confirmed_start_date.slice(0, 10) : '',
+    hire_source: t.hire_source ?? '', hire_source_details: t.hire_source_details ?? '',
   };
 }
 
@@ -112,22 +219,13 @@ export default function Recruitment() {
   const [deleteTarget, setDeleteTarget] = useState<TbhCode | null>(null);
   const [deleting,     setDeleting]     = useState(false);
 
-  const [importing,    setImporting]    = useState(false);
-  const [importMsg,    setImportMsg]    = useState<string | null>(null);
-
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    setImporting(true); setImportMsg(null);
-    try {
-      const result = await tbhCodesApi.importExcel(file);
-      setImportMsg(`Import complete — ${result.inserted} added, ${result.updated} updated, ${result.skipped} skipped`);
-      loadData();
-    } catch (err: unknown) {
-      setImportMsg(`Import failed: ${(err as Error).message}`);
-    } finally { setImporting(false); }
-  }
+  const [hiddenCols,  setHiddenCols]  = useState<Set<string>>(new Set());
+  const [colMenuOpen, setColMenuOpen] = useState(false);
+  const toggleCol = (key: string) => setHiddenCols(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
 
   useEffect(() => { refDataApi.regions().then(setRegions).catch(() => {}); }, []);
 
@@ -146,17 +244,23 @@ export default function Recruitment() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const colFilter = useColFilter(tbhCodes, REC_COL_DEFS);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return tbhCodes;
-    const q = search.toLowerCase();
-    return tbhCodes.filter(t =>
-      t.tbh_id.toLowerCase().includes(q) ||
-      (t.job_profile ?? '').toLowerCase().includes(q) ||
-      (t.candidate_name ?? '').toLowerCase().includes(q) ||
-      (t.manager_name ?? '').toLowerCase().includes(q) ||
-      (t.region_name ?? '').toLowerCase().includes(q)
-    );
-  }, [tbhCodes, search]);
+    let list = tbhCodes;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(t =>
+        t.tbh_id.toLowerCase().includes(q) ||
+        (t.job_profile ?? '').toLowerCase().includes(q) ||
+        (t.candidate_name ?? '').toLowerCase().includes(q) ||
+        (t.manager_name ?? '').toLowerCase().includes(q) ||
+        (t.region_name ?? '').toLowerCase().includes(q)
+      );
+    }
+    return colFilter.applyToList(list);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tbhCodes, search, colFilter.colFilters, colFilter.sortConfig]);
 
   const years = useMemo(() => {
     const ys = new Set(tbhCodes.map(t => t.funding_year).filter(Boolean) as number[]);
@@ -183,26 +287,34 @@ export default function Recruitment() {
     try {
       const body: CreateTbhCodeBody = {
         tbh_id: form.tbh_id.trim(),
-        old_tbh:             form.old_tbh             || null,
-        funding_year:        form.funding_year         ? parseInt(form.funding_year, 10)  : null,
-        hire_type:           form.hire_type            || null,
-        region_id:           form.region_id            ? parseInt(form.region_id, 10)     : null,
-        project_type:        form.project_type         || null,
-        legal_entity:        form.legal_entity         || null,
-        location_code:       form.location_code        || null,
-        cost_centre:         form.cost_centre          || null,
-        job_profile:         form.job_profile          || null,
-        replaced_emp_name:   form.replaced_emp_name    || null,
-        manager_name:        form.manager_name         || null,
-        target_hire_date:    form.target_hire_date     || null,
-        jr_id:               form.jr_id                || null,
-        req_status:          form.req_status           || null,
-        ta_contact:          form.ta_contact           || null,
-        candidate_name:      form.candidate_name       || null,
-        estimated_hire_date: form.estimated_hire_date  || null,
-        ta_status_comments:  form.ta_status_comments   || null,
-        tbh_description:     form.tbh_description      || null,
-        fp_and_a_notes:      form.fp_and_a_notes       || null,
+        old_tbh:                  form.old_tbh                  || null,
+        in_summary:               form.in_summary               || null,
+        status_query:             form.status_query             || null,
+        pmo_comments:             form.pmo_comments             || null,
+        wfp_comments:             form.wfp_comments             || null,
+        funding_year:             form.funding_year             ? parseInt(form.funding_year, 10) : null,
+        hire_type:                form.hire_type                || null,
+        region_id:                form.region_id                ? parseInt(form.region_id, 10)    : null,
+        project_type:             form.project_type             || null,
+        legal_entity:             form.legal_entity             || null,
+        location_code:            form.location_code            || null,
+        cost_centre:              form.cost_centre              || null,
+        job_profile:              form.job_profile              || null,
+        replaced_emp_name:        form.replaced_emp_name        || null,
+        manager_name:             form.manager_name             || null,
+        target_hire_date:         form.target_hire_date         || null,
+        jr_id:                    form.jr_id                    || null,
+        req_status:               form.req_status               || null,
+        ta_contact:               form.ta_contact               || null,
+        candidate_name:           form.candidate_name           || null,
+        estimated_hire_date:      form.estimated_hire_date      || null,
+        ta_status_comments:       form.ta_status_comments       || null,
+        tbh_description:          form.tbh_description          || null,
+        fp_and_a_approver_notes:  form.fp_and_a_approver_notes  || null,
+        fp_and_a_notes:           form.fp_and_a_notes           || null,
+        confirmed_start_date:     form.confirmed_start_date     || null,
+        hire_source:              form.hire_source              || null,
+        hire_source_details:      form.hire_source_details      || null,
       };
       if (editTarget) await tbhCodesApi.update(editTarget.id, body);
       else            await tbhCodesApi.create(body);
@@ -256,21 +368,9 @@ export default function Recruitment() {
 
         {/* Actions */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', padding: '0 14px', flexShrink: 0 }}>
-          <label style={{ ...btnCompact, cursor: importing ? 'wait' : 'pointer', opacity: importing ? 0.6 : 1 }}>
-            {importing ? 'Importing…' : 'Import Excel'}
-            <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImport} disabled={importing} />
-          </label>
           <button style={btnCompact} onClick={openAdd}>+ Add TBH</button>
         </div>
       </div>
-
-      {/* Import result banner */}
-      {importMsg && (
-        <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 6, fontSize: 12, background: importMsg.startsWith('Import failed') ? '#FEF2F2' : '#ECFDF5', color: importMsg.startsWith('Import failed') ? '#DC2626' : '#059669', border: `1px solid ${importMsg.startsWith('Import failed') ? '#FECACA' : '#A7F3D0'}` }}>
-          {importMsg}
-          <button onClick={() => setImportMsg(null)} style={{ marginLeft: 12, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>×</button>
-        </div>
-      )}
 
       {/* ── Filters ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -288,6 +388,36 @@ export default function Recruitment() {
           {years.map(y => <option key={y} value={y}>FY{y}</option>)}
         </select>
         {!loading && <span style={{ color: '#888', fontSize: 12 }}>{filtered.length} records</span>}
+
+        {/* Column visibility toggle */}
+        <div style={{ position: 'relative', marginLeft: 'auto' }}>
+          <button
+            onClick={() => setColMenuOpen(o => !o)}
+            style={{ padding: '6px 10px', background: colMenuOpen ? '#F3F4F6' : '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 6, fontSize: 12, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="11" width="14" height="2" rx="1" fill="currentColor"/><circle cx="5" cy="4" r="2" fill="#fff" stroke="currentColor" strokeWidth="1.2"/><circle cx="11" cy="8" r="2" fill="#fff" stroke="currentColor" strokeWidth="1.2"/><circle cx="7" cy="12" r="2" fill="#fff" stroke="currentColor" strokeWidth="1.2"/></svg>
+            Columns {hiddenCols.size > 0 && <span style={{ background: '#E91C24', color: '#fff', borderRadius: 8, fontSize: 10, padding: '0 5px', fontWeight: 700 }}>{hiddenCols.size}</span>}
+          </button>
+          {colMenuOpen && (
+            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 50, minWidth: 220, padding: '8px 0' }}
+              onMouseLeave={() => setColMenuOpen(false)}>
+              <div style={{ padding: '4px 12px 6px', fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.07em', borderBottom: '1px solid #F0F0F0', marginBottom: 4 }}>Toggle columns</div>
+              {REC_COL_DEFS.slice(STICKY_WIDTHS.length).map(col => (
+                <label key={col.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', cursor: 'pointer', fontSize: 12, color: '#374151' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F6FA'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                  <input type="checkbox" checked={!hiddenCols.has(col.key)} onChange={() => toggleCol(col.key)} style={{ cursor: 'pointer' }} />
+                  {col.label}
+                </label>
+              ))}
+              {hiddenCols.size > 0 && (
+                <div style={{ borderTop: '1px solid #F0F0F0', marginTop: 4, padding: '6px 12px 2px' }}>
+                  <button onClick={() => setHiddenCols(new Set())} style={{ fontSize: 11, color: '#E91C24', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Show all columns</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Table ── */}
@@ -301,69 +431,139 @@ export default function Recruitment() {
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>No TBH codes found</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 195px)' }}>
+          <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={TH}>TBH ID</th>
-                <th style={TH}>Job Profile</th>
-                <th style={TH}>Region</th>
-                <th style={TH}>Type</th>
-                <th style={TH}>Status</th>
-                <th style={TH}>Hire Date</th>
-                <th style={TH}>Manager</th>
-                <th style={{ ...TH, textAlign: 'right' }}></th>
+                {REC_COL_DEFS.map((col, ci) => {
+                  const isSticky = ci < STICKY_WIDTHS.length;
+                  if (!isSticky && hiddenCols.has(col.key)) return null;
+                  const w = colWidth(col.key);
+                  return (
+                    <th key={col.key} style={{ ...TH, userSelect: 'none', minWidth: w, width: isSticky ? w : undefined, maxWidth: isSticky ? w : undefined, ...(isSticky ? { left: STICKY_LEFT[col.key], zIndex: 3 } : {}) }}>
+                      {colFilter.renderHeaderContent(col)}
+                    </th>
+                  );
+                })}
+                <th style={{ ...TH, textAlign: 'right', minWidth: 60 }}></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(t => {
                 const m = statusMeta(t.req_status);
-                const hireDate = fmtDate(t.target_hire_date) ?? fmtDate(t.estimated_hire_date);
                 return (
-                  <tr key={t.id} style={{ background: '#FFFFFF' }} onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')} onMouseLeave={e => (e.currentTarget.style.background = '#FFFFFF')}>
+                  <tr key={t.id} style={{ background: '#FFFFFF', cursor: 'pointer' }}
+                    onMouseEnter={e => { for (const c of Array.from(e.currentTarget.cells)) (c as HTMLElement).style.background = '#F5F6FA'; }}
+                    onMouseLeave={e => { for (const c of Array.from(e.currentTarget.cells)) (c as HTMLElement).style.background = '#FFFFFF'; }}
+                    onDoubleClick={() => openEdit(t)}>
 
-                    {/* TBH ID + FY inline */}
-                    <td style={{ ...TD, maxWidth: 200 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', overflow: 'hidden' }}>
-                        <span style={{ fontWeight: 600, color: '#111111', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{t.tbh_id}</span>
-                        {t.funding_year && (
-                          <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#666', background: '#F3F4F6', padding: '1px 5px', borderRadius: 3 }}>FY{t.funding_year}</span>
-                        )}
-                      </div>
+                    {/* TBH ID — sticky col 1 */}
+                    <td title={t.tbh_id} style={{ ...TD, ...stickyTD('tbh_id') }}>
+                      <span style={{ fontWeight: 600, color: '#111111', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.tbh_id}</span>
                     </td>
 
-                    {/* Job profile */}
-                    <td style={{ ...TD, maxWidth: 220 }}>
-                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#111111' }}>{t.job_profile ?? '—'}</span>
+                    {/* Old TBH — sticky col 2 */}
+                    <td title={t.old_tbh ?? ''} style={{ ...TD, ...stickyTD('old_tbh') }}>
+                      <span style={{ fontSize: 10, color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.old_tbh ?? '—'}</span>
                     </td>
 
-                    {/* Region */}
-                    <td style={TD}>
-                      <span style={{ color: t.region_name ? '#374151' : '#9CA3AF', fontSize: 12 }}>{t.region_name ?? '—'}</span>
-                    </td>
-
-                    {/* Hire type pill */}
-                    <td style={TD}>
-                      {t.hire_type ? (
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#374151', background: '#F3F4F6', padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>{t.hire_type}</span>
-                      ) : <span style={{ color: '#9CA3AF' }}>—</span>}
-                    </td>
-
-                    {/* Status pill */}
-                    <td style={TD}>
-                      <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: m.bg, color: m.color, border: `1px solid ${m.border}`, whiteSpace: 'nowrap' }}>
+                    {/* REQ Status — sticky col 3 */}
+                    <td title={t.req_status ?? ''} style={{ ...TD, ...stickyTD('req_status') }}>
+                      <span style={{ padding: '1px 6px', borderRadius: 8, fontSize: 10, fontWeight: 600, background: m.bg, color: m.color, border: `1px solid ${m.border}`, whiteSpace: 'nowrap' }}>
                         {t.req_status ?? 'Unknown'}
                       </span>
                     </td>
 
-                    {/* Hire date */}
-                    <td style={TD}>
-                      <span style={{ color: hireDate ? '#374151' : '#9CA3AF', fontSize: 12 }}>{hireDate ?? '—'}</span>
-                    </td>
-
-                    {/* Manager */}
-                    <td style={{ ...TD, maxWidth: 160 }}>
-                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#374151', fontSize: 12 }}>{t.manager_name ?? '—'}</span>
-                    </td>
+                    {/* ── Non-sticky / collapsible columns ── */}
+                    {!hiddenCols.has('creation_date') && (() => { const d = parseTbhDate(t.tbh_id); return (
+                      <td title={d ?? ''} style={{ ...TD, textAlign: 'center' }}>
+                        {d ? <span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{d}</span>
+                           : <span style={{ color: '#9CA3AF', fontSize: 10 }}>—</span>}
+                      </td>
+                    ); })()}
+                    {!hiddenCols.has('in_summary') && (
+                      <td title={t.is_in_plan ? 'In resource plan' : 'Not in resource plan'} style={{ ...TD, textAlign: 'center' }}>
+                        {t.is_in_plan
+                          ? <span style={{ fontSize: 10, fontWeight: 700, color: '#059669', background: '#ECFDF5', padding: '1px 6px', borderRadius: 8, border: '1px solid #A7F3D0', whiteSpace: 'nowrap' }}>Yes</span>
+                          : <span style={{ color: '#9CA3AF', fontSize: 10 }}>—</span>}
+                      </td>
+                    )}
+                    {!hiddenCols.has('status_query') && (
+                      <td title={t.status_query ?? ''} style={TD}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.status_query ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('pmo_comments') && (
+                      <td title={t.pmo_comments ?? ''} style={{ ...TD, maxWidth: 200 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.pmo_comments ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('wfp_comments') && (
+                      <td title={t.wfp_comments ?? ''} style={{ ...TD, maxWidth: 200 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.wfp_comments ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('funding_year') && (
+                      <td title={t.funding_year ? String(t.funding_year) : ''} style={TD}>
+                        {t.funding_year ? <span style={{ fontSize: 11, fontWeight: 600, color: '#666', background: '#F3F4F6', padding: '2px 6px', borderRadius: 3 }}>FY{t.funding_year}</span>
+                                        : <span style={{ color: '#9CA3AF' }}>—</span>}
+                      </td>
+                    )}
+                    {!hiddenCols.has('hire_type') && (
+                      <td title={t.hire_type ?? ''} style={TD}>
+                        {t.hire_type ? <span style={{ fontSize: 11, fontWeight: 600, color: '#374151', background: '#F3F4F6', padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>{t.hire_type}</span>
+                                     : <span style={{ color: '#9CA3AF' }}>—</span>}
+                      </td>
+                    )}
+                    {!hiddenCols.has('region') && (
+                      <td title={t.region_name ?? ''} style={TD}>
+                        {t.region_name ? (() => { const rc = regionChip(t.region_name); return rc ? <span style={{ fontSize: 10, fontWeight: 600, color: rc.color, background: rc.bg, padding: '1px 6px', borderRadius: 8, border: `1px solid ${rc.border}`, whiteSpace: 'nowrap' }}>{t.region_name}</span> : <span style={{ color: '#374151', fontSize: 10 }}>{t.region_name}</span>; })() : <span style={{ color: '#9CA3AF', fontSize: 10 }}>—</span>}
+                      </td>
+                    )}
+                    {!hiddenCols.has('project_type') && (
+                      <td title={t.project_type ?? ''} style={TD}>
+                        {t.project_type ? (() => { const pc = projectChip(t.project_type); return pc ? <span style={{ fontSize: 10, fontWeight: 600, color: pc.color, background: pc.bg, padding: '1px 6px', borderRadius: 8, border: `1px solid ${pc.border}`, whiteSpace: 'nowrap' }}>{t.project_type}</span> : <span style={{ color: '#374151', fontSize: 10 }}>{t.project_type}</span>; })() : <span style={{ color: '#9CA3AF', fontSize: 10 }}>—</span>}
+                      </td>
+                    )}
+                    {!hiddenCols.has('legal_entity') && (
+                      <td title={t.legal_entity ?? ''} style={{ ...TD, maxWidth: 180 }}><span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.legal_entity ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('location_code') && (
+                      <td title={t.location_code ?? ''} style={{ ...TD, maxWidth: 160 }}><span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.location_code ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('cost_centre') && (
+                      <td title={t.cost_centre ?? ''} style={{ ...TD, maxWidth: 160 }}><span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.cost_centre ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('job_profile') && (
+                      <td title={t.job_profile ?? ''} style={{ ...TD, maxWidth: 220 }}><span style={{ fontSize: 10, color: '#111111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.job_profile ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('manager_name') && (
+                      <td title={t.manager_name ?? ''} style={{ ...TD, maxWidth: 160 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.manager_name ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('replaced_emp_name') && (
+                      <td title={t.replaced_emp_name ?? ''} style={{ ...TD, maxWidth: 160 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.replaced_emp_name ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('jr_id') && (
+                      <td title={t.jr_id ?? ''} style={TD}><span style={{ fontSize: 11, color: '#2563EB', whiteSpace: 'nowrap' }}>{t.jr_id ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('ta_contact') && (
+                      <td title={t.ta_contact ?? ''} style={{ ...TD, maxWidth: 140 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.ta_contact ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('candidate_name') && (
+                      <td title={t.candidate_name ?? ''} style={{ ...TD, maxWidth: 180 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.candidate_name ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('estimated_hire_date') && (
+                      <td title={fmtDate(t.estimated_hire_date) ?? ''} style={TD}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(t.estimated_hire_date) ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('target_hire_date') && (
+                      <td title={fmtDate(t.target_hire_date) ?? ''} style={TD}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(t.target_hire_date) ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('fp_and_a_approver_notes') && (
+                      <td title={t.fp_and_a_approver_notes ?? ''} style={{ ...TD, maxWidth: 220 }}><span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.fp_and_a_approver_notes ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('fp_and_a_notes') && (
+                      <td title={t.fp_and_a_notes ?? ''} style={{ ...TD, maxWidth: 220 }}><span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.fp_and_a_notes ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('tbh_description') && (
+                      <td title={t.tbh_description ?? ''} style={{ ...TD, maxWidth: 220 }}><span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.tbh_description ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('ta_status_comments') && (
+                      <td title={t.ta_status_comments ?? ''} style={{ ...TD, maxWidth: 220 }}><span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.ta_status_comments ?? '—'}</span></td>
+                    )}
 
                     {/* Actions */}
                     <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -375,6 +575,7 @@ export default function Recruitment() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -382,7 +583,7 @@ export default function Recruitment() {
       {modalOpen && (
         <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setModalOpen(false); }}>
           <div style={modalBox}>
-            <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 18, color: '#111111' }}>{editTarget ? 'Edit TBH Code' : 'Add TBH Code'}</h2>
+            <h2 style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#111111' }}>{editTarget ? 'Edit TBH Code' : 'Add TBH Code'}</h2>
 
             <div style={row2}>
               <div>
@@ -425,7 +626,7 @@ export default function Recruitment() {
               </div>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginBottom: 8 }}>
               <label style={labelSt}>Job Profile</label>
               <input style={inputSt} value={form.job_profile} onChange={e => sf('job_profile', e.target.value)} placeholder="e.g. Senior Network Engineer" />
             </div>
@@ -463,12 +664,32 @@ export default function Recruitment() {
               </div>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelSt}>TA Status Comments</label>
-              <textarea style={{ ...inputSt, height: 60, resize: 'vertical' as const }} value={form.ta_status_comments} onChange={e => sf('ta_status_comments', e.target.value)} />
+            <div style={row2}>
+              <div>
+                <label style={labelSt}>Confirmed Start Date</label>
+                <input type="date" style={inputSt} value={form.confirmed_start_date} onChange={e => sf('confirmed_start_date', e.target.value)} />
+              </div>
+              <div>
+                <label style={labelSt}>Hire Source</label>
+                <select style={inputSt} value={form.hire_source} onChange={e => sf('hire_source', e.target.value)}>
+                  <option value="">— select —</option>
+                  <option value="External">External</option>
+                  <option value="Internal">Internal</option>
+                </select>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div style={{ marginBottom: 8 }}>
+              <label style={labelSt}>Hire Source Details - Co/Dept</label>
+              <input style={inputSt} value={form.hire_source_details} onChange={e => sf('hire_source_details', e.target.value)} placeholder="e.g. Company / Department" />
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <label style={labelSt}>TA Status Comments</label>
+              <textarea style={{ ...inputSt, height: 44, resize: 'vertical' as const }} value={form.ta_status_comments} onChange={e => sf('ta_status_comments', e.target.value)} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
               <div>
                 <label style={labelSt}>Cost Centre</label>
                 <input style={inputSt} value={form.cost_centre} onChange={e => sf('cost_centre', e.target.value)} />
@@ -477,6 +698,32 @@ export default function Recruitment() {
                 <label style={labelSt}>Legal Entity</label>
                 <input style={inputSt} value={form.legal_entity} onChange={e => sf('legal_entity', e.target.value)} />
               </div>
+            </div>
+
+            <div style={row2}>
+              <div>
+                <label style={labelSt}>In Summary</label>
+                <input style={inputSt} value={form.in_summary} onChange={e => sf('in_summary', e.target.value)} />
+              </div>
+              <div>
+                <label style={labelSt}>Status / Query</label>
+                <input style={inputSt} value={form.status_query} onChange={e => sf('status_query', e.target.value)} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <label style={labelSt}>PMO Comments</label>
+              <textarea style={{ ...inputSt, height: 40, resize: 'vertical' as const }} value={form.pmo_comments} onChange={e => sf('pmo_comments', e.target.value)} />
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <label style={labelSt}>Workforce Planning Comments</label>
+              <textarea style={{ ...inputSt, height: 40, resize: 'vertical' as const }} value={form.wfp_comments} onChange={e => sf('wfp_comments', e.target.value)} />
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <label style={labelSt}>Note from FP&amp;A Approver</label>
+              <textarea style={{ ...inputSt, height: 40, resize: 'vertical' as const }} value={form.fp_and_a_approver_notes} onChange={e => sf('fp_and_a_approver_notes', e.target.value)} />
             </div>
 
             <div style={modalFooter}>
@@ -493,8 +740,8 @@ export default function Recruitment() {
       {deleteTarget && (
         <div style={overlay} onClick={e => { if (e.target === e.currentTarget) setDeleteTarget(null); }}>
           <div style={{ ...modalBox, maxWidth: 380 }}>
-            <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10, color: '#111111' }}>Delete TBH Code</h2>
-            <p style={{ color: '#555', fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
+            <h2 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: '#111111' }}>Delete TBH Code</h2>
+            <p style={{ color: '#555', fontSize: 12, lineHeight: 1.5, marginBottom: 14 }}>
               Permanently delete <strong style={{ color: '#111' }}>{deleteTarget.tbh_id}</strong>? This cannot be undone.
             </p>
             <div style={modalFooter}>
@@ -506,6 +753,9 @@ export default function Recruitment() {
           </div>
         </div>
       )}
+
+      {colFilter.renderDropdown()}
+      {colFilter.renderFilterBar()}
     </div>
   );
 }

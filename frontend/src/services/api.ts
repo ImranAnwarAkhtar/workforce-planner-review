@@ -701,6 +701,9 @@ export interface TbhCode {
   tbh_description: string | null;
   fp_and_a_approver_notes: string | null;
   fp_and_a_notes: string | null;
+  confirmed_start_date: string | null;
+  hire_source: string | null;
+  hire_source_details: string | null;
   region_name: string | null;
   is_in_plan: boolean;
 }

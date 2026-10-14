@@ -100,6 +100,7 @@ router.get('/', requireAuth, async (req, res) => {
             t.legal_entity, t.location_code, t.cost_centre, t.job_profile,
             t.replaced_emp_name, t.manager_name, t.target_hire_date, t.jr_id,
             t.req_status, t.ta_contact, t.candidate_name, t.estimated_hire_date,
+            t.confirmed_start_date, t.hire_source, t.hire_source_details,
             t.ta_status_comments, t.tbh_description, t.fp_and_a_approver_notes,
             t.fp_and_a_notes, t.created_at, t.updated_at, r.name AS region_name,
             EXISTS (SELECT 1 FROM people pe WHERE pe.tbh_code_id = t.id AND pe.is_active = TRUE) AS is_in_plan
@@ -260,6 +261,7 @@ router.post('/', requireAuth, requireRole(...WRITE_ROLES), async (req, res) => {
     target_hire_date, jr_id, req_status, ta_contact, candidate_name,
     estimated_hire_date, ta_status_comments, tbh_description,
     fp_and_a_approver_notes, fp_and_a_notes,
+    confirmed_start_date, hire_source, hire_source_details,
   } = req.body;
   if (!tbh_id) return res.status(400).json({ error: 'tbh_id is required' });
 
@@ -270,8 +272,9 @@ router.post('/', requireAuth, requireRole(...WRITE_ROLES), async (req, res) => {
         location_code, cost_centre, job_profile, replaced_emp_name, manager_name,
         target_hire_date, jr_id, req_status, ta_contact, candidate_name,
         estimated_hire_date, ta_status_comments, tbh_description,
-        fp_and_a_approver_notes, fp_and_a_notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+        fp_and_a_approver_notes, fp_and_a_notes,
+        confirmed_start_date, hire_source, hire_source_details)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
      RETURNING *`,
     [tbh_id, old_tbh ?? null, in_summary ?? null, status_query ?? null, pmo_comments ?? null,
      wfp_comments ?? null, funding_year ?? null, hire_type ?? null, region_id ?? null,
@@ -279,7 +282,8 @@ router.post('/', requireAuth, requireRole(...WRITE_ROLES), async (req, res) => {
      job_profile ?? null, replaced_emp_name ?? null, manager_name ?? null,
      target_hire_date ?? null, jr_id ?? null, req_status ?? null, ta_contact ?? null,
      candidate_name ?? null, estimated_hire_date ?? null, ta_status_comments ?? null,
-     tbh_description ?? null, fp_and_a_approver_notes ?? null, fp_and_a_notes ?? null]
+     tbh_description ?? null, fp_and_a_approver_notes ?? null, fp_and_a_notes ?? null,
+     confirmed_start_date ?? null, hire_source ?? null, hire_source_details ?? null]
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'tbh_code', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'tbh_codes', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
@@ -294,6 +298,7 @@ router.put('/:id', requireAuth, requireRole(...WRITE_ROLES), async (req, res) =>
     'target_hire_date','jr_id','req_status','ta_contact','candidate_name',
     'estimated_hire_date','ta_status_comments','tbh_description',
     'fp_and_a_approver_notes','fp_and_a_notes',
+    'confirmed_start_date','hire_source','hire_source_details',
   ];
   const sets = [];
   const params = [];
