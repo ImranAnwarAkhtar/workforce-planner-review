@@ -320,13 +320,14 @@ async function fetchShared() {
     pool.query(`
       SELECT TO_CHAR(DATE_TRUNC('month', estimated_hire_date), 'YYYY-MM') AS month,
              COALESCE(funding_year, 0) AS funding_year,
+             COALESCE(hire_type, 'Other') AS hire_type,
              COUNT(*)::int AS count
       FROM tbh_codes
       WHERE estimated_hire_date IS NOT NULL
         AND estimated_hire_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '2 months'
         AND estimated_hire_date <= DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '11 months'
         AND (req_status IS NULL OR req_status != 'Filled')
-      GROUP BY DATE_TRUNC('month', estimated_hire_date), funding_year
+      GROUP BY DATE_TRUNC('month', estimated_hire_date), funding_year, hire_type
       ORDER BY DATE_TRUNC('month', estimated_hire_date)
     `),
     pool.query(`
@@ -366,16 +367,31 @@ async function fetchShared() {
   ] : tbhOverdueRes.rows;
 
   const sampleForecast = tbhForecastRes.rows.length === 0 ? [
-    { month: ym(-60), funding_year: 2026, count: 3 },
-    { month: ym(-30), funding_year: 2026, count: 5 },
-    { month: ym(0),   funding_year: 2026, count: 4 },
-    { month: ym(30),  funding_year: 2026, count: 7 },
-    { month: ym(60),  funding_year: 2026, count: 6 },
-    { month: ym(90),  funding_year: 2026, count: 8 },
-    { month: ym(120), funding_year: 2026, count: 5 },
-    { month: ym(150), funding_year: 2026, count: 9 },
-    { month: ym(180), funding_year: 2026, count: 4 },
-    { month: ym(210), funding_year: 2026, count: 6 },
+    { month: ym(-60), funding_year: 2026, hire_type: 'Net New',    count: 2 },
+    { month: ym(-60), funding_year: 2026, hire_type: 'Backfill',   count: 1 },
+    { month: ym(-30), funding_year: 2026, hire_type: 'Net New',    count: 3 },
+    { month: ym(-30), funding_year: 2026, hire_type: 'Conversion', count: 2 },
+    { month: ym(0),   funding_year: 2026, hire_type: 'Net New',    count: 2 },
+    { month: ym(0),   funding_year: 2026, hire_type: 'Backfill',   count: 2 },
+    { month: ym(30),  funding_year: 2026, hire_type: 'Net New',    count: 3 },
+    { month: ym(30),  funding_year: 2026, hire_type: 'Conversion', count: 2 },
+    { month: ym(30),  funding_year: 2026, hire_type: 'Backfill',   count: 2 },
+    { month: ym(60),  funding_year: 2026, hire_type: 'Net New',    count: 2 },
+    { month: ym(60),  funding_year: 2026, hire_type: 'Conversion', count: 2 },
+    { month: ym(60),  funding_year: 2026, hire_type: 'Backfill',   count: 2 },
+    { month: ym(90),  funding_year: 2026, hire_type: 'Net New',    count: 4 },
+    { month: ym(90),  funding_year: 2026, hire_type: 'Backfill',   count: 4 },
+    { month: ym(120), funding_year: 2026, hire_type: 'Net New',    count: 3 },
+    { month: ym(120), funding_year: 2026, hire_type: 'Conversion', count: 1 },
+    { month: ym(120), funding_year: 2026, hire_type: 'Backfill',   count: 1 },
+    { month: ym(150), funding_year: 2026, hire_type: 'Net New',    count: 5 },
+    { month: ym(150), funding_year: 2026, hire_type: 'Conversion', count: 2 },
+    { month: ym(150), funding_year: 2026, hire_type: 'Backfill',   count: 2 },
+    { month: ym(180), funding_year: 2026, hire_type: 'Net New',    count: 2 },
+    { month: ym(180), funding_year: 2026, hire_type: 'Backfill',   count: 2 },
+    { month: ym(210), funding_year: 2026, hire_type: 'Net New',    count: 3 },
+    { month: ym(210), funding_year: 2026, hire_type: 'Conversion', count: 1 },
+    { month: ym(210), funding_year: 2026, hire_type: 'Backfill',   count: 2 },
   ] : tbhForecastRes.rows;
 
   return {

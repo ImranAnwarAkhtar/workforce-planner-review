@@ -1602,7 +1602,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   tbhQuarterlyAvgHireDays: { year: number; quarter: number; label: string; days: number; count: number }[];
   tbhHireType: { hire_type: string; count: number; funding_year: number }[];
   tbhOverdue: { tbh_id: string; req_status: string | null; hire_type: string | null; region_name: string | null; estimated_hire_date: string; days_overdue: number; funding_year: number | null; date_opened: string | null }[];
-  tbhMonthlyForecast: { month: string; count: number; funding_year: number }[];
+  tbhMonthlyForecast: { month: string; count: number; funding_year: number; hire_type: string }[];
   tbhJobProfile: { job_profile: string; count: number; funding_year: number }[];
   tbhDiscRegion: HubIqTbhDiscRegion[];
   yearRange: [number, number] | null;
@@ -1641,8 +1641,13 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   for (const r of filteredHireType) hireTypeAgg[r.hire_type] = (hireTypeAgg[r.hire_type] ?? 0) + r.count;
   const jobProfileAgg: Record<string, number> = {};
   for (const r of filteredJobProfileRaw) jobProfileAgg[r.job_profile] = (jobProfileAgg[r.job_profile] ?? 0) + r.count;
-  const forecastAgg: Record<string, number> = {};
-  for (const r of filteredForecast) forecastAgg[r.month] = (forecastAgg[r.month] ?? 0) + r.count;
+  const forecastByCategory: Record<string, { Growth: number; Conversion: number; Replacement: number }> = {};
+  for (const r of filteredForecast) {
+    if (!forecastByCategory[r.month]) forecastByCategory[r.month] = { Growth: 0, Conversion: 0, Replacement: 0 };
+    if (r.hire_type === 'Net New') forecastByCategory[r.month].Growth += r.count;
+    else if (r.hire_type === 'Conversion') forecastByCategory[r.month].Conversion += r.count;
+    else if (r.hire_type === 'Backfill') forecastByCategory[r.month].Replacement += r.count;
+  }
 
   // Region aggregation: use DB code map + all known regions as placeholders
   const regionAgg: Record<string, number> = {};
@@ -1665,7 +1670,9 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   const sorted = Object.entries(statusAgg).map(([req_status, count]) => ({ req_status, count })).sort((a, b) => b.count - a.count);
   const hireTypeSorted = Object.entries(hireTypeAgg).map(([hire_type, count]) => ({ hire_type, count })).sort((a, b) => b.count - a.count);
   const jobProfileSorted = Object.entries(jobProfileAgg).map(([job_profile, count]) => ({ job_profile, count })).sort((a, b) => b.count - a.count).slice(0, 12);
-  const forecastSorted = Object.entries(forecastAgg).map(([month, count]) => ({ month, count })).sort((a, b) => a.month.localeCompare(b.month));
+  const forecastSorted = Object.entries(forecastByCategory)
+    .map(([month, v]) => ({ month, label: fmtMonth(month), Growth: v.Growth, Conversion: v.Conversion, Replacement: v.Replacement, total: v.Growth + v.Conversion + v.Replacement, dummy: 0 }))
+    .sort((a, b) => a.month.localeCompare(b.month));
 
   const total = sorted.reduce((s, r) => s + r.count, 0);
   const overdueCount = filteredOverdue.length;
@@ -1896,22 +1903,22 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
       <div style={{ ...cardStyle, padding: '14px 16px' }}>
         <div style={{ marginBottom: 10 }}>
           <div style={sectionLabel}>Monthly Hire Forecast</div>
-          <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Unfilled roles by estimated hire month · grey = past, red = upcoming</div>
+          <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Unfilled roles by estimated hire month · Growth (Net New) · Conversion · Replacement (Backfill)</div>
         </div>
         {forecastSorted.length === 0 ? (
           <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No forecast data — add estimated hire dates in Talent Acquisition</div>
         ) : (
           <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={forecastSorted.map(r => ({ ...r, label: fmtMonth(r.month) }))} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+            <BarChart data={forecastSorted} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} />
               <YAxis hide />
-              <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} roles`, 'Forecast']} />
-              <Bar dataKey="count" radius={[3, 3, 0, 0]}>
-                {forecastSorted.map((r, i) => (
-                  <Cell key={i} fill={r.month < todayYM ? '#C8CCD4' : '#C71B36'} />
-                ))}
-                <LabelList dataKey="count" position="insideTop" style={{ fontSize: 11, fill: '#FFFFFF', fontWeight: 700 }} />
+              <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, name: any) => name === 'dummy' || v === 0 ? [null] : [`${v} roles`, name]} />
+              <Bar dataKey="Growth"      stackId="s" fill="#086AE3" radius={[0, 0, 3, 3]} />
+              <Bar dataKey="Conversion"  stackId="s" fill="#411980" />
+              <Bar dataKey="Replacement" stackId="s" fill="#FDB90D" />
+              <Bar dataKey="dummy"       stackId="s" fill="transparent">
+                <LabelList dataKey="total" position="insideTop" style={{ fontSize: 11, fill: '#FFFFFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
