@@ -1914,11 +1914,14 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
               <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} />
               <YAxis hide />
               <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, name: any) => name === 'dummy' || v === 0 ? [null] : [`${v} roles`, name]} />
-              <Bar dataKey="Growth"      stackId="s" fill="#086AE3" radius={[0, 0, 3, 3]} />
-              <Bar dataKey="Conversion"  stackId="s" fill="#411980" />
-              <Bar dataKey="Replacement" stackId="s" fill="#FDB90D" />
-              <Bar dataKey="dummy"       stackId="s" fill="transparent">
-                <LabelList dataKey="total" position="insideTop" style={{ fontSize: 11, fill: '#FFFFFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+              <Bar dataKey="Growth"      stackId="s" fill="#E91C24" radius={[0, 0, 3, 3]}>
+                <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+              </Bar>
+              <Bar dataKey="Conversion"  stackId="s" fill="#841A5B">
+                <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+              </Bar>
+              <Bar dataKey="Replacement" stackId="s" fill="#411980" radius={[3, 3, 0, 0]}>
+                <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
