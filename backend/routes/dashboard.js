@@ -19,6 +19,28 @@ function parseTbhCreationDate(tbhId) {
   return new Date(2000 + parseInt(m[2], 10), mon, 1);
 }
 
+function computeQuarterlyAvgHireDays(rows) {
+  const buckets = {};
+  for (const row of rows) {
+    if (row.req_status !== 'Filled') continue;
+    const created = parseTbhCreationDate(row.tbh_id);
+    if (!created || !row.estimated_hire_date) continue;
+    const hireDate = new Date(row.estimated_hire_date);
+    const days = Math.round((hireDate - created) / (1000 * 60 * 60 * 24));
+    if (days < 0 || days > 1095) continue;
+    const yr = hireDate.getFullYear();
+    const qtr = Math.floor(hireDate.getMonth() / 3) + 1;
+    const key = `${yr}-Q${qtr}`;
+    if (!buckets[key]) buckets[key] = { year: yr, quarter: qtr, sum: 0, count: 0 };
+    buckets[key].sum += days;
+    buckets[key].count++;
+  }
+  return Object.values(buckets)
+    .filter(b => b.count > 0)
+    .map(b => ({ year: b.year, quarter: b.quarter, label: `Q${b.quarter} '${String(b.year).slice(2)}`, days: Math.round(b.sum / b.count), count: b.count }))
+    .sort((a, b) => a.year !== b.year ? a.year - b.year : a.quarter - b.quarter);
+}
+
 function computeAvgHireDays(rows) {
   const buckets = { all: {} };
   for (const row of rows) {
@@ -363,6 +385,7 @@ async function fetchShared() {
     projectTrend:             trendRes.rows,
     tbhStatus:                tbhRes.rows,
     tbhAvgHireDays:           computeAvgHireDays(tbhAvgRes.rows),
+    tbhQuarterlyAvgHireDays:  computeQuarterlyAvgHireDays(tbhAvgRes.rows),
     tbhHireType:              tbhHireTypeRes.rows,
     tbhOverdue:               sampleOverdue,
     tbhMonthlyForecast:       sampleForecast,
@@ -513,7 +536,8 @@ router.get('/hub-iq', requireAuth, async (req, res) => {
     region_code_map:       shared.regionCodeMap,
     project_trend: shared.projectTrend,
     tbh_status:           shared.tbhStatus,
-    tbh_avg_hire_days:    shared.tbhAvgHireDays,
+    tbh_avg_hire_days:          shared.tbhAvgHireDays,
+    tbh_quarterly_hire_days:    shared.tbhQuarterlyAvgHireDays,
     tbh_hire_type:        shared.tbhHireType,
     tbh_overdue:          shared.tbhOverdue,
     tbh_monthly_forecast: shared.tbhMonthlyForecast,

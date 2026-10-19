@@ -1595,10 +1595,11 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
 // HIRE STATUS TAB
 // ---------------------------------------------------------------------------
 
-function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbhMonthlyForecast, tbhJobProfile, tbhDiscRegion, yearRange, regionCodeMap, regionNamesAll }: {
+function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbhHireType, tbhOverdue, tbhMonthlyForecast, tbhJobProfile, tbhDiscRegion, yearRange, regionCodeMap, regionNamesAll }: {
   yearA: number; yearB: number;
   tbhStatus: { req_status: string; count: number; funding_year: number }[];
   tbhAvgHireDays: Record<string, Record<string, number>>;
+  tbhQuarterlyAvgHireDays: { year: number; quarter: number; label: string; days: number; count: number }[];
   tbhHireType: { hire_type: string; count: number; funding_year: number }[];
   tbhOverdue: { tbh_id: string; req_status: string | null; hire_type: string | null; region_name: string | null; estimated_hire_date: string; days_overdue: number; funding_year: number | null; date_opened: string | null }[];
   tbhMonthlyForecast: { month: string; count: number; funding_year: number }[];
@@ -1671,12 +1672,9 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
   const todayYM = new Date().toISOString().slice(0, 7);
 
   const avgFilledDays = Math.round(avgHireDays['Filled'] ?? 0);
-  const hireTrendData = Object.entries(tbhAvgHireDays)
-    .filter(([k]) => k !== 'all' && !isNaN(Number(k)))
-    .map(([year, statusMap]) => ({ year: Number(year), days: Math.round(statusMap['Filled'] ?? 0) }))
+  const hireTrendData = tbhQuarterlyAvgHireDays
     .filter(d => d.days > 0)
-    .filter(d => yearRange === null || (d.year >= yearRange[0] && d.year <= yearRange[1]))
-    .sort((a, b) => a.year - b.year);
+    .filter(d => yearRange === null || (d.year >= yearRange[0] && d.year <= yearRange[1]));
 
 
   function fmtDays(days: number | undefined): string {
@@ -1825,14 +1823,20 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhHireType, tbhOverdue, tbh
           )}
           {hireTrendData.length >= 2 ? (
             <>
-              <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Year-over-year trend</div>
-              <ResponsiveContainer width="100%" height={80}>
-                <LineChart data={hireTrendData} margin={{ top: 4, right: 8, bottom: 0, left: 16 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Avg days to fill · by quarter</div>
+              <ResponsiveContainer width="100%" height={110}>
+                <LineChart data={hireTrendData} margin={{ top: 18, right: 8, bottom: 0, left: 16 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                  <XAxis dataKey="year" tick={{ fontSize: 9, fill: C.muted }} />
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} tickLine={false} />
                   <YAxis hide domain={['auto', 'auto']} />
                   <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} days`, 'Avg hire time']} />
-                  <Line type="monotone" dataKey="days" stroke="#086AE3" strokeWidth={2} dot={{ r: 3, fill: '#086AE3' }} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="days" stroke="#086AE3" strokeWidth={2}
+                    dot={{ r: 3, fill: '#086AE3' }} activeDot={{ r: 4 }}
+                    label={((p: any) => {
+                      if (typeof p.value !== 'number' || p.value <= 0) return <g />;
+                      return <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize={9} fill="#086AE3" fontWeight={700}>{p.value}d</text>;
+                    }) as any}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </>
@@ -2201,7 +2205,7 @@ export default function Dashboard() {
             {activeTab === 'People'      && <PeopleTab      yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} allRegionNames={hubData?.all_region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} activeYear={requestYear ?? yearA!} />}
             {activeTab === 'Gearing'     && <GearingTab     yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
-            {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} />}
+            {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhQuarterlyAvgHireDays={hubData!.tbh_quarterly_hire_days ?? []} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} />}
             {activeTab === 'Onboarding' && <OnboardingTab />}
           </>
         )}

@@ -918,8 +918,9 @@ export interface HubIqResponse {
   region_code_map:      Record<string, string>;
   project_trend:        HubIqTrendRow[];
   tbh_status:           HubIqTbhStatus[];
-  tbh_avg_hire_days:    Record<string, Record<string, number>>;
-  tbh_hire_type:        HubIqTbhHireType[];
+  tbh_avg_hire_days:          Record<string, Record<string, number>>;
+  tbh_quarterly_hire_days:    { year: number; quarter: number; label: string; days: number; count: number }[];
+  tbh_hire_type:              HubIqTbhHireType[];
   tbh_overdue:          HubIqTbhOverdue[];
   tbh_monthly_forecast: HubIqTbhForecast[];
   tbh_job_profile:      HubIqTbhJobProfile[];
