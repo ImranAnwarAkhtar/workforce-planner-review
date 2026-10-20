@@ -129,6 +129,7 @@ const REC_COL_DEFS: ColDef<TbhCode>[] = [
   { key: 'wfp_comments',            label: 'Workforce Planning Comments',     get: t => t.wfp_comments ?? '' },
   { key: 'funding_year',            label: 'Funding',                         get: t => t.funding_year ? String(t.funding_year) : '' },
   { key: 'hire_type',               label: 'Hire Type',                       get: t => t.hire_type ?? '' },
+  { key: 'hire_source',             label: 'Hire Source',                     get: t => t.hire_source ?? '' },
   { key: 'region',                  label: 'Region',                          get: t => t.region_name ?? '' },
   { key: 'project_type',            label: 'Project',                         get: t => t.project_type ?? '' },
   { key: 'legal_entity',            label: 'Legal Entity Final',              get: t => t.legal_entity ?? '' },
@@ -142,7 +143,6 @@ const REC_COL_DEFS: ColDef<TbhCode>[] = [
   { key: 'candidate_name',          label: 'Final Candidate',                 get: t => t.candidate_name ?? '' },
   { key: 'estimated_hire_date',     label: 'TA (Est.) Hire Date',             get: t => t.estimated_hire_date ?? '' },
   { key: 'confirmed_start_date',    label: 'Confirmed Start Date',            get: t => t.confirmed_start_date ?? '' },
-  { key: 'hire_source',             label: 'Hire Source',                     get: t => t.hire_source ?? '' },
   { key: 'hire_source_details',     label: 'Hire Source Details - Co/Dept',   get: t => t.hire_source_details ?? '' },
   { key: 'target_hire_date',        label: 'Hire Date',                       get: t => t.target_hire_date ?? '' },
   { key: 'fp_and_a_approver_notes', label: 'Note from FP&A Approver',         get: t => t.fp_and_a_approver_notes ?? '' },
@@ -507,6 +507,17 @@ export default function Recruitment() {
                       <td title={t.hire_type ?? ''} style={TD}>
                         {t.hire_type ? <span style={{ fontSize: 11, fontWeight: 600, color: '#374151', background: '#F3F4F6', padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>{t.hire_type}</span>
                                      : <span style={{ color: '#9CA3AF' }}>—</span>}
+                      </td>
+                    )}
+                    {!hiddenCols.has('hire_source') && (
+                      <td title={t.hire_source ?? ''} style={TD}>
+                        {t.hire_source
+                          ? <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap',
+                              background: t.hire_source === 'External' ? '#EBF3FF' : t.hire_source === 'Internal' ? '#F0EDFF' : '#F3F4F6',
+                              color:      t.hire_source === 'External' ? '#086AE3' : t.hire_source === 'Internal' ? '#411980' : '#374151' }}>
+                              {t.hire_source}
+                            </span>
+                          : <span style={{ color: '#9CA3AF' }}>—</span>}
                       </td>
                     )}
                     {!hiddenCols.has('region') && (
