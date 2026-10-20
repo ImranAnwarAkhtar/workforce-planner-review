@@ -513,8 +513,8 @@ export default function Recruitment() {
                       <td title={t.hire_source ?? ''} style={TD}>
                         {t.hire_source
                           ? <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap',
-                              background: t.hire_source === 'External' ? '#EBF3FF' : t.hire_source === 'Internal' ? '#F0EDFF' : '#F3F4F6',
-                              color:      t.hire_source === 'External' ? '#086AE3' : t.hire_source === 'Internal' ? '#411980' : '#374151' }}>
+                              background: t.hire_source === 'External' ? '#EBF3FF' : t.hire_source === 'Internal' ? '#F0EDFF' : t.hire_source === 'Conversion' ? '#F9EEF5' : '#F3F4F6',
+                              color:      t.hire_source === 'External' ? '#086AE3' : t.hire_source === 'Internal' ? '#411980' : t.hire_source === 'Conversion' ? '#841A5B' : '#374151' }}>
                               {t.hire_source}
                             </span>
                           : <span style={{ color: '#9CA3AF' }}>—</span>}
@@ -686,6 +686,7 @@ export default function Recruitment() {
                   <option value="">— select —</option>
                   <option value="External">External</option>
                   <option value="Internal">Internal</option>
+                  <option value="Conversion">Conversion</option>
                 </select>
               </div>
             </div>
