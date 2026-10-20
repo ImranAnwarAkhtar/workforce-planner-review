@@ -207,7 +207,7 @@ function TopBanner({ yearA, yearB, dataA, dataB }: { yearA: number; yearB: numbe
 // Tab bar
 // ---------------------------------------------------------------------------
 
-function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange, yearA, yearB, requestYear, onRequestYearChange }: {
+function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange, yearA, yearB, requestYear, onRequestYearChange, regionNamesAll, hireStatusRegion, onHireStatusRegionChange, onboardingRegion, onOnboardingRegionChange }: {
   active: Tab; onChange: (t: Tab) => void;
   availableYears: number[];
   yearRange: [number, number] | null;
@@ -215,6 +215,11 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
   yearA: number | null; yearB: number | null;
   requestYear: number | null;
   onRequestYearChange: (y: number) => void;
+  regionNamesAll: string[];
+  hireStatusRegion: string;
+  onHireStatusRegionChange: (r: string) => void;
+  onboardingRegion: string;
+  onOnboardingRegionChange: (r: string) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const n = availableYears.length;
@@ -282,7 +287,7 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
         </div>
       )}
       {active === 'Hire Status' && n > 0 && (
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 24, paddingLeft: 12, paddingRight: 12, paddingBottom: 6 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 24, paddingLeft: 12, paddingRight: 0, paddingBottom: 6 }}>
           <span style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase', paddingBottom: 3 }}>Select year</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 320 }}>
             {/* Year labels — compact, sit above track */}
@@ -313,6 +318,24 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
             border: 'none', borderRadius: 3, cursor: 'pointer', whiteSpace: 'nowrap',
             textTransform: 'uppercase', letterSpacing: '0.04em', paddingBottom: 3,
           }}>All</button>
+          {regionNamesAll.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 16, borderLeft: `1px solid ${C.border}`, paddingBottom: 3 }}>
+              <span style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Region</span>
+              <select value={hireStatusRegion} onChange={e => onHireStatusRegionChange(e.target.value)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: `1px solid ${C.border}`, background: '#FFF', color: '#333', cursor: 'pointer', outline: 'none' }}>
+                <option value="All">All</option>
+                {regionNamesAll.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+      {active === 'Onboarding' && regionNamesAll.length > 0 && (
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 12, paddingRight: 12 }}>
+          <span style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Region</span>
+          <select value={onboardingRegion} onChange={e => onOnboardingRegionChange(e.target.value)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: `1px solid ${C.border}`, background: '#FFF', color: '#333', cursor: 'pointer', outline: 'none' }}>
+            <option value="All">All</option>
+            {regionNamesAll.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
         </div>
       )}
     </div>
@@ -1607,7 +1630,7 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
 // HIRE STATUS TAB
 // ---------------------------------------------------------------------------
 
-function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbhHireType, tbhOverdue, tbhMonthlyForecast, tbhJobProfile, tbhDiscRegion, yearRange, regionCodeMap, regionNamesAll }: {
+function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbhHireType, tbhOverdue, tbhMonthlyForecast, tbhJobProfile, tbhDiscRegion, yearRange, regionCodeMap, regionNamesAll, selectedRegion }: {
   yearA: number; yearB: number;
   tbhStatus: { req_status: string; count: number; funding_year: number; region_name?: string | null }[];
   tbhAvgHireDays: Record<string, Record<string, number>>;
@@ -1620,8 +1643,8 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   yearRange: [number, number] | null;
   regionCodeMap: Record<string, string>;
   regionNamesAll: string[];
+  selectedRegion: string;
 }) {
-  const [selectedRegion, setSelectedRegion] = useState<string>('All');
 
   const STAGE_COLORS: Record<string, string> = {
     'Filled': '#E91C24', 'Open': '#C71B36', 'In Progress': '#A61B49',
@@ -1713,19 +1736,6 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-      {/* Region filter row */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Region</span>
-        <select
-          value={selectedRegion}
-          onChange={e => setSelectedRegion(e.target.value)}
-          style={{ fontSize: 12, padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: '#FFF', color: '#333', cursor: 'pointer', outline: 'none' }}
-        >
-          <option value="All">All Regions</option>
-          {regionNamesAll.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-      </div>
 
       {/* ── Row 1: Status bars + Hire Type donut + Region bars ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.7fr 1.6fr', gap: 14 }}>
@@ -1966,10 +1976,9 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 // ONBOARDING TAB
 // ---------------------------------------------------------------------------
 
-function OnboardingTab({ regionNamesAll = [] }: { regionNamesAll?: string[] }) {
+function OnboardingTab({ regionNamesAll = [], selectedRegion = 'All' }: { regionNamesAll?: string[]; selectedRegion?: string }) {
   const [rows, setRows] = useState<TbhCode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRegion, setSelectedRegion] = useState<string>('All');
 
   useEffect(() => {
     tbhCodesApi.list({ limit: 500 }).then(data => { setRows(data); setLoading(false); }).catch(() => setLoading(false));
@@ -2032,19 +2041,6 @@ function OnboardingTab({ regionNamesAll = [] }: { regionNamesAll?: string[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-      {/* Region filter row */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Region</span>
-        <select
-          value={selectedRegion}
-          onChange={e => setSelectedRegion(e.target.value)}
-          style={{ fontSize: 12, padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: '#FFF', color: '#333', cursor: 'pointer', outline: 'none' }}
-        >
-          <option value="All">All Regions</option>
-          {regionNamesAll.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-      </div>
 
       {/* Row 1 — KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
@@ -2174,6 +2170,8 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('Projects');
   const [hireYearRange, setHireYearRange] = useState<[number, number] | null>(null);
   const [requestYear, setRequestYear] = useState<number | null>(null);
+  const [hireStatusRegion, setHireStatusRegion] = useState<string>('All');
+  const [onboardingRegion, setOnboardingRegion] = useState<string>('All');
 
   useEffect(() => {
     dashboardApi.planningYears()
@@ -2239,7 +2237,7 @@ export default function Dashboard() {
       </div>
 
       {/* Tab bar */}
-      <TabBar active={activeTab} onChange={setActiveTab} availableYears={Array.from(new Set([2022,2023,2024,2025,2026,2027,2028,...(hubData?.available_years??[])])).sort((a,b)=>a-b)} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} yearA={yearA} yearB={yearB} requestYear={requestYear ?? yearA} onRequestYearChange={setRequestYear} />
+      <TabBar active={activeTab} onChange={setActiveTab} availableYears={Array.from(new Set([2022,2023,2024,2025,2026,2027,2028,...(hubData?.available_years??[])])).sort((a,b)=>a-b)} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} yearA={yearA} yearB={yearB} requestYear={requestYear ?? yearA} onRequestYearChange={setRequestYear} regionNamesAll={hubData?.region_names ?? []} hireStatusRegion={hireStatusRegion} onHireStatusRegionChange={setHireStatusRegion} onboardingRegion={onboardingRegion} onOnboardingRegionChange={setOnboardingRegion} />
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
@@ -2260,8 +2258,8 @@ export default function Dashboard() {
             {activeTab === 'People'      && <PeopleTab      yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} allRegionNames={hubData?.all_region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} activeYear={requestYear ?? yearA!} />}
             {activeTab === 'Gearing'     && <GearingTab     yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
-            {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhQuarterlyAvgHireDays={hubData!.tbh_quarterly_hire_days ?? []} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} />}
-            {activeTab === 'Onboarding' && <OnboardingTab regionNamesAll={hubData?.region_names ?? []} />}
+            {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhQuarterlyAvgHireDays={hubData!.tbh_quarterly_hire_days ?? []} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} selectedRegion={hireStatusRegion} />}
+            {activeTab === 'Onboarding' && <OnboardingTab regionNamesAll={hubData?.region_names ?? []} selectedRegion={onboardingRegion} />}
           </>
         )}
       </div>
