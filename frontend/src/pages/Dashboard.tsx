@@ -1499,8 +1499,8 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
         ))}
       </div>
 
-      {/* 4 discipline tables + bar charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      {/* 4 discipline cards — table left, chart right */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {data.gearing.map(disc => {
           const color      = C.discColors[disc.discipline] ?? C.accent;
           const labelColor = color === '#FDB90D' ? '#C59000' : color;
@@ -1514,75 +1514,87 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
           });
           return (
             <div key={disc.discipline} style={{ ...cardStyle, overflow: 'hidden' }}>
-              {/* Discipline header */}
-              <div style={{ padding: '10px 14px', borderTop: `3px solid ${color}`, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {/* Discipline header — full width */}
+              <div style={{ padding: '10px 16px', borderTop: `3px solid ${color}`, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: labelColor }}>{disc.discipline}</span>
-                <span style={{ fontSize: 11, background: `${color}22`, color: labelColor, padding: '2px 10px', borderRadius: 10, fontWeight: 700 }}>
-                  Var–Opt: <PctBadge pct={disc.totals.variance_pct} />
-                </span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: C.muted }}>Proposed: <strong style={{ color: '#111' }}>{disc.totals.proposed}</strong></span>
+                  <span style={{ fontSize: 11, color: C.muted }}>Optimal: <strong style={{ color: '#111' }}>{disc.totals.optimal}</strong></span>
+                  <span style={{ fontSize: 11, background: `${color}22`, color: labelColor, padding: '2px 10px', borderRadius: 10, fontWeight: 700 }}>
+                    Var–Opt: <PctBadge pct={disc.totals.variance_pct} />
+                  </span>
+                </div>
               </div>
 
-              {/* Table */}
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ ...TH, minWidth: 90, fontSize: 9 }}>Region</th>
-                      <th style={{ ...THR, fontSize: 9 }}>Min</th>
-                      <th style={{ ...THR, fontSize: 9 }}>Max</th>
-                      <th style={{ ...THR, fontSize: 9, color }}>Proposed</th>
-                      <th style={{ ...THR, fontSize: 9 }}>Optimal</th>
-                      <th style={{ ...THR, fontSize: 9 }}>Var</th>
-                      <th style={{ ...THR, fontSize: 9 }}>Var %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...disc.regions, { ...disc.totals, region_name: 'Grand Total', _isTotal: true } as any].map((row, i) => {
-                      const isTotal = row._isTotal;
-                      return (
-                        <tr key={row.region_name} style={{ background: isTotal ? '#F5F5F5' : i % 2 === 0 ? '#FFF' : '#FAFAFA', borderTop: isTotal ? `2px solid ${C.border}` : 'none' }}>
-                          <td style={{ ...TD, fontSize: 11, fontWeight: isTotal ? 700 : 400, color: isTotal ? '#555' : '#333' }}>{rc(row.region_name)}</td>
-                          <td style={TDM}>{row.min || '—'}</td>
-                          <td style={TDM}>{row.max || '—'}</td>
-                          <td style={{ ...TDR, color, fontSize: 11 }}>{row.proposed || '—'}</td>
-                          <td style={TDM}>{row.optimal || '—'}</td>
-                          <td style={{ ...TDM, fontSize: 11, color: row.variance !== 0 ? gColor(row.variance_pct) : C.muted }}>{row.variance > 0 ? `+${row.variance}` : (row.variance || '—')}</td>
-                          <td style={{ ...TDM, fontWeight: 700 }}><PctBadge pct={row.variance_pct} /></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              {/* Body: table left + chart right */}
+              <div style={{ display: 'flex', alignItems: 'stretch' }}>
 
-              {/* Bar chart — lipstick/bullet style */}
-              {allRegions.length > 0 && (
-                <div style={{ padding: '8px 4px 4px' }}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={barData} margin={{ top: 8, right: 4, bottom: 16, left: 4 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                      <XAxis dataKey="region" tick={{ fontSize: 8, fill: C.muted }} angle={-30} textAnchor="end" />
-                      <YAxis hide width={0} domain={[0, 'auto']} />
-                      <Tooltip content={<BulletTooltip />} />
-                      <Bar dataKey="Max" fill={color} shape={(props: any) => <BulletBar {...props} labelColor={labelColor} />} isAnimationActive={false} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 2 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <div style={{ width: 10, height: 8, borderRadius: 1, background: `${color}35` }} />
-                      <span style={{ fontSize: 9, color: C.muted }}>Min</span>
+                {/* Table — left panel */}
+                <div style={{ flex: '0 0 auto', overflowX: 'auto', borderRight: `1px solid ${C.border}` }}>
+                  <table style={{ borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...TH, minWidth: 88, fontSize: 9 }}>Region</th>
+                        <th style={{ ...THR, fontSize: 9 }}>Min</th>
+                        <th style={{ ...THR, fontSize: 9 }}>Max</th>
+                        <th style={{ ...THR, fontSize: 9, color }}>Proposed</th>
+                        <th style={{ ...THR, fontSize: 9 }}>Optimal</th>
+                        <th style={{ ...THR, fontSize: 9 }}>Var</th>
+                        <th style={{ ...THR, fontSize: 9 }}>Var %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...disc.regions, { ...disc.totals, region_name: 'Grand Total', _isTotal: true } as any].map((row, i) => {
+                        const isTotal = row._isTotal;
+                        return (
+                          <tr key={row.region_name} style={{ background: isTotal ? '#F5F5F5' : i % 2 === 0 ? '#FFF' : '#FAFAFA', borderTop: isTotal ? `2px solid ${C.border}` : 'none' }}>
+                            <td style={{ ...TD, fontSize: 11, fontWeight: isTotal ? 700 : 400, color: isTotal ? '#555' : '#333' }}>{rc(row.region_name)}</td>
+                            <td style={TDM}>{row.min || '—'}</td>
+                            <td style={TDM}>{row.max || '—'}</td>
+                            <td style={{ ...TDR, color, fontSize: 11 }}>{row.proposed || '—'}</td>
+                            <td style={TDM}>{row.optimal || '—'}</td>
+                            <td style={{ ...TDM, fontSize: 11, color: row.variance !== 0 ? gColor(row.variance_pct) : C.muted }}>{row.variance > 0 ? `+${row.variance}` : (row.variance || '—')}</td>
+                            <td style={{ ...TDM, fontWeight: 700 }}><PctBadge pct={row.variance_pct} /></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Chart — right panel, fills remaining width */}
+                {allRegions.length > 0 && (
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', padding: '12px 12px 6px' }}>
+                    <div style={{ flex: 1, position: 'relative', minHeight: 220 }}>
+                      <div style={{ position: 'absolute', inset: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={barData} margin={{ top: 10, right: 8, bottom: 20, left: 8 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                            <XAxis dataKey="region" tick={{ fontSize: 9, fill: C.muted }} angle={-20} textAnchor="end" interval={0} />
+                            <YAxis hide width={0} domain={[0, 'auto']} />
+                            <Tooltip content={<BulletTooltip />} />
+                            <Bar dataKey="Max" fill={color} shape={(props: any) => <BulletBar {...props} labelColor={labelColor} />} isAnimationActive={false} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <div style={{ width: 7, height: 8, borderRadius: 1, background: `${color}80` }} />
-                      <span style={{ fontSize: 9, color: C.muted }}>Max</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <div style={{ width: 12, height: 3, borderRadius: 1, background: C.accent, marginBottom: 1 }} />
-                      <span style={{ fontSize: 9, color: C.muted }}>Proposed</span>
+                    <div style={{ display: 'flex', gap: 14, justifyContent: 'center', paddingTop: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 12, height: 9, borderRadius: 2, background: `${color}35` }} />
+                        <span style={{ fontSize: 10, color: C.muted }}>Min</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 9, height: 9, borderRadius: 2, background: `${color}80` }} />
+                        <span style={{ fontSize: 10, color: C.muted }}>Max</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 14, height: 3, borderRadius: 1, background: C.accent }} />
+                        <span style={{ fontSize: 10, color: C.muted }}>Proposed</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           );
         })}
