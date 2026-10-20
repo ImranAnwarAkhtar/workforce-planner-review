@@ -707,6 +707,7 @@ export interface TbhCode {
   hire_source_details: string | null;
   region_name: string | null;
   is_in_plan: boolean;
+  created_at: string | null;
 }
 
 export interface TbhCodesQuery {

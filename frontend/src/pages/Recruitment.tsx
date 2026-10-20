@@ -122,7 +122,7 @@ const REC_COL_DEFS: ColDef<TbhCode>[] = [
   { key: 'tbh_id',                  label: 'TBH ID',                          get: t => t.tbh_id },
   { key: 'old_tbh',                 label: 'Old TBH',                         get: t => t.old_tbh ?? '' },
   { key: 'req_status',              label: 'Hire Status',                     get: t => t.req_status ?? '' },
-  { key: 'creation_date',           label: 'Created',                         get: t => parseTbhDate(t.tbh_id) ?? '' },
+  { key: 'creation_date',           label: 'Created',                         get: t => t.created_at ? new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' },
   { key: 'in_summary',              label: 'In Summary',                      get: t => t.in_summary ?? '' },
   { key: 'status_query',            label: 'Status / Query',                  get: t => t.status_query ?? '' },
   { key: 'pmo_comments',            label: 'PMO Comments',                    get: t => t.pmo_comments ?? '' },
@@ -475,7 +475,7 @@ export default function Recruitment() {
                     </td>
 
                     {/* ── Non-sticky / collapsible columns ── */}
-                    {!hiddenCols.has('creation_date') && (() => { const d = parseTbhDate(t.tbh_id); return (
+                    {!hiddenCols.has('creation_date') && (() => { const d = t.created_at ? new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null; return (
                       <td title={d ?? ''} style={{ ...TD, textAlign: 'center' }}>
                         {d ? <span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{d}</span>
                            : <span style={{ color: '#9CA3AF', fontSize: 10 }}>—</span>}
