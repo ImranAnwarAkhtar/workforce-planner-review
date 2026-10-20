@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { refDataApi, planningCyclesApi, cycleApproversApi, gearingApi, type Discipline, type Level, type ContractType, type Region, type PlanningCycle, type CycleApprover, type GearingConstant } from '../services/api';
+import { refDataApi, planningCyclesApi, cycleApproversApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type PlanningCycle, type CycleApprover, type GearingConstant, type AlertConfig, type AlertLog, type Person } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import axios from 'axios';
 
@@ -650,16 +650,17 @@ const TIER_DEFS = [
 // ── Permission matrix data ─────────────────────────────────────────────────────
 
 const PERM_PROFILES = [
-  { name: 'Senior PMO',         short: 'Sr PMO',     colour: '#E91C24' },
-  { name: 'PMO Team',           short: 'PMO Team',   colour: '#F97316' },
-  { name: 'Workforce Planning', short: 'W. Plan',    colour: '#0057B7' },
-  { name: 'Administration',     short: 'Admin',      colour: '#6366F1' },
-  { name: 'Senior TA',          short: 'Sr TA',      colour: '#059669' },
-  { name: 'Talent Acquisition', short: 'Talent Acq', colour: '#10B981' },
-  { name: 'Finance',            short: 'Finance',    colour: '#B45309' },
-  { name: 'Department Head',    short: 'Dept Head',  colour: '#7C3AED' },
-  { name: 'Hub Lead',           short: 'Hub Lead',   colour: '#DB2777' },
-  { name: 'EVP',                short: 'EVP',        colour: '#64748B' },
+  { name: 'Senior PMO',         short: 'Sr PMO',     colour: '#E91C24', desc: 'Highest-level PMO role with full control across all planning, approvals, and system administration.' },
+  { name: 'PMO Team',           short: 'PMO Team',   colour: '#F97316', desc: 'Core planning team with broad edit access across projects, allocations, and planning cycles.' },
+  { name: 'Workforce Planning', short: 'W. Plan',    colour: '#0057B7', desc: 'Manages headcount plans and allocations with edit access to planning and people data.' },
+  { name: 'Administration',     short: 'Admin',      colour: '#6366F1', desc: 'System administrators managing user access, reference data, and operational settings.' },
+  { name: 'Senior TA',          short: 'Sr TA',      colour: '#059669', desc: 'Senior talent acquisition with approval authority over hire requests and full recruitment pipeline access.' },
+  { name: 'Talent Acquisition', short: 'Talent Acq', colour: '#10B981', desc: 'Manages the recruitment pipeline, creating and progressing hire requests.' },
+  { name: 'Finance',            short: 'Finance',    colour: '#B45309', desc: 'Finance team with visibility into cost and headcount data, including financial reports.' },
+  { name: 'Department Head',    short: 'Dept Head',  colour: '#7C3AED', desc: 'Departmental leaders who manage their teams, approve requests, and oversee headcount.' },
+  { name: 'Hub Lead',           short: 'Hub Lead',   colour: '#DB2777', desc: 'Hub or site leads with people management responsibilities and approval authority.' },
+  { name: 'EVP',                short: 'EVP',        colour: '#64748B', desc: 'Executive view with access to senior-level reports, dashboards, and approval flows.' },
+  { name: 'People Manager',     short: 'P. Mgr',     colour: '#0891B2', desc: 'Line managers with view access to their team\'s headcount, active hires, and recruitment progress.' },
 ];
 
 const SECTION_ROWS: Array<{ key: string; label: string; group: boolean }> = [
@@ -725,11 +726,11 @@ function defaultPermLevel(sectionKey: string, profile: string): PermLevel {
     case 'cycles.active':     return W.includes(profile) ? 'edit' : 'none';
     case 'cycles.review':     return W.includes(profile) ? 'edit' : 'none';
     case 'talent.view':       return 'view';
-    case 'talent.create':     return 'edit';
+    case 'talent.create':     return profile === 'People Manager' ? 'none' : 'edit';
     case 'talent.approve':    return S.includes(profile) ? 'full' : 'none';
     case 'changes.view':      return 'view';
-    case 'changes.create':    return 'edit';
-    case 'changes.status':    return 'edit';
+    case 'changes.create':    return profile === 'People Manager' ? 'none' : 'edit';
+    case 'changes.status':    return profile === 'People Manager' ? 'none' : 'edit';
     case 'reports.view':      return 'view';
     case 'reports.finance':   return ['Senior PMO', 'PMO Team', 'Finance'].includes(profile) ? 'view' : 'none';
     case 'admin.view':        return ['Senior PMO', 'PMO Team', 'Workforce Planning', 'Administration'].includes(profile) ? 'view' : 'none';
@@ -745,6 +746,7 @@ function UserAccessTab() {
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [hoveredProfile, setHoveredProfile] = useState<string | null>(null);
 
   useEffect(() => {
     rawClient.get<{ data: Array<{ profile: string; section_key: string; level: PermLevel }> }>('/admin/profile-permissions')
@@ -834,10 +836,19 @@ function UserAccessTab() {
             <tr>
               <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#444444', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, top: 0, background: '#E4E6EA', zIndex: 4, borderRight: '2px solid #C8CCD4', borderBottom: '2px solid #C8CCD4', minWidth: 190, whiteSpace: 'nowrap' }}>Section / Action</th>
               {PERM_PROFILES.map(p => (
-                <th key={p.name} style={{ padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#333333', position: 'sticky', top: 0, background: '#E4E6EA', zIndex: 1, borderLeft: '1px solid #D0D4DA', borderBottom: '2px solid #C8CCD4', minWidth: 88, verticalAlign: 'bottom' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <th key={p.name}
+                  onMouseEnter={() => setHoveredProfile(p.name)}
+                  onMouseLeave={() => setHoveredProfile(null)}
+                  style={{ padding: '10px 10px', textAlign: 'center', fontSize: 11, fontWeight: 400, color: '#333333', position: 'sticky', top: 0, background: '#E4E6EA', zIndex: hoveredProfile === p.name ? 3 : 1, borderLeft: '1px solid #D0D4DA', borderBottom: '2px solid #C8CCD4', minWidth: 110, verticalAlign: 'bottom', cursor: 'default' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, position: 'relative' }}>
                     <span style={{ width: 10, height: 10, borderRadius: '50%', background: p.colour, flexShrink: 0, display: 'inline-block' }} />
                     <span style={{ lineHeight: 1.3 }}>{p.name}</span>
+                    {hoveredProfile === p.name && (
+                      <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: '#1F2937', color: '#F9FAFB', fontSize: 12, fontWeight: 400, lineHeight: 1.5, padding: '8px 12px', borderRadius: 6, whiteSpace: 'normal', width: 200, textAlign: 'left', boxShadow: '0 4px 12px rgba(0,0,0,0.25)', zIndex: 100, pointerEvents: 'none' }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4, color: p.colour }}>{p.name}</div>
+                        {p.desc}
+                      </div>
+                    )}
                   </div>
                 </th>
               ))}
@@ -1358,10 +1369,325 @@ function GearingRatiosTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Alerts tab
+// ---------------------------------------------------------------------------
+
+const TRIGGER_LABELS: Record<string, string> = {
+  overdue_role:      'Role overdue by > N days',
+  open_roles_above:  'Open role count exceeds N',
+  upcoming_starter:  'Starter within next N days',
+};
+
+const TRIGGER_UNIT: Record<string, string> = {
+  overdue_role:     'days',
+  open_roles_above: 'roles',
+  upcoming_starter: 'days',
+};
+
+const blankAlert = {
+  name: '', trigger_type: 'overdue_role' as AlertConfig['trigger_type'],
+  trigger_value: 30, message_template: '', recipient_ids: [] as number[], active: true,
+};
+
+function AlertsTab() {
+  const [alerts, setAlerts]         = useState<AlertConfig[]>([]);
+  const [logs,   setLogs]           = useState<AlertLog[]>([]);
+  const [people, setPeople]         = useState<Person[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [modal, setModal]           = useState<'create' | 'edit' | null>(null);
+  const [editTarget, setEditTarget] = useState<AlertConfig | null>(null);
+  const [form, setForm]             = useState(blankAlert);
+  const [saving, setSaving]         = useState(false);
+  const [evaluating, setEvaluating] = useState<number | null>(null);
+  const [evalResult, setEvalResult] = useState<{ id: number; triggered: boolean; count: number; email_sent: boolean } | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const sgConfigured = !!process.env.REACT_APP_SENDGRID_CONFIGURED;
+
+  function load() {
+    setLoading(true);
+    Promise.all([alertsApi.list(), alertsApi.logs(), peopleApi.list({ limit: 500 })])
+      .then(([a, l, p]) => { setAlerts(a); setLogs(l); setPeople(p); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function openCreate() {
+    setForm(blankAlert); setEditTarget(null); setModal('create'); setEvalResult(null);
+  }
+  function openEdit(a: AlertConfig) {
+    setForm({ name: a.name, trigger_type: a.trigger_type, trigger_value: a.trigger_value,
+      message_template: a.message_template, recipient_ids: a.recipient_ids, active: a.active });
+    setEditTarget(a); setModal('edit'); setEvalResult(null);
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      if (modal === 'create') {
+        await alertsApi.create(form);
+      } else if (editTarget) {
+        await alertsApi.update(editTarget.id, form);
+      }
+      load(); setModal(null);
+    } catch (e) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleDelete(id: number) {
+    setSaving(true);
+    try { await alertsApi.remove(id); load(); setDeletingId(null); }
+    catch (e) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleEvaluate(id: number) {
+    setEvaluating(id); setEvalResult(null);
+    try {
+      const r = await alertsApi.evaluate(id);
+      setEvalResult({ id, triggered: r.triggered, count: r.count, email_sent: r.email_sent });
+      load();
+    } catch (e) { toast.error(errMsg(e)); } finally { setEvaluating(null); }
+  }
+
+  function toggleRecipient(personId: number) {
+    setForm(f => ({
+      ...f,
+      recipient_ids: f.recipient_ids.includes(personId)
+        ? f.recipient_ids.filter(id => id !== personId)
+        : [...f.recipient_ids, personId],
+    }));
+  }
+
+  const peopleWithEmail = people.filter(p => p.email && p.is_active);
+
+  const saveBtn: React.CSSProperties = {
+    padding: '7px 16px', background: tk.accent, color: '#FFF',
+    border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+        <div>
+          <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+            Configure automated alerts that evaluate workforce data and notify people by email.
+          </p>
+          {!process.env.REACT_APP_API_URL?.includes('railway') && (
+            <p style={{ fontSize: 11, color: '#E91C24', margin: '4px 0 0' }}>
+              Email delivery requires <strong>SENDGRID_API_KEY</strong> and <strong>SENDGRID_FROM</strong> set in Railway environment variables.
+            </p>
+          )}
+        </div>
+        <button onClick={openCreate} style={{ padding: '7px 14px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          + New Alert
+        </button>
+      </div>
+
+      {/* Alert list */}
+      <div style={{ ...card, marginBottom: 24 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr>
+            <th style={th}>Alert Name</th>
+            <th style={th}>Trigger</th>
+            <th style={th}>Recipients</th>
+            <th style={{ ...th, width: 80 }}>Status</th>
+            <th style={{ ...th, width: 140 }}>Last Triggered</th>
+            <th style={{ ...th, width: 200 }}>Actions</th>
+          </tr></thead>
+          <tbody>
+            {loading ? (
+              <LoadingRows cols={6} />
+            ) : alerts.length === 0 ? (
+              <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: '#999', padding: 32 }}>No alerts configured yet. Click "+ New Alert" to create one.</td></tr>
+            ) : alerts.map(a => (
+              <tr key={a.id}>
+                <td style={td}><span style={{ fontWeight: 600 }}>{a.name}</span></td>
+                <td style={td}>
+                  <span style={{ fontSize: 12, color: '#555' }}>
+                    {TRIGGER_LABELS[a.trigger_type] ?? a.trigger_type}&nbsp;&mdash;&nbsp;
+                    <strong>{a.trigger_value}</strong> {TRIGGER_UNIT[a.trigger_type]}
+                  </span>
+                </td>
+                <td style={td}>
+                  <span style={{ fontSize: 12, color: '#555' }}>
+                    {a.recipients?.length ? a.recipients.map(r => r.name).join(', ') : <em style={{ color: '#aaa' }}>none</em>}
+                  </span>
+                </td>
+                <td style={td}>
+                  <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                    background: a.active ? '#E8F5E9' : '#F5F5F5', color: a.active ? '#2E7D32' : '#999' }}>
+                    {a.active ? 'Active' : 'Paused'}
+                  </span>
+                </td>
+                <td style={{ ...td, fontSize: 12, color: '#666' }}>
+                  {a.last_triggered ? new Date(a.last_triggered).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                </td>
+                <td style={td}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button onClick={() => openEdit(a)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12 }}>Edit</button>
+                    {deletingId === a.id ? (
+                      <>
+                        <button onClick={() => handleDelete(a.id)} disabled={saving} style={{ padding: '4px 10px', background: '#AD050C', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Confirm</button>
+                        <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12 }}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => handleEvaluate(a.id)} disabled={evaluating === a.id}
+                          style={{ padding: '4px 10px', background: '#1565C0', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: evaluating === a.id ? 'wait' : 'pointer' }}>
+                          {evaluating === a.id ? 'Checking…' : 'Evaluate'}
+                        </button>
+                        <button onClick={() => setDeletingId(a.id)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12, color: '#AD050C', borderColor: '#FFCDD2' }}>Delete</button>
+                      </>
+                    )}
+                  </div>
+                  {evalResult?.id === a.id && (
+                    <div style={{ marginTop: 6, fontSize: 11, padding: '4px 8px', borderRadius: 4,
+                      background: evalResult.triggered ? '#FFF8E1' : '#F1F8E9',
+                      color: evalResult.triggered ? '#E65100' : '#33691E', border: `1px solid ${evalResult.triggered ? '#FFCC02' : '#AED581'}` }}>
+                      {evalResult.triggered
+                        ? `⚠ Triggered — ${evalResult.count} record(s)${evalResult.email_sent ? ' · Email sent' : ' · No email (check SENDGRID_API_KEY)'}`
+                        : '✓ No trigger — conditions not met'}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Recent log */}
+      {logs.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#444', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Recent Activity</div>
+          <div style={{ ...card, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                <th style={th}>Alert</th>
+                <th style={th}>Triggered</th>
+                <th style={th}>Records</th>
+                <th style={th}>Email</th>
+                <th style={th}>Recipients</th>
+              </tr></thead>
+              <tbody>
+                {logs.slice(0, 10).map(l => (
+                  <tr key={l.id}>
+                    <td style={{ ...td, fontWeight: 600 }}>{l.alert_name}</td>
+                    <td style={{ ...td, fontSize: 12 }}>{new Date(l.triggered_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td style={{ ...td, fontSize: 12 }}>{l.trigger_data?.count ?? '—'}</td>
+                    <td style={td}>
+                      <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4,
+                        background: l.email_sent ? '#E8F5E9' : '#F5F5F5', color: l.email_sent ? '#2E7D32' : '#999' }}>
+                        {l.email_sent ? 'Sent' : 'Not sent'}
+                      </span>
+                    </td>
+                    <td style={{ ...td, fontSize: 12, color: '#666' }}>
+                      {(l.recipients_notified as any[])?.map((r: any) => r.name).join(', ') || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit modal */}
+      {modal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#FFF', borderRadius: 10, padding: 24, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 18 }}>{modal === 'create' ? 'New Alert' : 'Edit Alert'}</div>
+
+            {/* Name */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Alert Name *</label>
+              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Overdue roles — APAC" style={{ ...inp, width: '100%', boxSizing: 'border-box' }} />
+            </div>
+
+            {/* Trigger type + threshold */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={lbl}>Trigger Condition *</label>
+                <select value={form.trigger_type} onChange={e => setForm(f => ({ ...f, trigger_type: e.target.value as AlertConfig['trigger_type'] }))}
+                  style={{ ...inp, width: '100%', boxSizing: 'border-box' }}>
+                  <option value="overdue_role">Role overdue by &gt; N days</option>
+                  <option value="open_roles_above">Open role count exceeds N</option>
+                  <option value="upcoming_starter">Starter within next N days</option>
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Threshold (N)</label>
+                <input type="number" min={0} value={form.trigger_value}
+                  onChange={e => setForm(f => ({ ...f, trigger_value: parseInt(e.target.value) || 0 }))}
+                  style={{ ...inp, width: '100%', boxSizing: 'border-box' }} />
+                <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>{TRIGGER_UNIT[form.trigger_type]}</div>
+              </div>
+            </div>
+
+            {/* Message */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Message Template</label>
+              <textarea value={form.message_template}
+                onChange={e => setForm(f => ({ ...f, message_template: e.target.value }))}
+                rows={3} placeholder="Optional message included in the email notification…"
+                style={{ ...inp, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
+            </div>
+
+            {/* Recipients */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Recipients</label>
+              {peopleWithEmail.length === 0 ? (
+                <div style={{ fontSize: 12, color: '#888', padding: '8px 0' }}>
+                  No people with email addresses found. Add emails in the People section to enable notifications.
+                </div>
+              ) : (
+                <div style={{ border: '1px solid #D5D5D5', borderRadius: 5, maxHeight: 180, overflowY: 'auto' }}>
+                  {peopleWithEmail.map(p => (
+                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer',
+                      background: form.recipient_ids.includes(p.id) ? '#FFF5F5' : 'transparent',
+                      borderBottom: '1px solid #F5F5F5' }}>
+                      <input type="checkbox" checked={form.recipient_ids.includes(p.id)} onChange={() => toggleRecipient(p.id)} />
+                      <span style={{ fontSize: 13, flex: 1 }}>{p.name}</span>
+                      <span style={{ fontSize: 11, color: '#888' }}>{p.email}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {form.recipient_ids.length > 0 && (
+                <div style={{ fontSize: 11, color: '#555', marginTop: 4 }}>{form.recipient_ids.length} recipient(s) selected</div>
+              )}
+            </div>
+
+            {/* Active toggle */}
+            <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label style={{ ...lbl, margin: 0 }}>Active</label>
+              <button onClick={() => setForm(f => ({ ...f, active: !f.active }))}
+                style={{ padding: '4px 14px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  background: form.active ? '#E8F5E9' : '#F5F5F5', color: form.active ? '#2E7D32' : '#999' }}>
+                {form.active ? 'Active' : 'Paused'}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setModal(null)} style={btnSecondary}>Cancel</button>
+              <button onClick={handleSave} disabled={saving || !form.name.trim()} style={{ ...saveBtn, opacity: !form.name.trim() ? 0.5 : 1 }}>
+                {saving ? 'Saving…' : 'Save Alert'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Admin page
 // ---------------------------------------------------------------------------
 
-const TABS = ['Planning Cycles', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'User Access', 'Gearing Ratios'] as const;
+const TABS = ['Planning Cycles', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'User Access', 'Gearing Ratios', 'Alerts'] as const;
 type Tab = typeof TABS[number];
 
 export default function Admin() {
@@ -1371,7 +1697,7 @@ export default function Admin() {
     <div style={{ color: '#111111' }}>
       {/* Page title bar */}
       <div style={{ display: 'flex', alignItems: 'center', background: '#FFFFFF', borderRadius: 8, marginBottom: 16, border: '1px solid #E0E3E8', borderBottom: '3px solid #E91C24', padding: '8px 16px' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1 }}>Admin</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1 }}>System Admin</div>
       </div>
 
       {/* Tabs */}
@@ -1394,6 +1720,7 @@ export default function Admin() {
       {activeTab === 'Regions'        && <RegionsTab />}
       {activeTab === 'User Access'     && <UserAccessTab />}
       {activeTab === 'Gearing Ratios' && <GearingRatiosTab />}
+      {activeTab === 'Alerts'          && <AlertsTab />}
     </div>
   );
 }

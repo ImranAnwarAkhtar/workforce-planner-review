@@ -27,6 +27,7 @@ const headcountRouter     = require('./routes/headcount');
 const countryAllocationsRouter = require('./routes/countryAllocations');
 const personCommentsRouter     = require('./routes/personComments');
 const smartsheetRouter         = require('./routes/smartsheet');
+const alertsRouter             = require('./routes/alerts');
 
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
@@ -107,6 +108,7 @@ pool.query(`
   ALTER TABLE people ADD COLUMN IF NOT EXISTS notes TEXT;
   ALTER TABLE people ADD COLUMN IF NOT EXISTS planning_year INTEGER;
   ALTER TABLE people ADD COLUMN IF NOT EXISTS system_profile VARCHAR(50);
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS email VARCHAR(255);
   ALTER TABLE users  ADD COLUMN IF NOT EXISTS system_profile VARCHAR(50);
   ALTER TABLE users  ADD COLUMN IF NOT EXISTS access_tier    VARCHAR(20) NOT NULL DEFAULT 'standard';
   UPDATE levels SET level_name = 'Contingent' WHERE short_code = 'Cons' AND level_name = 'Consultant';
@@ -156,6 +158,30 @@ pool.query(`
 
 const { seedTbhCodes } = require('./db/seedTbh');
 seedTbhCodes().catch(err => logger.error('TBH seed failed', { error: err.message }));
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS alerts (
+    id               SERIAL PRIMARY KEY,
+    name             VARCHAR(255) NOT NULL,
+    trigger_type     VARCHAR(100) NOT NULL,
+    trigger_value    INTEGER      NOT NULL DEFAULT 0,
+    message_template TEXT         NOT NULL DEFAULT '',
+    recipient_ids    INTEGER[]    NOT NULL DEFAULT '{}',
+    active           BOOLEAN      NOT NULL DEFAULT TRUE,
+    last_triggered   TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS alert_logs (
+    id                   SERIAL PRIMARY KEY,
+    alert_id             INTEGER REFERENCES alerts(id) ON DELETE CASCADE,
+    triggered_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    trigger_data         JSONB,
+    recipients_notified  JSONB,
+    email_sent           BOOLEAN NOT NULL DEFAULT FALSE,
+    error_message        TEXT
+  );
+`).catch(err => logger.error('Alerts table migration failed', { error: err.message }));
 
 // Merge VP + Sr Director levels and VP + Dr contract types into a single SNR (Senior Staff) entry
 (async () => {
@@ -400,6 +426,7 @@ app.use('/api/comments',        wrapAsync(commentsRouter));
 app.use('/api/imports',         wrapAsync(importsRouter));
 app.use('/api/headcount',       wrapAsync(headcountRouter));
 app.use('/api/smartsheet', wrapAsync(smartsheetRouter));
+app.use('/api/alerts',    wrapAsync(alertsRouter));
 
 // Serve React build (production only — public/ is populated by npm run build)
 app.use(express.static(path.join(__dirname, 'public')));

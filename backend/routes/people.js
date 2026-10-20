@@ -37,7 +37,7 @@ router.get('/', requireAuth, async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT pe.id, pe.name, pe.contracted_fte, pe.is_active, pe.workday_jr_id, pe.notes,
-            pe.system_profile, pe.created_at, pe.updated_at,
+            pe.system_profile, pe.email, pe.created_at, pe.updated_at,
             pe.contract_type_id,
             ct.code AS contract_type_code, ct.description AS contract_type_description,
             ct.colour_hex, ct.category AS contract_category,
@@ -152,7 +152,7 @@ router.post('/bulk-delete', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_
 
 router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => {
   const { name, contract_type_id, level_id, discipline_id, contracted_fte,
-          tbh_code_id, workday_jr_id, is_active, notes, system_profile,
+          tbh_code_id, workday_jr_id, is_active, notes, system_profile, email,
           region_ids, country_ids } = req.body;
   const sets = [];
   const params = [];
@@ -168,6 +168,7 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
   if (is_active        !== undefined) { sets.push(`is_active = $${i++}`);         params.push(is_active); }
   if (notes            !== undefined) { sets.push(`notes = $${i++}`);             params.push(notes); }
   if (system_profile   !== undefined) { sets.push(`system_profile = $${i++}`);   params.push(system_profile || null); }
+  if (email            !== undefined) { sets.push(`email = $${i++}`);             params.push(email || null); }
 
   const client = await pool.connect();
   try {

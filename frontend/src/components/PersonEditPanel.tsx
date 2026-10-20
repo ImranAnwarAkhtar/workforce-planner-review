@@ -85,6 +85,7 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
     contracted_fte:   '1.0',
     tbh_code_id:      '' as string | number,
     workday_jr_id:    '',
+    email:            '',
     notes:            '',
     region_ids:       [] as number[],
     country_ids:      [] as number[],
@@ -119,6 +120,7 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
       contracted_fte:   String(person.contracted_fte ?? '1.0'),
       tbh_code_id:      person.tbh_code_id ?? '',
       workday_jr_id:    person.workday_jr_id ?? '',
+      email:            person.email ?? '',
       notes:            person.notes ?? '',
       region_ids:       [],
       country_ids:      [],
@@ -202,10 +204,11 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
         name:             form.name.trim(),
         level_id:         form.level_id !== '' ? Number(form.level_id) : null,
         discipline_id:    form.discipline_id !== '' ? Number(form.discipline_id) : null,
-        contract_type_id: form.contract_type_id !== '' ? Number(form.contract_type_id) : null,
+        contract_type_id: form.contract_type_id !== '' ? Number(form.contract_type_id) : undefined,
         contracted_fte:   parseFloat(form.contracted_fte) || 1.0,
         tbh_code_id:      form.tbh_code_id !== '' ? Number(form.tbh_code_id) : null,
         workday_jr_id:    form.workday_jr_id.trim() || null,
+        email:            form.email.trim() || null,
         notes:            form.notes.trim() || null,
         region_ids:       form.region_ids,
         country_ids:      form.country_ids,
@@ -337,6 +340,13 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
             <label style={LBL}>Workday JR ID</label>
             <input style={INPUT} value={form.workday_jr_id} onChange={e => set('workday_jr_id', e.target.value)}
               placeholder="JR-000000" />
+          </div>
+
+          {/* Email */}
+          <div style={FIELD}>
+            <label style={LBL}>Email</label>
+            <input type="email" style={INPUT} value={form.email} onChange={e => set('email', e.target.value)}
+              placeholder="name@equinix.com" />
           </div>
 
           {/* Regions */}

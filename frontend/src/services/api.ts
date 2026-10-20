@@ -143,6 +143,7 @@ export interface Person {
   workday_jr_id: string | null;
   notes: string | null;
   system_profile: string | null;
+  email: string | null;
   created_at: string;
   updated_at: string;
   contract_type_code: string | null;
@@ -213,7 +214,7 @@ export const adminUsersApi = {
     client.put<ItemResponse<AppUser>>(`/admin/users/${id}`, body).then(r => r.data.data),
 };
 
-export type UpdatePersonBody = Partial<CreatePersonBody> & { is_active?: boolean };
+export type UpdatePersonBody = Partial<CreatePersonBody> & { is_active?: boolean; email?: string | null };
 
 export const peopleApi = {
   list: (params?: PeopleQuery) =>
@@ -927,3 +928,58 @@ export interface HubIqResponse {
   tbh_disc_region:      HubIqTbhDiscRegion[];
   years: Record<number, HubIqYearData>;
 }
+
+// ---------------------------------------------------------------------------
+// Alerts
+// ---------------------------------------------------------------------------
+
+export interface AlertRecipient { id: number; name: string; email: string | null }
+
+export interface AlertConfig {
+  id: number;
+  name: string;
+  trigger_type: 'overdue_role' | 'open_roles_above' | 'upcoming_starter';
+  trigger_value: number;
+  message_template: string;
+  recipient_ids: number[];
+  recipients: AlertRecipient[];
+  active: boolean;
+  last_triggered: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertLog {
+  id: number;
+  alert_id: number;
+  alert_name: string;
+  trigger_type: string;
+  triggered_at: string;
+  trigger_data: { count: number; records: unknown[] } | null;
+  recipients_notified: AlertRecipient[] | null;
+  email_sent: boolean;
+  error_message: string | null;
+}
+
+export interface AlertEvalResult {
+  triggered: boolean;
+  count: number;
+  records: unknown[];
+  email_sent: boolean;
+  recipients_found: number;
+}
+
+export const alertsApi = {
+  list: (): Promise<AlertConfig[]> =>
+    client.get('/alerts').then(r => r.data.data),
+  create: (body: Partial<AlertConfig>): Promise<AlertConfig> =>
+    client.post('/alerts', body).then(r => r.data.data),
+  update: (id: number, body: Partial<AlertConfig>): Promise<AlertConfig> =>
+    client.put(`/alerts/${id}`, body).then(r => r.data.data),
+  remove: (id: number): Promise<void> =>
+    client.delete(`/alerts/${id}`).then(() => undefined),
+  evaluate: (id: number): Promise<AlertEvalResult> =>
+    client.post(`/alerts/${id}/evaluate`, {}).then(r => r.data.data),
+  logs: (): Promise<AlertLog[]> =>
+    client.get('/alerts/logs').then(r => r.data.data),
+};
