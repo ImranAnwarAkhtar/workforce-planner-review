@@ -2018,8 +2018,8 @@ function OnboardingTab({ regionNamesAll = [], selectedRegion = 'All' }: { region
     });
   }
 
-  // Table sorted by confirmed_start_date ascending
-  const tableRows = [...starters].sort((a, b) => (a.confirmed_start_date ?? '').localeCompare(b.confirmed_start_date ?? ''));
+  // Table sorted by days until start ascending (soonest first)
+  const tableRows = [...starters].sort((a, b) => daysUntil(a.confirmed_start_date!) - daysUntil(b.confirmed_start_date!));
 
   function daysUntil(dateStr: string): number {
     return Math.round((new Date(dateStr).getTime() - today.getTime()) / 86400000);
