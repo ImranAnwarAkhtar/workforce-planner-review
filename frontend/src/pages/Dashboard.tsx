@@ -2000,11 +2000,12 @@ function OnboardingTab({ regionNamesAll = [], selectedRegion = 'All' }: { region
   const next90End = addDays(today, 90);
   const startingNext30 = starters.filter(r => r.confirmed_start_date! >= todayStr && r.confirmed_start_date! <= next30End).length;
   const startingNext90 = starters.filter(r => r.confirmed_start_date! >= todayStr && r.confirmed_start_date! <= next90End).length;
-  const externalCount = starters.filter(r => r.hire_source === 'External').length;
-  const internalCount = starters.filter(r => r.hire_source === 'Internal').length;
+  const externalCount    = starters.filter(r => r.hire_source === 'External').length;
+  const internalCount    = starters.filter(r => r.hire_source === 'Internal').length;
+  const conversionCount  = starters.filter(r => r.hire_type === 'Conversion').length;
 
   // Monthly bar chart — next 6 months
-  const monthlyData: { month: string; External: number; Internal: number; Other: number }[] = [];
+  const monthlyData: { month: string; External: number; Internal: number; Conversion: number; Other: number }[] = [];
   for (let m = 0; m < 6; m++) {
     const d = new Date(today.getFullYear(), today.getMonth() + m, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -2012,9 +2013,10 @@ function OnboardingTab({ regionNamesAll = [], selectedRegion = 'All' }: { region
     const bucket = starters.filter(r => r.confirmed_start_date!.startsWith(key));
     monthlyData.push({
       month: label,
-      External: bucket.filter(r => r.hire_source === 'External').length,
-      Internal: bucket.filter(r => r.hire_source === 'Internal').length,
-      Other: bucket.filter(r => !r.hire_source).length,
+      External:   bucket.filter(r => r.hire_source === 'External').length,
+      Internal:   bucket.filter(r => r.hire_source === 'Internal').length,
+      Conversion: bucket.filter(r => r.hire_type === 'Conversion').length,
+      Other:      bucket.filter(r => !r.hire_source && r.hire_type !== 'Conversion').length,
     });
   }
 
@@ -2070,7 +2072,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegion = 'All' }: { region
         {/* Starters by month */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
           <div style={sL}>Confirmed Starters by Month</div>
-          <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>Next 6 months · by hire source</div>
+          <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>Next 6 months · by hire source &amp; type</div>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
@@ -2083,13 +2085,16 @@ function OnboardingTab({ regionNamesAll = [], selectedRegion = 'All' }: { region
               <Bar dataKey="Internal" stackId="s" fill="#411980" radius={[0,0,0,0]}>
                 <LabelList dataKey="Internal" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
               </Bar>
+              <Bar dataKey="Conversion" stackId="s" fill="#841A5B" radius={[0,0,0,0]}>
+                <LabelList dataKey="Conversion" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+              </Bar>
               <Bar dataKey="Other" stackId="s" fill="#8B93A3" radius={[2,2,0,0]}>
                 <LabelList dataKey="Other" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
           <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-            {[['#086AE3','External'],['#411980','Internal'],['#8B93A3','Unknown']].map(([col, lbl]) => (
+            {[['#086AE3','External'],['#411980','Internal'],['#841A5B','Conversion'],['#8B93A3','Other']].map(([col, lbl]) => (
               <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#555' }}>
                 <span style={{ width: 10, height: 10, borderRadius: 2, background: col, display: 'inline-block' }} />
                 {lbl}
@@ -2098,17 +2103,17 @@ function OnboardingTab({ regionNamesAll = [], selectedRegion = 'All' }: { region
           </div>
         </div>
 
-        {/* Source split */}
+        {/* Talent acquisition split */}
         <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={sL}>Hire Source</div>
-          {[['External', externalCount, '#086AE3'], ['Internal', internalCount, '#411980'], ['Unknown', starters.length - externalCount - internalCount, '#8B93A3']].map(([lbl, cnt, col]) => (
-            <div key={lbl as string}>
+          <div style={sL}>Talent Acquisition</div>
+          {([['External', externalCount, '#086AE3'], ['Internal', internalCount, '#411980'], ['Conversion', conversionCount, '#841A5B']] as [string, number, string][]).map(([lbl, cnt, col]) => (
+            <div key={lbl}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 3 }}>
                 <span style={{ color: '#374151', fontWeight: 600 }}>{lbl}</span>
-                <span style={{ color: col as string, fontWeight: 700 }}>{cnt}</span>
+                <span style={{ color: col, fontWeight: 700 }}>{cnt}</span>
               </div>
               <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3 }}>
-                <div style={{ height: '100%', borderRadius: 3, background: col as string, width: starters.length > 0 ? `${((cnt as number) / starters.length) * 100}%` : '0%' }} />
+                <div style={{ height: '100%', borderRadius: 3, background: col, width: starters.length > 0 ? `${(cnt / starters.length) * 100}%` : '0%' }} />
               </div>
             </div>
           ))}
