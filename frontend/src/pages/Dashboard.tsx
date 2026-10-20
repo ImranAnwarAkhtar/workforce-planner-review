@@ -1529,9 +1529,9 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
               {/* Body: table left + chart right */}
               <div style={{ display: 'flex', alignItems: 'stretch' }}>
 
-                {/* Table — left panel */}
-                <div style={{ flex: '0 0 auto', overflowX: 'auto', borderRight: `1px solid ${C.border}` }}>
-                  <table style={{ borderCollapse: 'collapse', fontSize: 11 }}>
+                {/* Table — left panel, width aligned to end of 2nd KPI tile (2/5 = 40%) */}
+                <div style={{ flex: '0 0 40%', overflowX: 'auto', borderRight: `1px solid ${C.border}` }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                     <thead>
                       <tr>
                         <th style={{ ...TH, minWidth: 88, fontSize: 9 }}>Region</th>
