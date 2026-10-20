@@ -898,10 +898,10 @@ export interface HubIqYearData {
 }
 
 export interface HubIqTrendRow   { year: number; status: string; count: number; power_kw: number }
-export interface HubIqTbhStatus    { req_status: string; count: number; funding_year: number }
-export interface HubIqTbhHireType  { hire_type: string; count: number; funding_year: number }
-export interface HubIqTbhForecast  { month: string; count: number; funding_year: number; hire_type: string }
-export interface HubIqTbhJobProfile { job_profile: string; count: number; funding_year: number }
+export interface HubIqTbhStatus    { req_status: string; count: number; funding_year: number; region_name?: string }
+export interface HubIqTbhHireType  { hire_type: string; count: number; funding_year: number; region_name?: string }
+export interface HubIqTbhForecast  { month: string; count: number; funding_year: number; hire_type: string; region_name?: string }
+export interface HubIqTbhJobProfile { job_profile: string; count: number; funding_year: number; region_name?: string }
 export interface HubIqTbhDiscRegion { job_profile: string; region_name: string; count: number; funding_year: number }
 export interface HubIqTbhOverdue   {
   tbh_id: string; req_status: string | null;

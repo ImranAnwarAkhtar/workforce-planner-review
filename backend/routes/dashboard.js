@@ -285,11 +285,13 @@ async function fetchShared() {
       ORDER BY year, status
     `),
     pool.query(`
-      SELECT COALESCE(req_status, 'Not Raised') AS req_status,
-             COALESCE(funding_year, 0) AS funding_year,
+      SELECT COALESCE(t.req_status, 'Not Raised') AS req_status,
+             COALESCE(t.funding_year, 0) AS funding_year,
+             COALESCE(r.name, 'Unknown') AS region_name,
              COUNT(*)::int AS count
-      FROM tbh_codes
-      GROUP BY req_status, funding_year
+      FROM tbh_codes t
+      LEFT JOIN regions r ON t.region_id = r.id
+      GROUP BY t.req_status, t.funding_year, r.name
       ORDER BY count DESC
     `),
     pool.query(`
@@ -298,11 +300,13 @@ async function fetchShared() {
       WHERE estimated_hire_date IS NOT NULL
     `),
     pool.query(`
-      SELECT COALESCE(hire_type, 'Not Set') AS hire_type,
-             COALESCE(funding_year, 0) AS funding_year,
+      SELECT COALESCE(t.hire_type, 'Not Set') AS hire_type,
+             COALESCE(t.funding_year, 0) AS funding_year,
+             COALESCE(r.name, 'Unknown') AS region_name,
              COUNT(*)::int AS count
-      FROM tbh_codes
-      GROUP BY hire_type, funding_year ORDER BY count DESC
+      FROM tbh_codes t
+      LEFT JOIN regions r ON t.region_id = r.id
+      GROUP BY t.hire_type, t.funding_year, r.name ORDER BY count DESC
     `),
     pool.query(`
       SELECT t.tbh_id, t.req_status, t.hire_type,
@@ -318,24 +322,28 @@ async function fetchShared() {
       LIMIT 50
     `),
     pool.query(`
-      SELECT TO_CHAR(DATE_TRUNC('month', estimated_hire_date), 'YYYY-MM') AS month,
-             COALESCE(funding_year, 0) AS funding_year,
-             COALESCE(hire_type, 'Other') AS hire_type,
+      SELECT TO_CHAR(DATE_TRUNC('month', t.estimated_hire_date), 'YYYY-MM') AS month,
+             COALESCE(t.funding_year, 0) AS funding_year,
+             COALESCE(t.hire_type, 'Other') AS hire_type,
+             COALESCE(r.name, 'Unknown') AS region_name,
              COUNT(*)::int AS count
-      FROM tbh_codes
-      WHERE estimated_hire_date IS NOT NULL
-        AND estimated_hire_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '2 months'
-        AND estimated_hire_date <= DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '11 months'
-        AND (req_status IS NULL OR req_status != 'Filled')
-      GROUP BY DATE_TRUNC('month', estimated_hire_date), funding_year, hire_type
-      ORDER BY DATE_TRUNC('month', estimated_hire_date)
+      FROM tbh_codes t
+      LEFT JOIN regions r ON t.region_id = r.id
+      WHERE t.estimated_hire_date IS NOT NULL
+        AND t.estimated_hire_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '2 months'
+        AND t.estimated_hire_date <= DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '11 months'
+        AND (t.req_status IS NULL OR t.req_status != 'Filled')
+      GROUP BY DATE_TRUNC('month', t.estimated_hire_date), t.funding_year, t.hire_type, r.name
+      ORDER BY DATE_TRUNC('month', t.estimated_hire_date)
     `),
     pool.query(`
-      SELECT COALESCE(NULLIF(TRIM(job_profile), ''), 'Not Set') AS job_profile,
-             COALESCE(funding_year, 0) AS funding_year,
+      SELECT COALESCE(NULLIF(TRIM(t.job_profile), ''), 'Not Set') AS job_profile,
+             COALESCE(t.funding_year, 0) AS funding_year,
+             COALESCE(r.name, 'Unknown') AS region_name,
              COUNT(*)::int AS count
-      FROM tbh_codes
-      GROUP BY job_profile, funding_year
+      FROM tbh_codes t
+      LEFT JOIN regions r ON t.region_id = r.id
+      GROUP BY t.job_profile, t.funding_year, r.name
       ORDER BY count DESC
     `),
     pool.query(`
@@ -367,31 +375,31 @@ async function fetchShared() {
   ] : tbhOverdueRes.rows;
 
   const sampleForecast = tbhForecastRes.rows.length === 0 ? [
-    { month: ym(-60), funding_year: 2026, hire_type: 'Net New',    count: 2 },
-    { month: ym(-60), funding_year: 2026, hire_type: 'Backfill',   count: 1 },
-    { month: ym(-30), funding_year: 2026, hire_type: 'Net New',    count: 3 },
-    { month: ym(-30), funding_year: 2026, hire_type: 'Conversion', count: 2 },
-    { month: ym(0),   funding_year: 2026, hire_type: 'Net New',    count: 2 },
-    { month: ym(0),   funding_year: 2026, hire_type: 'Backfill',   count: 2 },
-    { month: ym(30),  funding_year: 2026, hire_type: 'Net New',    count: 3 },
-    { month: ym(30),  funding_year: 2026, hire_type: 'Conversion', count: 2 },
-    { month: ym(30),  funding_year: 2026, hire_type: 'Backfill',   count: 2 },
-    { month: ym(60),  funding_year: 2026, hire_type: 'Net New',    count: 2 },
-    { month: ym(60),  funding_year: 2026, hire_type: 'Conversion', count: 2 },
-    { month: ym(60),  funding_year: 2026, hire_type: 'Backfill',   count: 2 },
-    { month: ym(90),  funding_year: 2026, hire_type: 'Net New',    count: 4 },
-    { month: ym(90),  funding_year: 2026, hire_type: 'Backfill',   count: 4 },
-    { month: ym(120), funding_year: 2026, hire_type: 'Net New',    count: 3 },
-    { month: ym(120), funding_year: 2026, hire_type: 'Conversion', count: 1 },
-    { month: ym(120), funding_year: 2026, hire_type: 'Backfill',   count: 1 },
-    { month: ym(150), funding_year: 2026, hire_type: 'Net New',    count: 5 },
-    { month: ym(150), funding_year: 2026, hire_type: 'Conversion', count: 2 },
-    { month: ym(150), funding_year: 2026, hire_type: 'Backfill',   count: 2 },
-    { month: ym(180), funding_year: 2026, hire_type: 'Net New',    count: 2 },
-    { month: ym(180), funding_year: 2026, hire_type: 'Backfill',   count: 2 },
-    { month: ym(210), funding_year: 2026, hire_type: 'Net New',    count: 3 },
-    { month: ym(210), funding_year: 2026, hire_type: 'Conversion', count: 1 },
-    { month: ym(210), funding_year: 2026, hire_type: 'Backfill',   count: 2 },
+    { month: ym(-60), funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 2 },
+    { month: ym(-60), funding_year: 2026, hire_type: 'Backfill',   region_name: 'Unknown', count: 1 },
+    { month: ym(-30), funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 3 },
+    { month: ym(-30), funding_year: 2026, hire_type: 'Conversion', region_name: 'Unknown', count: 2 },
+    { month: ym(0),   funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 2 },
+    { month: ym(0),   funding_year: 2026, hire_type: 'Backfill',   region_name: 'Unknown', count: 2 },
+    { month: ym(30),  funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 3 },
+    { month: ym(30),  funding_year: 2026, hire_type: 'Conversion', region_name: 'Unknown', count: 2 },
+    { month: ym(30),  funding_year: 2026, hire_type: 'Backfill',   region_name: 'Unknown', count: 2 },
+    { month: ym(60),  funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 2 },
+    { month: ym(60),  funding_year: 2026, hire_type: 'Conversion', region_name: 'Unknown', count: 2 },
+    { month: ym(60),  funding_year: 2026, hire_type: 'Backfill',   region_name: 'Unknown', count: 2 },
+    { month: ym(90),  funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 4 },
+    { month: ym(90),  funding_year: 2026, hire_type: 'Backfill',   region_name: 'Unknown', count: 4 },
+    { month: ym(120), funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 3 },
+    { month: ym(120), funding_year: 2026, hire_type: 'Conversion', region_name: 'Unknown', count: 1 },
+    { month: ym(120), funding_year: 2026, hire_type: 'Backfill',   region_name: 'Unknown', count: 1 },
+    { month: ym(150), funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 5 },
+    { month: ym(150), funding_year: 2026, hire_type: 'Conversion', region_name: 'Unknown', count: 2 },
+    { month: ym(150), funding_year: 2026, hire_type: 'Backfill',   region_name: 'Unknown', count: 2 },
+    { month: ym(180), funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 2 },
+    { month: ym(180), funding_year: 2026, hire_type: 'Backfill',   region_name: 'Unknown', count: 2 },
+    { month: ym(210), funding_year: 2026, hire_type: 'Net New',    region_name: 'Unknown', count: 3 },
+    { month: ym(210), funding_year: 2026, hire_type: 'Conversion', region_name: 'Unknown', count: 1 },
+    { month: ym(210), funding_year: 2026, hire_type: 'Backfill',   region_name: 'Unknown', count: 2 },
   ] : tbhForecastRes.rows;
 
   return {

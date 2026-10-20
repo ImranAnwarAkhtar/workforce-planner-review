@@ -1609,18 +1609,20 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
 
 function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbhHireType, tbhOverdue, tbhMonthlyForecast, tbhJobProfile, tbhDiscRegion, yearRange, regionCodeMap, regionNamesAll }: {
   yearA: number; yearB: number;
-  tbhStatus: { req_status: string; count: number; funding_year: number }[];
+  tbhStatus: { req_status: string; count: number; funding_year: number; region_name?: string | null }[];
   tbhAvgHireDays: Record<string, Record<string, number>>;
   tbhQuarterlyAvgHireDays: { year: number; quarter: number; label: string; days: number; count: number }[];
-  tbhHireType: { hire_type: string; count: number; funding_year: number }[];
+  tbhHireType: { hire_type: string; count: number; funding_year: number; region_name?: string | null }[];
   tbhOverdue: { tbh_id: string; req_status: string | null; hire_type: string | null; region_name: string | null; estimated_hire_date: string; days_overdue: number; funding_year: number | null; date_opened: string | null }[];
-  tbhMonthlyForecast: { month: string; count: number; funding_year: number; hire_type: string }[];
-  tbhJobProfile: { job_profile: string; count: number; funding_year: number }[];
+  tbhMonthlyForecast: { month: string; count: number; funding_year: number; hire_type: string; region_name?: string | null }[];
+  tbhJobProfile: { job_profile: string; count: number; funding_year: number; region_name?: string | null }[];
   tbhDiscRegion: HubIqTbhDiscRegion[];
   yearRange: [number, number] | null;
   regionCodeMap: Record<string, string>;
   regionNamesAll: string[];
 }) {
+  const [selectedRegion, setSelectedRegion] = useState<string>('All');
+
   const STAGE_COLORS: Record<string, string> = {
     'Filled': '#E91C24', 'Open': '#C71B36', 'In Progress': '#A61B49',
     'Offer Extended': '#841A5B', 'On Hold': '#631A6E', 'Cancelled': '#411980', 'Not Raised': '#8B93A3',
@@ -1633,18 +1635,21 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   const filterYear = (rows: { funding_year: number }[]) =>
     yearRange === null ? rows : rows.filter(r => r.funding_year >= yearRange[0] && r.funding_year <= yearRange[1]);
 
+  const filterRegion = <T extends { region_name?: string | null }>(rows: T[]): T[] =>
+    selectedRegion === 'All' ? rows : rows.filter(r => (r.region_name ?? 'Unknown') === selectedRegion);
+
   const avgHireDays: Record<string, number> =
     yearRange === null ? (tbhAvgHireDays['all'] ?? {})
     : yearRange[0] === yearRange[1] ? (tbhAvgHireDays[String(yearRange[0])] ?? tbhAvgHireDays['all'] ?? {})
     : (tbhAvgHireDays['all'] ?? {});
 
-  const filteredStatus   = filterYear(tbhStatus)   as typeof tbhStatus;
-  const filteredHireType = filterYear(tbhHireType) as typeof tbhHireType;
+  const filteredStatus   = filterYear(filterRegion(tbhStatus)       as typeof tbhStatus)       as typeof tbhStatus;
+  const filteredHireType = filterYear(filterRegion(tbhHireType)     as typeof tbhHireType)     as typeof tbhHireType;
   // Overdue and forecast are time-based views — backend already scopes by date, don't filter by year range
-  const filteredOverdue  = tbhOverdue;
-  const filteredForecast = tbhMonthlyForecast;
-  const filteredJobProfileRaw = filterYear(tbhJobProfile) as typeof tbhJobProfile;
-  const filteredDiscRegion    = filterYear(tbhDiscRegion) as typeof tbhDiscRegion;
+  const filteredOverdue  = filterRegion(tbhOverdue)  as typeof tbhOverdue;
+  const filteredForecast = filterRegion(tbhMonthlyForecast) as typeof tbhMonthlyForecast;
+  const filteredJobProfileRaw = filterYear(filterRegion(tbhJobProfile) as typeof tbhJobProfile) as typeof tbhJobProfile;
+  const filteredDiscRegion    = filterYear(filterRegion(tbhDiscRegion) as typeof tbhDiscRegion) as typeof tbhDiscRegion;
 
   // Re-aggregate after year filter (multiple rows per status/profile when all years)
   const statusAgg: Record<string, number> = {};
@@ -1708,6 +1713,19 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      {/* Region filter row */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Region</span>
+        <select
+          value={selectedRegion}
+          onChange={e => setSelectedRegion(e.target.value)}
+          style={{ fontSize: 12, padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: '#FFF', color: '#333', cursor: 'pointer', outline: 'none' }}
+        >
+          <option value="All">All Regions</option>
+          {regionNamesAll.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+      </div>
 
       {/* ── Row 1: Status bars + Hire Type donut + Region bars ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.7fr 1.6fr', gap: 14 }}>
@@ -1948,9 +1966,10 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 // ONBOARDING TAB
 // ---------------------------------------------------------------------------
 
-function OnboardingTab() {
+function OnboardingTab({ regionNamesAll = [] }: { regionNamesAll?: string[] }) {
   const [rows, setRows] = useState<TbhCode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedRegion, setSelectedRegion] = useState<string>('All');
 
   useEffect(() => {
     tbhCodesApi.list({ limit: 500 }).then(data => { setRows(data); setLoading(false); }).catch(() => setLoading(false));
@@ -1961,8 +1980,9 @@ function OnboardingTab() {
 
   const addDays = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r.toISOString().slice(0, 10); };
 
-  // Only rows with a confirmed start date
-  const starters = rows.filter(r => r.confirmed_start_date);
+  // Only rows with a confirmed start date, filtered by region
+  const allStarters = rows.filter(r => r.confirmed_start_date);
+  const starters = selectedRegion === 'All' ? allStarters : allStarters.filter(r => r.region_name === selectedRegion);
 
   // KPIs
   const thisMonthKey = todayStr.slice(0, 7);
@@ -2012,6 +2032,19 @@ function OnboardingTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      {/* Region filter row */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Region</span>
+        <select
+          value={selectedRegion}
+          onChange={e => setSelectedRegion(e.target.value)}
+          style={{ fontSize: 12, padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: '#FFF', color: '#333', cursor: 'pointer', outline: 'none' }}
+        >
+          <option value="All">All Regions</option>
+          {regionNamesAll.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+      </div>
 
       {/* Row 1 — KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
@@ -2228,7 +2261,7 @@ export default function Dashboard() {
             {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} activeYear={requestYear ?? yearA!} />}
             {activeTab === 'Gearing'     && <GearingTab     yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhQuarterlyAvgHireDays={hubData!.tbh_quarterly_hire_days ?? []} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} />}
-            {activeTab === 'Onboarding' && <OnboardingTab />}
+            {activeTab === 'Onboarding' && <OnboardingTab regionNamesAll={hubData?.region_names ?? []} />}
           </>
         )}
       </div>
