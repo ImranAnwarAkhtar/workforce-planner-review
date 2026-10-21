@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import equinixFortressRed from '../assets/equinix-fortress-red.svg';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList, ReferenceLine,
   LineChart, Line,
   ComposedChart, Area,
 } from 'recharts';
@@ -1237,6 +1237,65 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
     .map(([region, count]) => ({ region, count: Math.round(count * 10) / 10 }))
     .sort((a, b) => regionSortIdx(a.region) - regionSortIdx(b.region));
 
+  // ── YoY delta by discipline ──
+  const aggDiscYear = (reqs: HubIqYearData['requests']) => {
+    const m: Record<string, number> = {};
+    for (const r of reqs) m[r.discipline_name] = (m[r.discipline_name] ?? 0) + r.contracted_fte;
+    return m;
+  };
+  const discMapA = aggDiscYear(dataA.requests);
+  const discMapB = aggDiscYear(dataB.requests);
+  const deltaData = Array.from(new Set([...Object.keys(discMapA), ...Object.keys(discMapB)]))
+    .map(disc => {
+      const a = Math.round((discMapA[disc] ?? 0) * 10) / 10;
+      const b = Math.round((discMapB[disc] ?? 0) * 10) / 10;
+      const delta = Math.round((b - a) * 10) / 10;
+      return { disc: discCodeMap[disc] ?? disc, fullName: disc, delta, ftePrior: a, fteCurrent: b };
+    })
+    .filter(d => d.ftePrior > 0 || d.fteCurrent > 0)
+    .sort((a, b) => b.delta - a.delta);
+
+  // ── Contract mix by region ──
+  const contractMixByRegion: Record<string, { rFte: number; rCon: number }> = {};
+  for (const r of data.requests) {
+    const code = rc(r.region_name) || r.region_name;
+    if (!contractMixByRegion[code]) contractMixByRegion[code] = { rFte: 0, rCon: 0 };
+    if (r.contract_code === 'R FTE') contractMixByRegion[code].rFte += r.contracted_fte;
+    else if (['R CON', 'R CON>FTE'].includes(r.contract_code)) contractMixByRegion[code].rCon += r.contracted_fte;
+  }
+  const contractMixData = Object.entries(contractMixByRegion)
+    .map(([region, v]) => {
+      const total = v.rFte + v.rCon;
+      const rFtePct = total > 0 ? Math.round((v.rFte / total) * 1000) / 10 : 0;
+      return { region, 'R FTE': rFtePct, 'R CON': Math.round((100 - rFtePct) * 10) / 10, rFteAbs: Math.round(v.rFte * 10) / 10, rConAbs: Math.round(v.rCon * 10) / 10, total };
+    })
+    .filter(d => d.total > 0)
+    .sort((a, b) => regionSortIdx(a.region) - regionSortIdx(b.region));
+
+  // ── Discipline × Level heatmap ──
+  const hmLevels: string[] = sortedLevels.length > 0
+    ? sortedLevels.map(l => l.short_code).filter(lc => data.requests.some(r => r.level_code === lc))
+    : Array.from(new Set(data.requests.map(r => r.level_code).filter((l): l is string => !!l)));
+  if (data.requests.some(r => !r.level_code) && !hmLevels.includes('Unknown')) hmLevels.push('Unknown');
+  const hmDiscs = Object.keys(byDisc).filter(d => data.requests.some(r => r.discipline_name === d));
+  const hmCells: Record<string, Record<string, number>> = {};
+  for (const req of data.requests) {
+    const d = req.discipline_name; const l = req.level_code ?? 'Unknown';
+    if (!hmCells[d]) hmCells[d] = {};
+    hmCells[d][l] = (hmCells[d][l] ?? 0) + req.contracted_fte;
+  }
+  const hmMax = Math.max(...hmDiscs.flatMap(d => hmLevels.map(l => hmCells[d]?.[l] ?? 0)), 1);
+  const hmCellBg = (v: number) => {
+    if (v === 0) return '#F3F4F6';
+    const t = v / hmMax;
+    if (t < 0.15) return '#EBF3FF';
+    if (t < 0.35) return '#BFDBFE';
+    if (t < 0.60) return '#60A5FA';
+    if (t < 0.80) return '#086AE3';
+    return '#00408C';
+  };
+  const hmCellFg = (v: number) => v / hmMax > 0.35 ? '#FFFFFF' : '#1E3A5F';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr', gap: 14 }}>
@@ -1433,6 +1492,152 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
         </div>
 
       </div>
+
+      {/* ── Row 3: YoY Delta + Contract Mix ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+
+        {/* YoY Delta */}
+        <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ marginBottom: 8 }}>
+            <SectionTitle>Year-on-Year Change by Discipline</SectionTitle>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{yearA} → {yearB} · FTE delta per discipline</div>
+          </div>
+          {deltaData.length === 0 ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No data for both years</div>
+          ) : (
+            <div style={{ flex: 1, minHeight: 200 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={deltaData} margin={{ top: 20, right: 12, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                  <XAxis dataKey="disc" tick={{ fontSize: 9, fill: C.muted }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} width={26} />
+                  <ReferenceLine y={0} stroke="#CBD5E1" strokeWidth={1} />
+                  <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => [`${typeof v === 'number' && v > 0 ? '+' : ''}${v} FTE`, `${yearA} → ${yearB}`]} />
+                  <Bar dataKey="delta" radius={[2, 2, 0, 0]} maxBarSize={36}>
+                    {deltaData.map((entry, i) => <Cell key={i} fill={entry.delta >= 0 ? '#33A85C' : '#E91C24'} />)}
+                    <LabelList dataKey="delta" content={((props: any) => {
+                      const { x, y, width, height, value } = props;
+                      if (typeof value !== 'number' || value === 0) return <g />;
+                      const isNeg = value < 0;
+                      return (
+                        <text x={x + (width ?? 0) / 2} y={isNeg ? y + Math.abs(height ?? 0) + 12 : y - 5} textAnchor="middle" fontSize={9} fontWeight={700} fill={isNeg ? '#E91C24' : '#059669'}>
+                          {value > 0 ? '+' : ''}{value}
+                        </text>
+                      );
+                    }) as any} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Contract Mix by Region */}
+        <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ marginBottom: 8 }}>
+            <SectionTitle>Contract Mix by Region</SectionTitle>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{activeYear} · R FTE vs R CON as % of total requests</div>
+          </div>
+          {contractMixData.length === 0 ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
+          ) : (
+            <>
+              <div style={{ flex: 1, minHeight: 180 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={contractMixData} layout="vertical" margin={{ top: 2, right: 8, bottom: 2, left: 8 }}>
+                    <XAxis type="number" domain={[0, 100]} hide />
+                    <YAxis type="category" dataKey="region" width={84} axisLine={false} tickLine={false}
+                      tick={(props: any) => (
+                        <text x={props.x - 4} y={props.y} dy={4} textAnchor="end" fill="#444" fontSize={10} fontWeight={600}>{props.payload.value}</text>
+                      )} />
+                    <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown, name: unknown) => [`${v}%`, String(name)]} />
+                    <Bar dataKey="R FTE" stackId="s" fill="#086AE3" maxBarSize={20}>
+                      <LabelList dataKey="R FTE" position="insideLeft" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: unknown) => (typeof v === 'number' && v > 10) ? `${v}%` : ''} />
+                    </Bar>
+                    <Bar dataKey="R CON" stackId="s" fill="#E91C24" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                      <LabelList dataKey="R CON" position="insideRight" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: unknown) => (typeof v === 'number' && v > 10) ? `${v}%` : ''} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginTop: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#086AE3' }} />
+                  <span style={{ fontSize: 10, color: C.muted }}>R FTE (permanent)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#E91C24' }} />
+                  <span style={{ fontSize: 10, color: C.muted }}>R CON (contractor)</span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+      </div>
+
+      {/* ── Row 4: Discipline × Level Heatmap ── */}
+      <div style={{ ...cardStyle, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${C.border}` }}>
+          <SectionTitle>Discipline × Level Heatmap — {activeYear}</SectionTitle>
+          <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>FTE requested per discipline and seniority level · darker shading = higher demand</div>
+        </div>
+        {hmDiscs.length === 0 || hmLevels.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: C.muted, fontSize: 12 }}>No data</div>
+        ) : (
+          <div style={{ overflowX: 'auto', padding: '12px 16px' }}>
+            <table style={{ borderCollapse: 'collapse', fontSize: 11, width: 'max-content', minWidth: '100%' }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: '6px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', minWidth: 140 }}>Discipline</th>
+                  {hmLevels.map(l => (
+                    <th key={l} style={{ padding: '6px 12px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', minWidth: 56 }}>{l}</th>
+                  ))}
+                  <th style={{ padding: '6px 12px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hmDiscs.map(disc => {
+                  const rowTotal = Math.round(hmLevels.reduce((s, l) => s + (hmCells[disc]?.[l] ?? 0), 0) * 10) / 10;
+                  return (
+                    <tr key={disc}>
+                      <td style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, color: C.discColors[disc] === '#FDB90D' ? '#C59000' : (C.discColors[disc] ?? '#333'), whiteSpace: 'nowrap', borderBottom: `1px solid ${C.border}` }}>
+                        {disc}
+                      </td>
+                      {hmLevels.map(l => {
+                        const v = Math.round((hmCells[disc]?.[l] ?? 0) * 10) / 10;
+                        return (
+                          <td key={l} title={`${disc} / ${l}: ${v} FTE`} style={{ padding: '6px 12px', textAlign: 'center', background: hmCellBg(v), borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }}>
+                            {v > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: hmCellFg(v) }}>{v}</span> : <span style={{ color: '#D1D5DB', fontSize: 10 }}>·</span>}
+                          </td>
+                        );
+                      })}
+                      <td style={{ padding: '5px 12px', textAlign: 'center', fontWeight: 700, fontSize: 11, color: '#333', borderBottom: `1px solid ${C.border}`, borderLeft: `2px solid ${C.border}`, background: '#FAFAFA' }}>
+                        {rowTotal > 0 ? rowTotal : <span style={{ color: '#D1D5DB' }}>·</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr>
+                  <td style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</td>
+                  {hmLevels.map(l => {
+                    const colTotal = Math.round(hmDiscs.reduce((s, d) => s + (hmCells[d]?.[l] ?? 0), 0) * 10) / 10;
+                    return (
+                      <td key={l} style={{ padding: '5px 12px', textAlign: 'center', fontWeight: 700, fontSize: 11, color: '#333', background: '#FAFAFA', borderLeft: `1px solid ${C.border}`, borderTop: `2px solid ${C.border}` }}>
+                        {colTotal > 0 ? colTotal : <span style={{ color: '#D1D5DB' }}>·</span>}
+                      </td>
+                    );
+                  })}
+                  <td style={{ padding: '5px 12px', textAlign: 'center', fontWeight: 800, fontSize: 11, color: '#111', background: '#F0F0F0', borderLeft: `2px solid ${C.border}`, borderTop: `2px solid ${C.border}` }}>
+                    {Math.round(hmDiscs.reduce((s, d) => s + hmLevels.reduce((s2, l) => s2 + (hmCells[d]?.[l] ?? 0), 0), 0) * 10) / 10}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
