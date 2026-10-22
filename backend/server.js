@@ -155,6 +155,10 @@ pool.query(`
 `).catch(err => logger.error('People platform access migration failed', { error: err.message }));
 
 pool.query(`
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS planning_cycle_id INTEGER REFERENCES planning_cycles(id) ON DELETE SET NULL;
+`).catch(err => logger.error('TBH codes planning_cycle_id migration failed', { error: err.message }));
+
+pool.query(`
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '14 days'
     WHERE req_status = 'Filled' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL;
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '21 days'

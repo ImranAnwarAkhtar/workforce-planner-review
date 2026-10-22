@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { smartsheetApi, type SmartsheetRow } from '../services/api';
 import { useColFilter } from '../hooks/useColFilter';
+import PlanningCycleBanner from '../components/PlanningCycleBanner';
 
 // ---------------------------------------------------------------------------
 // Plan status config
@@ -174,6 +175,8 @@ export default function ChangeRequests() {
           </button>
         </div>
       </div>
+
+      <PlanningCycleBanner />
 
       {/* ── Filter bar ── */}
       <div style={{

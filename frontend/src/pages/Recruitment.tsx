@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { tbhCodesApi, refDataApi, type TbhCode, type Region, type CreateTbhCodeBody } from '../services/api';
 import { useColFilter, type ColDef } from '../hooks/useColFilter';
+import { usePlanningCycle } from '../context/PlanningCycleContext';
+import PlanningCycleBanner from '../components/PlanningCycleBanner';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -161,6 +163,7 @@ const REC_COL_DEFS: ColDef<TbhCode>[] = [
   { key: 'fp_and_a_notes',          label: 'Note from FP&A',                  get: t => t.fp_and_a_notes ?? '' },
   { key: 'tbh_description',         label: 'TBH Description',                 get: t => t.tbh_description ?? '' },
   { key: 'ta_status_comments',      label: 'TA Status Comments',              get: t => t.ta_status_comments ?? '' },
+  { key: 'planning_cycle_name',     label: 'Planning Cycle',                  get: t => t.planning_cycle_name ?? '' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -176,7 +179,7 @@ interface FormState {
   candidate_name: string; estimated_hire_date: string; ta_status_comments: string;
   tbh_description: string; fp_and_a_approver_notes: string; fp_and_a_notes: string;
   confirmed_start_date: string; hire_source: string; hire_source_details: string;
-  pipeline_stage: string;
+  pipeline_stage: string; planning_cycle_id: string;
 }
 
 const emptyForm: FormState = {
@@ -188,6 +191,7 @@ const emptyForm: FormState = {
   estimated_hire_date: '', ta_status_comments: '', tbh_description: '',
   fp_and_a_approver_notes: '', fp_and_a_notes: '',
   confirmed_start_date: '', hire_source: '', hire_source_details: '', pipeline_stage: '',
+  planning_cycle_id: '',
 };
 
 function tbhToForm(t: TbhCode): FormState {
@@ -207,6 +211,7 @@ function tbhToForm(t: TbhCode): FormState {
     confirmed_start_date: t.confirmed_start_date ? t.confirmed_start_date.slice(0, 10) : '',
     hire_source: t.hire_source ?? '', hire_source_details: t.hire_source_details ?? '',
     pipeline_stage: t.pipeline_stage ?? '',
+    planning_cycle_id: t.planning_cycle_id ? String(t.planning_cycle_id) : '',
   };
 }
 
@@ -215,6 +220,7 @@ function tbhToForm(t: TbhCode): FormState {
 // ---------------------------------------------------------------------------
 
 export default function Recruitment() {
+  const { cycles } = usePlanningCycle();
   const [tbhCodes, setTbhCodes] = useState<TbhCode[]>([]);
   const [regions,  setRegions]  = useState<Region[]>([]);
 
@@ -332,6 +338,7 @@ export default function Recruitment() {
         hire_source:              form.hire_source              || null,
         hire_source_details:      form.hire_source_details      || null,
         pipeline_stage:           form.pipeline_stage           || null,
+        planning_cycle_id:        form.planning_cycle_id        ? parseInt(form.planning_cycle_id, 10) : null,
       };
       if (editTarget) await tbhCodesApi.update(editTarget.id, body);
       else            await tbhCodesApi.create(body);
@@ -388,6 +395,8 @@ export default function Recruitment() {
           <button style={btnCompact} onClick={openAdd}>+ Add TBH</button>
         </div>
       </div>
+
+      <PlanningCycleBanner />
 
       {/* ── Filters ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -630,6 +639,13 @@ export default function Recruitment() {
                     {!hiddenCols.has('ta_status_comments') && (
                       <td title={t.ta_status_comments ?? ''} style={{ ...TD, maxWidth: 220 }}><span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.ta_status_comments ?? '—'}</span></td>
                     )}
+                    {!hiddenCols.has('planning_cycle_name') && (
+                      <td title={t.planning_cycle_name ?? ''} style={TD}>
+                        {t.planning_cycle_name
+                          ? <span style={{ fontSize: 10, fontWeight: 600, color: '#1D4ED8', background: '#EFF6FF', padding: '1px 7px', borderRadius: 8, border: '1px solid #BFDBFE', whiteSpace: 'nowrap' }}>{t.planning_cycle_name}</span>
+                          : <span style={{ color: '#9CA3AF', fontSize: 10 }}>—</span>}
+                      </td>
+                    )}
 
                     {/* Actions */}
                     <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -799,6 +815,14 @@ export default function Recruitment() {
             <div style={{ marginBottom: 8 }}>
               <label style={labelSt}>Note from FP&amp;A Approver</label>
               <textarea style={{ ...inputSt, height: 40, resize: 'vertical' as const }} value={form.fp_and_a_approver_notes} onChange={e => sf('fp_and_a_approver_notes', e.target.value)} />
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <label style={labelSt}>Planning Cycle</label>
+              <select style={selectSt} value={form.planning_cycle_id} onChange={e => sf('planning_cycle_id', e.target.value)}>
+                <option value="">— Not assigned —</option>
+                {cycles.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
 
             <div style={modalFooter}>

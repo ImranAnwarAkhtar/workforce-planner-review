@@ -6,6 +6,7 @@ import {
 } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import { getUser } from '../hooks/useAuth';
+import PlanningCycleBanner from '../components/PlanningCycleBanner';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -637,6 +638,8 @@ useEffect(() => {
             </select>
           </div>
         </div>
+
+        <PlanningCycleBanner />
 
         {/* Toolbar — filters + Add Project button at right */}
         <div style={S.toolbar}>
