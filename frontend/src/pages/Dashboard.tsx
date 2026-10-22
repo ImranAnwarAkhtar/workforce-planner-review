@@ -1477,67 +1477,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
 
       </div>
 
-      {/* ── Row 3: Discipline × Level Heatmap (full width) ── */}
-      <div style={{ ...cardStyle, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${C.border}` }}>
-          <SectionTitle>Discipline × Level Heatmap — {activeYear}</SectionTitle>
-          <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>FTE requested per discipline and seniority level · darker shading = higher demand</div>
-        </div>
-        {hmDiscs.length === 0 || hmLevels.length === 0 ? (
-          <div style={{ padding: 32, textAlign: 'center', color: C.muted, fontSize: 12 }}>No data</div>
-        ) : (
-          <div style={{ overflowX: 'auto', padding: '12px 16px' }}>
-            <table style={{ borderCollapse: 'collapse', fontSize: 11, width: 'max-content', minWidth: '100%' }}>
-              <thead>
-                <tr>
-                  <th style={{ display: 'none' }}>Discipline</th>
-                  {hmLevels.map(l => (
-                    <th key={l} style={{ padding: '6px 12px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', minWidth: 56 }}>{l}</th>
-                  ))}
-                  <th style={{ padding: '6px 12px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hmDiscs.map(disc => {
-                  const rowTotal = Math.round(hmLevels.reduce((s, l) => s + (hmCells[disc]?.[l] ?? 0), 0) * 10) / 10;
-                  return (
-                    <tr key={disc}>
-                      <td style={{ display: 'none' }}>{disc}</td>
-                      {hmLevels.map(l => {
-                        const v = Math.round((hmCells[disc]?.[l] ?? 0) * 10) / 10;
-                        return (
-                          <td key={l} title={`${disc} / ${l}: ${v} FTE`} style={{ padding: '6px 12px', textAlign: 'center', background: hmCellBg(v), borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }}>
-                            {v > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: hmCellFg(v) }}>{v}</span> : <span style={{ color: '#D1D5DB', fontSize: 10 }}>·</span>}
-                          </td>
-                        );
-                      })}
-                      <td style={{ padding: '5px 12px', textAlign: 'center', fontWeight: 700, fontSize: 11, color: '#333', borderBottom: `1px solid ${C.border}`, borderLeft: `2px solid ${C.border}`, background: '#FAFAFA' }}>
-                        {rowTotal > 0 ? rowTotal : <span style={{ color: '#D1D5DB' }}>·</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-                <tr>
-                  <td style={{ display: 'none' }}>Total</td>
-                  {hmLevels.map(l => {
-                    const colTotal = Math.round(hmDiscs.reduce((s, d) => s + (hmCells[d]?.[l] ?? 0), 0) * 10) / 10;
-                    return (
-                      <td key={l} style={{ padding: '5px 12px', textAlign: 'center', fontWeight: 700, fontSize: 11, color: '#333', background: '#FAFAFA', borderLeft: `1px solid ${C.border}`, borderTop: `2px solid ${C.border}` }}>
-                        {colTotal > 0 ? colTotal : <span style={{ color: '#D1D5DB' }}>·</span>}
-                      </td>
-                    );
-                  })}
-                  <td style={{ padding: '5px 12px', textAlign: 'center', fontWeight: 800, fontSize: 11, color: '#111', background: '#F0F0F0', borderLeft: `2px solid ${C.border}`, borderTop: `2px solid ${C.border}` }}>
-                    {Math.round(hmDiscs.reduce((s, d) => s + hmLevels.reduce((s2, l) => s2 + (hmCells[d]?.[l] ?? 0), 0), 0) * 10) / 10}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Row 4: Year-on-Year Change ── */}
+      {/* ── Row 3: Year-on-Year Change ── */}
       <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ marginBottom: 8 }}>
           <SectionTitle>Year-on-Year Change by Discipline</SectionTitle>
