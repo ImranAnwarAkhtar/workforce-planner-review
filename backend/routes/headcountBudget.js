@@ -7,10 +7,14 @@ const router = Router();
 // ---------------------------------------------------------------------------
 // Shared data fetch for budget summary
 // ---------------------------------------------------------------------------
+function safeQuery(q) {
+  return pool.query(q).catch(() => ({ rows: [] }));
+}
+
 async function fetchBudgetData() {
   const [kpiRes, byDiscRegionRes, byRegionTypeRes, gearingRes, pipelineRes, disciplinesRes, regionsRes, cyclesRes, requestsDetailRes] = await Promise.all([
     // KPIs: headcount breakdown by category
-    pool.query(`
+    safeQuery(`
       SELECT
         COUNT(*) FILTER (WHERE ct.category = 'existing')::int   AS exist_total,
         COUNT(*) FILTER (WHERE ct.code = 'CON')::int            AS exist_con,
@@ -25,7 +29,7 @@ async function fetchBudgetData() {
       WHERE pe.is_active = TRUE
     `),
     // Headcount by discipline × region × contract category
-    pool.query(`
+    safeQuery(`
       SELECT d.name AS discipline, r.name AS region, r.sort_order,
              ct.code AS contract_code, ct.category,
              COUNT(*)::int AS headcount
@@ -39,7 +43,7 @@ async function fetchBudgetData() {
       ORDER BY d.name, r.sort_order
     `),
     // Headcount by region × contract type (for head-type table)
-    pool.query(`
+    safeQuery(`
       SELECT r.name AS region, r.sort_order,
              ct.code AS contract_code, ct.category,
              COUNT(*)::int AS headcount
@@ -52,7 +56,7 @@ async function fetchBudgetData() {
       ORDER BY r.sort_order
     `),
     // Gearing constants
-    pool.query(`
+    safeQuery(`
       SELECT d.name AS discipline_name, gc.project_type,
              gc.min_divisor::float, gc.max_divisor::float
       FROM gearing_constants gc
@@ -60,7 +64,7 @@ async function fetchBudgetData() {
       ORDER BY d.name, gc.project_type
     `),
     // Project pipeline by region
-    pool.query(`
+    safeQuery(`
       SELECT r.name AS region, r.sort_order, p.type, p.status,
              COUNT(*)::int AS proj_count,
              COALESCE(SUM(p.weight), 0)::float AS total_weight
@@ -70,11 +74,11 @@ async function fetchBudgetData() {
       GROUP BY r.name, r.sort_order, p.type, p.status
       ORDER BY r.sort_order, p.type, p.status
     `),
-    pool.query(`SELECT id, name FROM disciplines ORDER BY name`),
-    pool.query(`SELECT name, sort_order FROM regions WHERE name != 'Global' ORDER BY sort_order`),
-    pool.query(`SELECT name, status FROM planning_cycles ORDER BY created_at DESC LIMIT 5`),
+    safeQuery(`SELECT id, name FROM disciplines ORDER BY name`),
+    safeQuery(`SELECT name, sort_order FROM regions WHERE name != 'Global' ORDER BY sort_order`),
+    safeQuery(`SELECT name, status FROM planning_cycles ORDER BY created_at DESC LIMIT 5`),
     // Requested headcount detail (for appendix-style breakdown)
-    pool.query(`
+    safeQuery(`
       SELECT pe.name, d.name AS discipline, r.name AS region,
              l.short_code AS level, ct.code AS contract_code,
              pe.dept_head, pe.hiring_manager,
@@ -229,11 +233,20 @@ async function fetchBudgetData() {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/headcount-budget/  (health check — confirms route is registered)
+// ---------------------------------------------------------------------------
+router.get('/', requireAuth, (_req, res) => res.json({ ok: true }));
+
+// ---------------------------------------------------------------------------
 // GET /api/headcount-budget/data
 // ---------------------------------------------------------------------------
 router.get('/data', requireAuth, async (req, res) => {
-  const data = await fetchBudgetData();
-  res.json({ data });
+  try {
+    const data = await fetchBudgetData();
+    res.json({ data });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load budget data', detail: err.message });
+  }
 });
 
 // ---------------------------------------------------------------------------
