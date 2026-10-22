@@ -1256,23 +1256,6 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
     .filter(d => d.ftePrior > 0 || d.fteCurrent > 0)
     .sort((a, b) => b.delta - a.delta);
 
-  // ── Contract mix by region ──
-  const contractMixByRegion: Record<string, { rFte: number; rCon: number }> = {};
-  for (const r of data.requests) {
-    const code = rc(r.region_name) || r.region_name;
-    if (!contractMixByRegion[code]) contractMixByRegion[code] = { rFte: 0, rCon: 0 };
-    if (r.contract_code === 'R FTE') contractMixByRegion[code].rFte += r.contracted_fte;
-    else if (['R CON', 'R CON>FTE'].includes(r.contract_code)) contractMixByRegion[code].rCon += r.contracted_fte;
-  }
-  const contractMixData = Object.entries(contractMixByRegion)
-    .map(([region, v]) => {
-      const total = v.rFte + v.rCon;
-      const rFtePct = total > 0 ? Math.round((v.rFte / total) * 1000) / 10 : 0;
-      return { region, 'R FTE': rFtePct, 'R CON': Math.round((100 - rFtePct) * 10) / 10, rFteAbs: Math.round(v.rFte * 10) / 10, rConAbs: Math.round(v.rCon * 10) / 10, total };
-    })
-    .filter(d => d.total > 0)
-    .sort((a, b) => regionSortIdx(a.region) - regionSortIdx(b.region));
-
   // ── Discipline × Level heatmap ──
   const hmLevels: string[] = sortedLevels.length > 0
     ? sortedLevels.map(l => l.short_code).filter(lc => data.requests.some(r => r.level_code === lc))
@@ -1494,90 +1477,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
 
       </div>
 
-      {/* ── Row 3: YoY Delta + Contract Mix ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-
-        {/* YoY Delta */}
-        <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ marginBottom: 8 }}>
-            <SectionTitle>Year-on-Year Change by Discipline</SectionTitle>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{yearA} → {yearB} · FTE delta per discipline</div>
-          </div>
-          {deltaData.length === 0 ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No data for both years</div>
-          ) : (
-            <div style={{ flex: 1, minHeight: 200 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={deltaData} margin={{ top: 20, right: 12, bottom: 4, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                  <XAxis dataKey="disc" tick={{ fontSize: 9, fill: C.muted }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} width={26} />
-                  <ReferenceLine y={0} stroke="#CBD5E1" strokeWidth={1} />
-                  <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => [`${typeof v === 'number' && v > 0 ? '+' : ''}${v} FTE`, `${yearA} → ${yearB}`]} />
-                  <Bar dataKey="delta" radius={[2, 2, 0, 0]} maxBarSize={36}>
-                    {deltaData.map((entry, i) => <Cell key={i} fill={entry.delta >= 0 ? '#33A85C' : '#E91C24'} />)}
-                    <LabelList dataKey="delta" content={((props: any) => {
-                      const { x, y, width, height, value } = props;
-                      if (typeof value !== 'number' || value === 0) return <g />;
-                      const isNeg = value < 0;
-                      return (
-                        <text x={x + (width ?? 0) / 2} y={isNeg ? y + Math.abs(height ?? 0) + 12 : y - 5} textAnchor="middle" fontSize={9} fontWeight={700} fill={isNeg ? '#E91C24' : '#059669'}>
-                          {value > 0 ? '+' : ''}{value}
-                        </text>
-                      );
-                    }) as any} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
-        {/* Contract Mix by Region */}
-        <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ marginBottom: 8 }}>
-            <SectionTitle>Contract Mix by Region</SectionTitle>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{activeYear} · R FTE vs R CON as % of total requests</div>
-          </div>
-          {contractMixData.length === 0 ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No requests</div>
-          ) : (
-            <>
-              <div style={{ flex: 1, minHeight: 180 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={contractMixData} layout="vertical" margin={{ top: 2, right: 8, bottom: 2, left: 8 }}>
-                    <XAxis type="number" domain={[0, 100]} hide />
-                    <YAxis type="category" dataKey="region" width={84} axisLine={false} tickLine={false}
-                      tick={(props: any) => (
-                        <text x={props.x - 4} y={props.y} dy={4} textAnchor="end" fill="#444" fontSize={10} fontWeight={600}>{props.payload.value}</text>
-                      )} />
-                    <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown, name: unknown) => [`${v}%`, String(name)]} />
-                    <Bar dataKey="R FTE" stackId="s" fill="#086AE3" maxBarSize={20}>
-                      <LabelList dataKey="R FTE" position="insideLeft" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: unknown) => (typeof v === 'number' && v > 10) ? `${v}%` : ''} />
-                    </Bar>
-                    <Bar dataKey="R CON" stackId="s" fill="#E91C24" radius={[0, 4, 4, 0]} maxBarSize={20}>
-                      <LabelList dataKey="R CON" position="insideRight" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: unknown) => (typeof v === 'number' && v > 10) ? `${v}%` : ''} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div style={{ display: 'flex', gap: 16, marginTop: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#086AE3' }} />
-                  <span style={{ fontSize: 10, color: C.muted }}>R FTE (permanent)</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#E91C24' }} />
-                  <span style={{ fontSize: 10, color: C.muted }}>R CON (contractor)</span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-      </div>
-
-      {/* ── Row 4: Discipline × Level Heatmap ── */}
+      {/* ── Row 3: Discipline × Level Heatmap (full width) ── */}
       <div style={{ ...cardStyle, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px 8px', borderBottom: `1px solid ${C.border}` }}>
           <SectionTitle>Discipline × Level Heatmap — {activeYear}</SectionTitle>
@@ -1590,7 +1490,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
             <table style={{ borderCollapse: 'collapse', fontSize: 11, width: 'max-content', minWidth: '100%' }}>
               <thead>
                 <tr>
-                  <th style={{ padding: '6px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', minWidth: 140 }}>Discipline</th>
+                  <th style={{ display: 'none' }}>Discipline</th>
                   {hmLevels.map(l => (
                     <th key={l} style={{ padding: '6px 12px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', minWidth: 56 }}>{l}</th>
                   ))}
@@ -1602,9 +1502,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
                   const rowTotal = Math.round(hmLevels.reduce((s, l) => s + (hmCells[disc]?.[l] ?? 0), 0) * 10) / 10;
                   return (
                     <tr key={disc}>
-                      <td style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, color: C.discColors[disc] === '#FDB90D' ? '#C59000' : (C.discColors[disc] ?? '#333'), whiteSpace: 'nowrap', borderBottom: `1px solid ${C.border}` }}>
-                        {disc}
-                      </td>
+                      <td style={{ display: 'none' }}>{disc}</td>
                       {hmLevels.map(l => {
                         const v = Math.round((hmCells[disc]?.[l] ?? 0) * 10) / 10;
                         return (
@@ -1620,7 +1518,7 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
                   );
                 })}
                 <tr>
-                  <td style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</td>
+                  <td style={{ display: 'none' }}>Total</td>
                   {hmLevels.map(l => {
                     const colTotal = Math.round(hmDiscs.reduce((s, d) => s + (hmCells[d]?.[l] ?? 0), 0) * 10) / 10;
                     return (
@@ -1635,6 +1533,42 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
                 </tr>
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Row 4: Year-on-Year Change ── */}
+      <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ marginBottom: 8 }}>
+          <SectionTitle>Year-on-Year Change by Discipline</SectionTitle>
+          <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{yearA} → {yearB} · FTE delta per discipline</div>
+        </div>
+        {deltaData.length === 0 ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No data for both years</div>
+        ) : (
+          <div style={{ flex: 1, minHeight: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={deltaData} margin={{ top: 20, right: 12, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                <XAxis dataKey="disc" tick={{ fontSize: 9, fill: C.muted }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} width={26} />
+                <ReferenceLine y={0} stroke="#CBD5E1" strokeWidth={1} />
+                <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => [`${typeof v === 'number' && v > 0 ? '+' : ''}${v} FTE`, `${yearA} → ${yearB}`]} />
+                <Bar dataKey="delta" radius={[2, 2, 0, 0]} maxBarSize={36}>
+                  {deltaData.map((entry, i) => <Cell key={i} fill={entry.delta >= 0 ? '#33A85C' : '#E91C24'} />)}
+                  <LabelList dataKey="delta" content={((props: any) => {
+                    const { x, y, width, height, value } = props;
+                    if (typeof value !== 'number' || value === 0) return <g />;
+                    const isNeg = value < 0;
+                    return (
+                      <text x={x + (width ?? 0) / 2} y={isNeg ? y + Math.abs(height ?? 0) + 12 : y - 5} textAnchor="middle" fontSize={9} fontWeight={700} fill={isNeg ? '#E91C24' : '#059669'}>
+                        {value > 0 ? '+' : ''}{value}
+                      </text>
+                    );
+                  }) as any} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
       </div>

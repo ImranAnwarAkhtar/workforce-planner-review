@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { smartsheetApi, type SmartsheetRow } from '../services/api';
+import { useColFilter } from '../hooks/useColFilter';
 
 // ---------------------------------------------------------------------------
 // Plan status config
@@ -80,13 +81,29 @@ export default function ChangeRequests() {
     [rows]
   );
 
-  const filtered = useMemo(() => rows.filter(r => {
-    if (filterStatus     && r._planStatus                    !== filterStatus)     return false;
-    if (filterChangeType && r['Change required']             !== filterChangeType) return false;
-    if (filterRegion     && r._region                        !== filterRegion)     return false;
-    if (filterDiscipline && r._discipline                    !== filterDiscipline) return false;
-    return true;
-  }), [rows, filterStatus, filterChangeType, filterRegion, filterDiscipline]);
+  // Build colDefs dynamically from Smartsheet columns + Plan Status
+  const crColDefs = useMemo(() => [
+    ...columns.map(col => ({
+      key: col,
+      label: col,
+      get: (r: SmartsheetRow) => r[col] != null ? String(r[col]) : '',
+    })),
+    { key: '_planStatus', label: 'Plan Status', get: (r: SmartsheetRow) => r._planStatus ?? 'Open' },
+  ], [columns]);
+
+  const colFilter = useColFilter(rows, crColDefs);
+
+  const filtered = useMemo(() => {
+    let list = rows.filter(r => {
+      if (filterStatus     && r._planStatus           !== filterStatus)     return false;
+      if (filterChangeType && r['Change required']    !== filterChangeType) return false;
+      if (filterRegion     && r._region               !== filterRegion)     return false;
+      if (filterDiscipline && r._discipline           !== filterDiscipline) return false;
+      return true;
+    });
+    return colFilter.applyToList(list);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, filterStatus, filterChangeType, filterRegion, filterDiscipline, colFilter.colFilters, colFilter.sortConfig]);
 
   const counts = useMemo(() => ({
     total:         rows.length,
@@ -197,6 +214,8 @@ export default function ChangeRequests() {
         )}
       </div>
 
+      {colFilter.renderFilterBar()}
+
       {/* ── Table / content ── */}
       <div style={{ flex: 1, overflow: 'auto', border: '1px solid #E0E3E8', borderRadius: 8, background: '#FFFFFF' }}>
         {loading ? (
@@ -220,27 +239,24 @@ export default function ChangeRequests() {
         ) : (
           <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%', fontSize: 12 }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #E0E3E8' }}>
-                {columns.map(col => (
-                  <th key={col} style={{
-                    padding: '9px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700,
-                    color: '#5A657B', textTransform: 'uppercase', letterSpacing: '0.06em',
-                    whiteSpace: 'nowrap', background: '#F8F9FA',
-                    position: 'sticky', top: 0, zIndex: 1,
-                    borderRight: '1px solid #E8EAED',
-                  }}>
-                    {col}
-                  </th>
-                ))}
-                {/* Plan Status — extra editable column */}
-                <th style={{
-                  padding: '9px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700,
-                  color: '#E91C24', textTransform: 'uppercase', letterSpacing: '0.06em',
-                  whiteSpace: 'nowrap', background: '#F8F9FA',
-                  position: 'sticky', top: 0, zIndex: 1, minWidth: 170,
-                }}>
-                  Plan Status ✎
-                </th>
+              <tr>
+                {crColDefs.map(col => {
+                  const isPlanStatus = col.key === '_planStatus';
+                  return (
+                    <th key={col.key} style={{
+                      padding: '8px 12px', textAlign: 'left' as const, fontSize: 11, fontWeight: 700,
+                      color: isPlanStatus ? '#E91C24' : '#666666',
+                      textTransform: 'uppercase' as const, letterSpacing: '0.08em',
+                      whiteSpace: 'nowrap', background: '#E4E6EA',
+                      borderBottom: '2px solid #C8CCD4',
+                      position: 'sticky' as const, top: 0, zIndex: 1,
+                      minWidth: isPlanStatus ? 200 : undefined,
+                      userSelect: 'none' as const,
+                    }}>
+                      {colFilter.renderHeaderContent(col)}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -329,6 +345,8 @@ export default function ChangeRequests() {
           {filtered.length} of {rows.length} rows · Live from Smartsheet · Click a row to expand full text
         </div>
       )}
+
+      {colFilter.renderDropdown()}
     </div>
   );
 }

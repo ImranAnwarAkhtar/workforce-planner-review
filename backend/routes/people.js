@@ -38,6 +38,7 @@ router.get('/', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT pe.id, pe.name, pe.contracted_fte, pe.is_active, pe.workday_jr_id, pe.notes,
             pe.system_profile, pe.email, pe.created_at, pe.updated_at,
+            pe.login_email, pe.app_role, pe.platform_access_enabled, pe.last_login,
             pe.contract_type_id,
             ct.code AS contract_type_code, ct.description AS contract_type_description,
             ct.colour_hex, ct.category AS contract_category,
@@ -153,6 +154,7 @@ router.post('/bulk-delete', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_
 router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => {
   const { name, contract_type_id, level_id, discipline_id, contracted_fte,
           tbh_code_id, workday_jr_id, is_active, notes, system_profile, email,
+          login_email, app_role, platform_access_enabled,
           region_ids, country_ids } = req.body;
   const sets = [];
   const params = [];
@@ -167,8 +169,11 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
   if (workday_jr_id    !== undefined) { sets.push(`workday_jr_id = $${i++}`);     params.push(workday_jr_id); }
   if (is_active        !== undefined) { sets.push(`is_active = $${i++}`);         params.push(is_active); }
   if (notes            !== undefined) { sets.push(`notes = $${i++}`);             params.push(notes); }
-  if (system_profile   !== undefined) { sets.push(`system_profile = $${i++}`);   params.push(system_profile || null); }
-  if (email            !== undefined) { sets.push(`email = $${i++}`);             params.push(email || null); }
+  if (system_profile          !== undefined) { sets.push(`system_profile = $${i++}`);           params.push(system_profile || null); }
+  if (email                   !== undefined) { sets.push(`email = $${i++}`);                    params.push(email || null); }
+  if (login_email             !== undefined) { sets.push(`login_email = $${i++}`);              params.push(login_email || null); }
+  if (app_role                !== undefined) { sets.push(`app_role = $${i++}`);                 params.push(app_role || null); }
+  if (platform_access_enabled !== undefined) { sets.push(`platform_access_enabled = $${i++}`); params.push(platform_access_enabled); }
 
   const client = await pool.connect();
   try {

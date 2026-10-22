@@ -22,6 +22,7 @@ const ICONS: Record<string, string> = {
 const ROUTE_GRADIENTS: Record<string, string> = {
   '/dashboard':       'linear-gradient(160deg, #E91C24 0%, #411980 100%)',
   '/projects':        'linear-gradient(160deg, #E91C24 0%, #00408C 100%)',
+  '/project-list':    'linear-gradient(160deg, #00408C 0%, #00737A 100%)',
   '/allocations':     'linear-gradient(160deg, #086AE3 0%, #00737A 50%, #33A85C 100%)',
   '/people':          'linear-gradient(160deg, #7739D9 0%, #411980 100%)',
   '/headcount':       'linear-gradient(160deg, #086AE3 0%, #411980 100%)',
@@ -33,18 +34,24 @@ const ROUTE_GRADIENTS: Record<string, string> = {
   '/summary':         'linear-gradient(160deg, #33A85C 0%, #1A4A7A 100%)',
 };
 
-// People moved below Allocations
-const NAV = [
-  { to: '/dashboard',       label: 'Dashboard',          icon: 'dashboard'   },
-  { to: '/projects',        label: 'Projects',           icon: 'projects'    },
-  { to: '/allocations',     label: 'Resources',          icon: 'allocations' },
-  { to: '/summary',         label: 'Summary',            icon: 'summary'     },
-  { to: '/headcount',       label: 'Headcount Requests', icon: 'headcount'   },
-  { to: '/change-requests', label: 'Change Requests',    icon: 'changes'     },
-  { to: '/recruitment',     label: 'Talent Acquisition', icon: 'recruitment' },
-  { to: '/people',          label: 'People',             icon: 'people'      },
-  { to: '/admin',           label: 'Admin',              icon: 'admin'       },
-  { to: '/import',          label: 'Import Data',        icon: 'import'      },
+type NavLink  = { kind: 'link';  to: string; label: string; icon: string };
+type NavGroup = { kind: 'group'; label: string; icon: string; children: { to: string; label: string }[] };
+type NavItem  = NavLink | NavGroup;
+
+const NAV: NavItem[] = [
+  { kind: 'link',  to: '/dashboard',       label: 'Dashboard',          icon: 'dashboard'    },
+  { kind: 'link',  to: '/projects',        label: 'Project Pipeline',   icon: 'projects'     },
+  { kind: 'link',  to: '/allocations',     label: 'Resource Allocation', icon: 'allocations' },
+  { kind: 'link',  to: '/summary',         label: 'Resource Summary',   icon: 'summary'      },
+  { kind: 'link',  to: '/headcount',       label: 'Headcount Requests', icon: 'headcount'    },
+  { kind: 'link',  to: '/change-requests', label: 'Change Requests',    icon: 'changes'      },
+  { kind: 'link',  to: '/recruitment',     label: 'Talent Acquisition', icon: 'recruitment'  },
+  { kind: 'group', label: 'Admin', icon: 'admin', children: [
+    { to: '/people',       label: 'People List'  },
+    { to: '/project-list', label: 'Project List' },
+    { to: '/admin',        label: 'System Admin' },
+    { to: '/import',       label: 'Import Data'  },
+  ]},
 ];
 
 function initials(name: string): string {
@@ -58,15 +65,22 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
+const ADMIN_CHILDREN = new Set(['/people', '/project-list', '/admin', '/import']);
+
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const [hovered, setHovered]     = useState(false);
-  const [hoveredNav, setHoveredNav] = useState<string | null>(null);
-  const navigate                  = useNavigate();
-  const user                      = getUser();
-  const { openTab, activeRoute }  = useTabContext();
+  const [hovered, setHovered]         = useState(false);
+  const [hoveredNav, setHoveredNav]   = useState<string | null>(null);
+  const [groupOpen, setGroupOpen]     = useState<Record<string, boolean>>({});
+  const navigate                      = useNavigate();
+  const user                          = getUser();
+  const { openTab, activeRoute }      = useTabContext();
 
   const isExpanded = !collapsed || hovered;
   const gradient   = ROUTE_GRADIENTS[activeRoute] ?? ROUTE_GRADIENTS['/dashboard'];
+
+  // Auto-open Admin group when an admin child is active
+  const adminChildActive = ADMIN_CHILDREN.has(activeRoute);
+  const isAdminOpen = groupOpen['Admin'] ?? adminChildActive;
 
   function handleLogout() {
     logout();
@@ -149,40 +163,111 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Nav */}
       <nav style={{ flex: 1, paddingTop: 8, overflowY: 'auto', overflowX: 'hidden' }}>
-        {NAV.map(({ to, label, icon }) => {
-          const isActive = activeRoute === to;
-          const isHov    = hoveredNav === to;
+        {NAV.map(item => {
+          if (item.kind === 'link') {
+            const { to, label, icon } = item;
+            const isActive = activeRoute === to;
+            const isHov    = hoveredNav === to;
+            return (
+              <button
+                key={to}
+                onClick={() => handleNav(to)}
+                onMouseEnter={() => setHoveredNav(to)}
+                onMouseLeave={() => setHoveredNav(null)}
+                title={!isExpanded ? label : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', padding: '10px 19px',
+                  background: isActive ? 'rgba(255,255,255,0.18)' : isHov ? 'rgba(255,255,255,0.09)' : 'transparent',
+                  border: 'none',
+                  borderLeft: `3px solid ${isActive ? '#FFFFFF' : 'transparent'}`,
+                  color: '#FFFFFF',
+                  opacity: isActive ? 1 : 0.78,
+                  cursor: 'pointer',
+                  fontSize: 14, fontWeight: isActive ? 600 : 400,
+                  textAlign: 'left',
+                  whiteSpace: 'nowrap', overflow: 'hidden',
+                  transition: 'background 0.12s, opacity 0.12s',
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                  <path d={ICONS[icon]} />
+                </svg>
+                <span style={{ opacity: isExpanded ? 1 : 0, transition: 'opacity 0.15s ease' }}>{label}</span>
+              </button>
+            );
+          }
+
+          // Group item
+          const { label, icon, children } = item;
+          const isOpen      = label === 'Admin' ? isAdminOpen : (groupOpen[label] ?? false);
+          const groupActive = children.some(c => c.to === activeRoute);
+          const isHov       = hoveredNav === `group:${label}`;
           return (
-            <button
-              key={to}
-              onClick={() => handleNav(to)}
-              onMouseEnter={() => setHoveredNav(to)}
-              onMouseLeave={() => setHoveredNav(null)}
-              title={!isExpanded ? label : undefined}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                width: '100%', padding: '10px 19px',
-                background: isActive
-                  ? 'rgba(255,255,255,0.18)'
-                  : isHov ? 'rgba(255,255,255,0.09)' : 'transparent',
-                border: 'none',
-                borderLeft: `3px solid ${isActive ? '#FFFFFF' : 'transparent'}`,
-                color: '#FFFFFF',
-                opacity: isActive ? 1 : 0.78,
-                cursor: 'pointer',
-                fontSize: 14, fontWeight: isActive ? 600 : 400,
-                textAlign: 'left',
-                whiteSpace: 'nowrap', overflow: 'hidden',
-                transition: 'background 0.12s, opacity 0.12s',
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
-                <path d={ICONS[icon]} />
-              </svg>
-              <span style={{ opacity: isExpanded ? 1 : 0, transition: 'opacity 0.15s ease' }}>
-                {label}
-              </span>
-            </button>
+            <div key={label}>
+              {/* Group header */}
+              <button
+                onClick={() => setGroupOpen(g => ({ ...g, [label]: !isOpen }))}
+                onMouseEnter={() => setHoveredNav(`group:${label}`)}
+                onMouseLeave={() => setHoveredNav(null)}
+                title={!isExpanded ? label : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', padding: '10px 19px',
+                  background: groupActive && !isOpen ? 'rgba(255,255,255,0.18)' : isHov ? 'rgba(255,255,255,0.09)' : 'transparent',
+                  border: 'none',
+                  borderLeft: `3px solid ${groupActive && !isOpen ? '#FFFFFF' : 'transparent'}`,
+                  color: '#FFFFFF',
+                  opacity: groupActive || isOpen ? 1 : 0.78,
+                  cursor: 'pointer',
+                  fontSize: 14, fontWeight: groupActive ? 600 : 400,
+                  textAlign: 'left',
+                  whiteSpace: 'nowrap', overflow: 'hidden',
+                  transition: 'background 0.12s, opacity 0.12s',
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                  <path d={ICONS[icon]} />
+                </svg>
+                <span style={{ opacity: isExpanded ? 1 : 0, transition: 'opacity 0.15s ease', flex: 1 }}>{label}</span>
+                {isExpanded && (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0, opacity: 0.7, transition: 'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
+                  </svg>
+                )}
+              </button>
+
+              {/* Children */}
+              {isOpen && isExpanded && children.map(({ to, label: cLabel }) => {
+                const isActive = activeRoute === to;
+                const isChildHov = hoveredNav === to;
+                return (
+                  <button
+                    key={to}
+                    onClick={() => handleNav(to)}
+                    onMouseEnter={() => setHoveredNav(to)}
+                    onMouseLeave={() => setHoveredNav(null)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      width: '100%', padding: '8px 19px 8px 46px',
+                      background: isActive ? 'rgba(255,255,255,0.18)' : isChildHov ? 'rgba(255,255,255,0.09)' : 'transparent',
+                      border: 'none',
+                      borderLeft: `3px solid ${isActive ? '#FFFFFF' : 'transparent'}`,
+                      color: '#FFFFFF',
+                      opacity: isActive ? 1 : 0.78,
+                      cursor: 'pointer',
+                      fontSize: 13, fontWeight: isActive ? 600 : 400,
+                      textAlign: 'left',
+                      whiteSpace: 'nowrap', overflow: 'hidden',
+                      transition: 'background 0.12s, opacity 0.12s',
+                    }}
+                  >
+                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(255,255,255,0.5)', flexShrink: 0 }} />
+                    {cLabel}
+                  </button>
+                );
+              })}
+            </div>
           );
         })}
       </nav>

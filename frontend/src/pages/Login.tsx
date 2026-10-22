@@ -5,11 +5,14 @@ import equinixFortressRed from '../assets/equinix-fortress-red.svg';
 
 const ROLES = [
   'Workforce Planning',
-  'PMO',
-  'Department Lead',
-  'Function Lead',
-  'Head of Commercial',
-  'Head of Department',
+  'Senior PMO',
+  'PMO Team',
+  'Administration',
+  'Senior TA',
+  'Talent Acquisition',
+  'Finance',
+  'Department Head',
+  'Hub Lead',
   'EVP',
 ];
 

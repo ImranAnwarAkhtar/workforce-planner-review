@@ -5,6 +5,8 @@ export interface WfpUser {
   name: string;
   email: string;
   role: string;
+  system_profile?: string | null;
+  access_tier?: string | null;
 }
 
 export function isLoggedIn(): boolean {

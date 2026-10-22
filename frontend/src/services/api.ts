@@ -160,6 +160,10 @@ export interface Person {
   contract_type_id: number | null;
   region_names: string | null;
   country_names: string | null;
+  login_email: string | null;
+  app_role: string | null;
+  platform_access_enabled: boolean | null;
+  last_login: string | null;
 }
 
 export interface PersonDetail extends Person {
@@ -214,7 +218,13 @@ export const adminUsersApi = {
     client.put<ItemResponse<AppUser>>(`/admin/users/${id}`, body).then(r => r.data.data),
 };
 
-export type UpdatePersonBody = Partial<CreatePersonBody> & { is_active?: boolean; email?: string | null };
+export type UpdatePersonBody = Partial<CreatePersonBody> & {
+  is_active?: boolean;
+  email?: string | null;
+  login_email?: string | null;
+  app_role?: string | null;
+  platform_access_enabled?: boolean;
+};
 
 export const peopleApi = {
   list: (params?: PeopleQuery) =>

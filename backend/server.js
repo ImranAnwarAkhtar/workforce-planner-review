@@ -148,6 +148,13 @@ pool.query(`
 `).catch(err => logger.error('TBH codes pipeline stage migration failed', { error: err.message }));
 
 pool.query(`
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS login_email VARCHAR(255);
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS app_role VARCHAR(100);
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS platform_access_enabled BOOLEAN DEFAULT FALSE;
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS last_login TIMESTAMPTZ;
+`).catch(err => logger.error('People platform access migration failed', { error: err.message }));
+
+pool.query(`
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '14 days'
     WHERE req_status = 'Filled' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL;
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '21 days'

@@ -3,8 +3,10 @@ import {
   peopleApi, refDataApi,
   type Person, type Discipline, type Level, type ContractType,
   type CreatePersonBody,
+  type UpdatePersonBody,
 } from '../services/api';
 import { getUser } from '../hooks/useAuth';
+import { useColFilter } from '../hooks/useColFilter';
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -100,6 +102,36 @@ const S = {
 };
 
 // ---------------------------------------------------------------------------
+// System profiles
+// ---------------------------------------------------------------------------
+
+export const SYSTEM_PROFILES = [
+  'Senior PMO',
+  'PMO Team',
+  'Workforce Planning',
+  'Administration',
+  'Senior TA',
+  'Talent Acquisition',
+  'Finance',
+  'Department Head',
+  'Hub Lead',
+  'EVP',
+] as const;
+
+const PROFILE_COLOURS: Record<string, string> = {
+  'Senior PMO':        '#E91C24',
+  'PMO Team':          '#F97316',
+  'Workforce Planning':'#0057B7',
+  'Administration':    '#6366F1',
+  'Senior TA':         '#059669',
+  'Talent Acquisition':'#10B981',
+  'Finance':           '#B45309',
+  'Department Head':   '#7C3AED',
+  'Hub Lead':          '#DB2777',
+  'EVP':               '#64748B',
+};
+
+// ---------------------------------------------------------------------------
 // Region colours
 // ---------------------------------------------------------------------------
 
@@ -124,6 +156,22 @@ function regionColor(name: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Column definitions for sort / filter
+// ---------------------------------------------------------------------------
+
+type ColKey = 'name' | 'level' | 'discipline' | 'contract_type' | 'fte' | 'profile' | 'status';
+
+const COL_DEFS: { key: ColKey; label: string; get: (p: Person) => string }[] = [
+  { key: 'name',          label: 'Name',          get: p => p.name },
+  { key: 'level',         label: 'Level / Role',  get: p => p.level_name ?? '' },
+  { key: 'discipline',    label: 'Discipline',    get: p => p.discipline_name ?? '' },
+  { key: 'contract_type', label: 'Contract Type', get: p => p.contract_type_code ?? '' },
+  { key: 'fte',           label: 'FTE',           get: p => Number(p.contracted_fte).toFixed(1) },
+  { key: 'profile',       label: 'Profile',       get: p => p.system_profile ?? '' },
+  { key: 'status',        label: 'Status',        get: p => p.is_active ? 'Active' : 'Inactive' },
+];
+
+// ---------------------------------------------------------------------------
 // Form state
 // ---------------------------------------------------------------------------
 
@@ -134,11 +182,16 @@ interface FormState {
   level_id: string;
   discipline_id: string;
   contract_type_id: string;
+  system_profile: string;
+  login_email: string;
+  app_role: string;
+  platform_access_enabled: boolean;
 }
 
 const emptyForm: FormState = {
   name: '', contracted_fte: '1', workday_jr_id: '',
-  level_id: '', discipline_id: '', contract_type_id: '',
+  level_id: '', discipline_id: '', contract_type_id: '', system_profile: '',
+  login_email: '', app_role: '', platform_access_enabled: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -161,6 +214,7 @@ export default function People() {
   const [levelFilter,     setLevelFilter]     = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<'details' | 'access'>('details');
   const [editTarget, setEditTarget] = useState<Person | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -177,8 +231,22 @@ export default function People() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // Bulk edit state
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkEditing, setBulkEditing] = useState(false);
+  const [beProfile,       setBeProfile]       = useState('');
+  const [beApplyProfile,  setBeApplyProfile]  = useState(false);
+  const [beCTypeId,       setBeCTypeId]       = useState('');
+  const [beApplyCType,    setBeApplyCType]    = useState(false);
+  const [beDisciplineId,  setBeDisciplineId]  = useState('');
+  const [beApplyDisc,     setBeApplyDisc]     = useState(false);
+  const [beLevelId,       setBeLevelId]       = useState('');
+  const [beApplyLevel,    setBeApplyLevel]    = useState(false);
+
   const user = getUser();
-  const canHardDelete = user?.role === 'Workforce Planning' || user?.role === 'PMO';
+  const canHardDelete = user?.access_tier === 'administrator'
+    || user?.role === 'Workforce Planning' || user?.role === 'PMO'
+    || user?.system_profile === 'Senior PMO' || user?.system_profile === 'Workforce Planning';
 
   // ── Load reference data once ──────────────────────────────────────────────
 
@@ -273,6 +341,10 @@ export default function People() {
     });
   }, [people]);
 
+  // ── Column sort / filter (hook) ───────────────────────────────────────────
+
+  const colFilter = useColFilter(people, COL_DEFS);
+
   // ── Filtered list ─────────────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
@@ -292,8 +364,9 @@ export default function People() {
     if (countryFilter)    list = list.filter(p => (p.country_names ?? '').split(', ').includes(countryFilter));
     if (disciplineFilter) list = list.filter(p => p.discipline_name === disciplineFilter);
     if (levelFilter)      list = list.filter(p => p.level_name      === levelFilter);
-    return list;
-  }, [people, search, regionFilter, countryFilter, disciplineFilter, levelFilter]);
+    return colFilter.applyToList(list);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [people, search, regionFilter, countryFilter, disciplineFilter, levelFilter, colFilter.colFilters, colFilter.sortConfig]);
 
   // ── Selection helpers ─────────────────────────────────────────────────────
 
@@ -322,6 +395,7 @@ export default function People() {
     setEditTarget(null);
     setForm(emptyForm);
     setNameError('');
+    setModalTab('details');
     setModalOpen(true);
   }
 
@@ -331,17 +405,22 @@ export default function People() {
       name: p.name,
       contracted_fte: String(p.contracted_fte),
       workday_jr_id: p.workday_jr_id ?? '',
-      level_id: '',
-      discipline_id: '',
-      contract_type_id: '',
+      level_id: String(p.level_id ?? ''),
+      discipline_id: String(p.discipline_id ?? ''),
+      contract_type_id: String(p.contract_type_id ?? ''),
+      system_profile: p.system_profile ?? '',
+      login_email: p.login_email ?? '',
+      app_role: p.app_role ?? '',
+      platform_access_enabled: p.platform_access_enabled ?? false,
     });
     setNameError('');
+    setModalTab('details');
     setModalOpen(true);
   }
 
   function closeModal() { setModalOpen(false); }
 
-  function setField(key: keyof FormState, value: string) {
+  function setField(key: keyof FormState, value: string | boolean) {
     setForm(f => ({ ...f, [key]: value }));
     if (key === 'name') setNameError('');
   }
@@ -350,13 +429,17 @@ export default function People() {
     if (!form.name.trim()) { setNameError('Name is required'); return; }
     setSaving(true);
     try {
-      const body: CreatePersonBody = {
+      const body: CreatePersonBody & { login_email?: string | null; app_role?: string | null; platform_access_enabled?: boolean } = {
         name: form.name.trim(),
         contracted_fte: Math.min(1, Math.max(0, parseFloat(form.contracted_fte) || 1)),
         workday_jr_id: form.workday_jr_id.trim() || null,
         level_id: form.level_id ? parseInt(form.level_id, 10) : null,
         discipline_id: form.discipline_id ? parseInt(form.discipline_id, 10) : null,
         contract_type_id: form.contract_type_id ? parseInt(form.contract_type_id, 10) : null,
+        system_profile: form.system_profile || null,
+        login_email: form.login_email.trim() || null,
+        app_role: form.app_role || null,
+        platform_access_enabled: form.platform_access_enabled,
       };
       if (editTarget) {
         await peopleApi.update(editTarget.id, body);
@@ -421,7 +504,7 @@ export default function People() {
         {/* Row 1: title, total, region stats, add button */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <div style={{ padding: '9px 16px', borderRight: '1px solid #E0E3E8', flexShrink: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1 }}>People</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1 }}>People List</div>
           </div>
           {!loading && people.length > 0 && (
             <>
@@ -520,32 +603,35 @@ export default function People() {
         )}
 
         {/* Bulk action bar — only visible when rows are checked */}
-        {canHardDelete && selectedIds.size > 0 && (
+        {selectedIds.size > 0 && (
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
+            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const,
             padding: '7px 14px', background: '#FEF0F0',
             border: '1px solid #F5C0BB', borderRadius: 6, marginLeft: 'auto',
           }}>
-            <span style={{ fontSize: 13, color: '#AD050C' }}>
+            <span style={{ fontSize: 13, color: '#AD050C', fontWeight: 600 }}>
               {selectedIds.size} selected
             </span>
             <button
-              onClick={() => setBulkDeleteOpen(true)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '5px 12px', background: '#8B0000', border: 'none',
-                color: '#FFF', borderRadius: 4, fontSize: 13, fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              onClick={() => { setBeProfile(''); setBeApplyProfile(false); setBeCTypeId(''); setBeApplyCType(false); setBeDisciplineId(''); setBeApplyDisc(false); setBeLevelId(''); setBeApplyLevel(false); setBulkEditOpen(true); }}
+              style={{ padding: '5px 12px', background: '#0057B7', border: 'none', color: '#FFF', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-              </svg>
-              Delete {selectedIds.size} {selectedIds.size === 1 ? 'record' : 'records'}
+              ✎ Bulk Edit
             </button>
+            {canHardDelete && (
+              <button
+                onClick={() => setBulkDeleteOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: '#8B0000', border: 'none', color: '#FFF', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                </svg>
+                Delete {selectedIds.size}
+              </button>
+            )}
             <button
               onClick={() => setSelectedIds(new Set())}
-              style={{ padding: '5px 10px', background: 'transparent', border: '1px solid #444', color: '#888', borderRadius: 4, fontSize: 12, cursor: 'pointer' }}
+              style={{ padding: '5px 10px', background: 'transparent', border: '1px solid #AAA', color: '#888', borderRadius: 4, fontSize: 12, cursor: 'pointer' }}
             >
               Clear
             </button>
@@ -586,9 +672,12 @@ export default function People() {
                     />
                   </th>
                 )}
-                {['Name', 'Level / Role', 'Discipline', 'Contract Type', 'FTE', 'Status', ''].map(h => (
-                  <th key={h} style={S.th}>{h}</th>
+                {COL_DEFS.map(col => (
+                  <th key={col.key} style={{ ...S.th, userSelect: 'none' }}>
+                    {colFilter.renderHeaderContent(col)}
+                  </th>
                 ))}
+                <th style={S.th}></th>
               </tr>
             </thead>
             <tbody>
@@ -614,68 +703,168 @@ export default function People() {
           <div style={S.modal}>
             <h2 style={S.modalTitle}>{editTarget ? 'Edit Person' : 'Add Person'}</h2>
 
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Name *</label>
-              <input
-                style={{ ...S.input, borderColor: nameError ? '#E91C24' : '#333333' }}
-                value={form.name}
-                onChange={e => setField('name', e.target.value)}
-                placeholder="Full name"
-                autoFocus
-              />
-              {nameError && <span style={{ fontSize: 11, color: '#E91C24', marginTop: 3, display: 'block' }}>{nameError}</span>}
+            {/* Tab switcher */}
+            <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid #EEEEEE' }}>
+              {(['details', 'access'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setModalTab(tab)}
+                  style={{
+                    padding: '8px 18px', background: 'transparent', border: 'none',
+                    borderBottom: modalTab === tab ? '2px solid #E91C24' : '2px solid transparent',
+                    marginBottom: -2, fontSize: 13, fontWeight: modalTab === tab ? 700 : 500,
+                    color: modalTab === tab ? '#E91C24' : '#666666', cursor: 'pointer',
+                  }}
+                >
+                  {tab === 'details' ? 'Details' : 'Platform Access'}
+                </button>
+              ))}
             </div>
 
-            <div style={S.formRow}>
-              <div style={S.fieldGroup}>
-                <label style={S.label}>Contracted FTE</label>
-                <input
-                  type="number" min="0" max="1" step="0.1"
-                  style={S.input}
-                  value={form.contracted_fte}
-                  onChange={e => setField('contracted_fte', e.target.value)}
-                />
-              </div>
-              <div style={S.fieldGroup}>
-                <label style={S.label}>Workday JR ID</label>
-                <input
-                  style={S.input}
-                  value={form.workday_jr_id}
-                  onChange={e => setField('workday_jr_id', e.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
-            </div>
+            {/* Details tab */}
+            {modalTab === 'details' && (
+              <>
+                <div style={S.fieldGroup}>
+                  <label style={S.label}>Name *</label>
+                  <input
+                    style={{ ...S.input, borderColor: nameError ? '#E91C24' : '#333333' }}
+                    value={form.name}
+                    onChange={e => setField('name', e.target.value)}
+                    placeholder="Full name"
+                    autoFocus
+                  />
+                  {nameError && <span style={{ fontSize: 11, color: '#E91C24', marginTop: 3, display: 'block' }}>{nameError}</span>}
+                </div>
 
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Level / Role</label>
-              <select style={S.modalSelect} value={form.level_id} onChange={e => setField('level_id', e.target.value)}>
-                <option value="">— Select level —</option>
-                {levels.map(l => (
-                  <option key={l.id} value={l.id}>{l.level_name} ({l.short_code})</option>
-                ))}
-              </select>
-            </div>
+                <div style={S.formRow}>
+                  <div style={S.fieldGroup}>
+                    <label style={S.label}>Contracted FTE</label>
+                    <input
+                      type="number" min="0" max="1" step="0.1"
+                      style={S.input}
+                      value={form.contracted_fte}
+                      onChange={e => setField('contracted_fte', e.target.value)}
+                    />
+                  </div>
+                  <div style={S.fieldGroup}>
+                    <label style={S.label}>Workday JR ID</label>
+                    <input
+                      style={S.input}
+                      value={form.workday_jr_id}
+                      onChange={e => setField('workday_jr_id', e.target.value)}
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
 
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Discipline</label>
-              <select style={S.modalSelect} value={form.discipline_id} onChange={e => setField('discipline_id', e.target.value)}>
-                <option value="">— Select discipline —</option>
-                {disciplines.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </div>
+                <div style={S.fieldGroup}>
+                  <label style={S.label}>Level / Role</label>
+                  <select style={S.modalSelect} value={form.level_id} onChange={e => setField('level_id', e.target.value)}>
+                    <option value="">— Select level —</option>
+                    {levels.map(l => (
+                      <option key={l.id} value={l.id}>{l.level_name} ({l.short_code})</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div style={S.fieldGroup}>
-              <label style={S.label}>Contract Type</label>
-              <select style={S.modalSelect} value={form.contract_type_id} onChange={e => setField('contract_type_id', e.target.value)}>
-                <option value="">— Select contract type —</option>
-                {contractTypes.map(c => (
-                  <option key={c.id} value={c.id}>{c.code} — {c.description}</option>
-                ))}
-              </select>
-            </div>
+                <div style={S.fieldGroup}>
+                  <label style={S.label}>Discipline</label>
+                  <select style={S.modalSelect} value={form.discipline_id} onChange={e => setField('discipline_id', e.target.value)}>
+                    <option value="">— Select discipline —</option>
+                    {disciplines.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={S.fieldGroup}>
+                  <label style={S.label}>Contract Type</label>
+                  <select style={S.modalSelect} value={form.contract_type_id} onChange={e => setField('contract_type_id', e.target.value)}>
+                    <option value="">— Select contract type —</option>
+                    {contractTypes.map(c => (
+                      <option key={c.id} value={c.id}>{c.code} — {c.description}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={S.fieldGroup}>
+                  <label style={S.label}>System Profile</label>
+                  <select style={S.modalSelect} value={form.system_profile} onChange={e => setField('system_profile', e.target.value)}>
+                    <option value="">— No profile assigned —</option>
+                    {SYSTEM_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* Platform Access tab */}
+            {modalTab === 'access' && (
+              <>
+                {/* Access toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: form.platform_access_enabled ? '#ECFDF5' : '#F8F9FA', border: `1px solid ${form.platform_access_enabled ? '#A7F3D0' : '#E5E5E5'}`, borderRadius: 8, marginBottom: 20 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: form.platform_access_enabled ? '#065F46' : '#374151' }}>Platform Access</div>
+                    <div style={{ fontSize: 12, color: form.platform_access_enabled ? '#059669' : '#6B7280', marginTop: 2 }}>
+                      {form.platform_access_enabled ? 'This person can sign in to the platform' : 'This person cannot sign in to the platform'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setField('platform_access_enabled', !form.platform_access_enabled)}
+                    style={{
+                      width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                      background: form.platform_access_enabled ? '#059669' : '#D1D5DB',
+                      position: 'relative', transition: 'background 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute', top: 3, left: form.platform_access_enabled ? 22 : 3,
+                      width: 18, height: 18, borderRadius: '50%', background: '#FFFFFF',
+                      transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    }} />
+                  </button>
+                </div>
+
+                <div style={S.fieldGroup}>
+                  <label style={S.label}>Login Email</label>
+                  <input
+                    style={{ ...S.input, opacity: !form.platform_access_enabled ? 0.5 : 1 }}
+                    value={form.login_email}
+                    onChange={e => setField('login_email', e.target.value)}
+                    placeholder="email@equinix.com"
+                    disabled={!form.platform_access_enabled}
+                    type="email"
+                  />
+                  <span style={{ fontSize: 11, color: '#999', marginTop: 4, display: 'block' }}>
+                    The email address used to sign in (may differ from the person's corporate email)
+                  </span>
+                </div>
+
+                <div style={S.fieldGroup}>
+                  <label style={S.label}>App Role</label>
+                  <select
+                    style={{ ...S.modalSelect, opacity: !form.platform_access_enabled ? 0.5 : 1 }}
+                    value={form.app_role}
+                    onChange={e => setField('app_role', e.target.value)}
+                    disabled={!form.platform_access_enabled}
+                  >
+                    <option value="">— No role assigned —</option>
+                    {SYSTEM_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                  <span style={{ fontSize: 11, color: '#999', marginTop: 4, display: 'block' }}>
+                    Determines what this user can view and edit in the platform
+                  </span>
+                </div>
+
+                {editTarget?.last_login && (
+                  <div style={{ padding: '10px 14px', background: '#F8F9FA', border: '1px solid #E5E5E5', borderRadius: 6, marginBottom: 16 }}>
+                    <span style={{ fontSize: 11, color: '#888', textTransform: 'uppercase' as const, letterSpacing: '0.06em', fontWeight: 700 }}>Last Sign In</span>
+                    <div style={{ fontSize: 13, color: '#333', marginTop: 3 }}>
+                      {new Date(editTarget.last_login).toLocaleString()}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             <div style={S.modalFooter}>
               <button style={S.btnSecondary} onClick={closeModal} disabled={saving}>Cancel</button>
@@ -764,6 +953,84 @@ export default function People() {
           </div>
         </div>
       )}
+
+      {colFilter.renderDropdown()}
+      {colFilter.renderFilterBar()}
+
+      {/* Bulk edit modal */}
+      {bulkEditOpen && (
+        <div style={S.overlay} onClick={e => { if (e.target === e.currentTarget) setBulkEditOpen(false); }}>
+          <div style={{ ...S.modal, maxWidth: 480 }}>
+            <h2 style={S.modalTitle}>Bulk Edit — {selectedIds.size} {selectedIds.size === 1 ? 'person' : 'people'}</h2>
+            <p style={{ fontSize: 13, color: '#666', marginBottom: 20, marginTop: -12 }}>
+              Tick a field to apply it to all selected records. Unchecked fields are left unchanged.
+            </p>
+
+            {([
+              { apply: beApplyProfile,  setApply: setBeApplyProfile,  label: 'System Profile',  control: (
+                <select style={S.modalSelect} value={beProfile} onChange={e => setBeProfile(e.target.value)} disabled={!beApplyProfile}>
+                  <option value="">— No profile assigned —</option>
+                  {SYSTEM_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              )},
+              { apply: beApplyCType,    setApply: setBeApplyCType,    label: 'Contract Type',   control: (
+                <select style={S.modalSelect} value={beCTypeId} onChange={e => setBeCTypeId(e.target.value)} disabled={!beApplyCType}>
+                  <option value="">— No contract type —</option>
+                  {contractTypes.map(c => <option key={c.id} value={c.id}>{c.code} — {c.description}</option>)}
+                </select>
+              )},
+              { apply: beApplyDisc,     setApply: setBeApplyDisc,     label: 'Discipline',      control: (
+                <select style={S.modalSelect} value={beDisciplineId} onChange={e => setBeDisciplineId(e.target.value)} disabled={!beApplyDisc}>
+                  <option value="">— No discipline —</option>
+                  {disciplines.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              )},
+              { apply: beApplyLevel,    setApply: setBeApplyLevel,    label: 'Level / Role',    control: (
+                <select style={S.modalSelect} value={beLevelId} onChange={e => setBeLevelId(e.target.value)} disabled={!beApplyLevel}>
+                  <option value="">— No level —</option>
+                  {levels.map(l => <option key={l.id} value={l.id}>{l.level_name} ({l.short_code})</option>)}
+                </select>
+              )},
+            ] as const).map(({ apply, setApply, label, control }) => (
+              <div key={label} style={{ display: 'grid', gridTemplateColumns: '20px 1fr', gap: 10, alignItems: 'start', marginBottom: 14 }}>
+                <input type="checkbox" checked={apply} onChange={e => setApply(e.target.checked)}
+                  style={{ marginTop: 10, accentColor: '#E91C24', cursor: 'pointer', width: 16, height: 16 }} />
+                <div style={S.fieldGroup}>
+                  <label style={{ ...S.label, color: apply ? '#333' : '#AAA' }}>{label}</label>
+                  {control}
+                </div>
+              </div>
+            ))}
+
+            <div style={S.modalFooter}>
+              <button style={S.btnSecondary} onClick={() => setBulkEditOpen(false)} disabled={bulkEditing}>Cancel</button>
+              <button
+                style={{ ...S.btnPrimary, opacity: (!beApplyProfile && !beApplyCType && !beApplyDisc && !beApplyLevel) ? 0.5 : 1 }}
+                disabled={bulkEditing || (!beApplyProfile && !beApplyCType && !beApplyDisc && !beApplyLevel)}
+                onClick={async () => {
+                  setBulkEditing(true);
+                  try {
+                    const ids = Array.from(selectedIds);
+                    const body: UpdatePersonBody = {};
+                    if (beApplyProfile) body.system_profile = beProfile || null;
+                    if (beApplyCType)   body.contract_type_id = beCTypeId ? parseInt(beCTypeId, 10) : null;
+                    if (beApplyDisc)    body.discipline_id = beDisciplineId ? parseInt(beDisciplineId, 10) : null;
+                    if (beApplyLevel)   body.level_id = beLevelId ? parseInt(beLevelId, 10) : null;
+                    await Promise.all(ids.map(id => peopleApi.update(id, body)));
+                    setBulkEditOpen(false);
+                    setSelectedIds(new Set());
+                    loadPeople();
+                  } finally {
+                    setBulkEditing(false);
+                  }
+                }}
+              >
+                {bulkEditing ? 'Applying…' : `Apply to ${selectedIds.size} ${selectedIds.size === 1 ? 'person' : 'people'}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -843,6 +1110,12 @@ function PersonRow({ person: p, onEdit, onDelete, onPermDelete, selected, onTogg
         <span style={{ color: Number(p.contracted_fte) >= 1 ? '#111111' : '#FDB90D', fontWeight: 600 }}>
           {Number(p.contracted_fte).toFixed(1)}
         </span>
+      </td>
+
+      <td style={S.td}>
+        {p.system_profile
+          ? <span style={S.badge(PROFILE_COLOURS[p.system_profile] ?? '#666')}>{p.system_profile}</span>
+          : <span style={{ color: '#AAAAAA' }}>—</span>}
       </td>
 
       <td style={S.td}>

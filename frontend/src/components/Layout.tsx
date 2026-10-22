@@ -4,6 +4,7 @@ import { TabProvider, useTabContext } from '../context/TabContext';
 
 const Dashboard     = lazy(() => import('../pages/Dashboard'));
 const Projects      = lazy(() => import('../pages/Projects'));
+const ProjectList   = lazy(() => import('../pages/ProjectList'));
 const Allocations   = lazy(() => import('../pages/Allocations'));
 const People        = lazy(() => import('../pages/People'));
 const Headcount     = lazy(() => import('../pages/Headcount'));
@@ -17,6 +18,7 @@ const Summary       = lazy(() => import('../pages/Summary'));
 const PAGE_MAP: Record<string, React.ComponentType<any>> = {
   '/dashboard':       Dashboard,
   '/projects':        Projects,
+  '/project-list':    ProjectList,
   '/allocations':     Allocations,
   '/summary':         Summary,
   '/people':          People,
