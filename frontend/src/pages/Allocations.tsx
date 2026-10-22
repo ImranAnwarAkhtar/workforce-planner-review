@@ -1,12 +1,14 @@
 ﻿import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useBlocker } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   peopleApi, projectsApi, refDataApi, gearingApi, countryAllocationsApi, personCommentsApi,
   type Person, type Project, type Region, type GearingConstant,
-  type CountryAllocation,
+  type CountryAllocation, type ContractType, type Level, type Discipline,
 } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import { useTabDirty } from '../context/TabContext';
+import PlanningCycleBanner from '../components/PlanningCycleBanner';
 import PersonEditPanel from '../components/PersonEditPanel';
 
 const DISCIPLINES = ['Construction', 'Design', 'Commercial', 'Commissioning', 'Other'];
@@ -66,6 +68,29 @@ function flagUrl(country: string): string | null {
   return code ? `https://flagcdn.com/w20/${code}.png` : null;
 }
 
+const COUNTRY_CODES: Record<string, string> = {
+  'Australia': 'AUS', 'Austria': 'AUT', 'Bahrain': 'BHR', 'Belgium': 'BEL',
+  'Brazil': 'BRA', 'Canada': 'CAN', 'Chile': 'CHL', 'China': 'CHN',
+  'Colombia': 'COL', 'Czech Republic': 'CZE', 'Denmark': 'DNK', 'Egypt': 'EGY',
+  'Finland': 'FIN', 'France': 'FRA', 'Germany': 'DEU', 'Greece': 'GRC',
+  'Hong Kong': 'HKG', 'Hungary': 'HUN', 'India': 'IND', 'Indonesia': 'IDN',
+  'Ireland': 'IRL', 'Israel': 'ISR', 'Italy': 'ITA', 'Japan': 'JPN',
+  'Jordan': 'JOR', 'Kenya': 'KEN', 'Kuwait': 'KWT', 'Luxembourg': 'LUX',
+  'Malaysia': 'MYS', 'Mexico': 'MEX', 'Morocco': 'MAR', 'Netherlands': 'NLD',
+  'New Zealand': 'NZL', 'Nigeria': 'NGA', 'Norway': 'NOR', 'Oman': 'OMN',
+  'Panama': 'PAN', 'Peru': 'PER', 'Philippines': 'PHL', 'Poland': 'POL',
+  'Portugal': 'PRT', 'Qatar': 'QAT', 'Romania': 'ROU', 'Saudi Arabia': 'SAU',
+  'Serbia': 'SRB', 'Singapore': 'SGP', 'Slovakia': 'SVK', 'South Africa': 'ZAF',
+  'South Korea': 'KOR', 'Spain': 'ESP', 'Sweden': 'SWE', 'Switzerland': 'CHE',
+  'Taiwan': 'TWN', 'Thailand': 'THA', 'Turkey': 'TUR',
+  'United Arab Emirates': 'ARE', 'United Kingdom': 'GBR', 'United States': 'USA',
+  'Vietnam': 'VNM', 'UK': 'GBR', 'USA': 'USA', 'UAE': 'ARE', 'Korea': 'KOR',
+};
+
+function countryCode(name: string): string {
+  return COUNTRY_CODES[name] ?? name.slice(0, 3).toUpperCase();
+}
+
 type ContractGroup = 'employee' | 'contingent' | 'approved' | 'request';
 
 function contractGroup(p: Person): ContractGroup {
@@ -75,6 +100,28 @@ function contractGroup(p: Person): ContractGroup {
   if (cat === 'approved'  || code.startsWith('A ')) return 'approved';
   if (code === 'CON')                                return 'contingent';
   return 'employee';
+}
+
+function pillLabel(p: Person): string {
+  const grp = contractGroup(p);
+  if (grp !== 'approved' && grp !== 'request') return p.name;
+  const code = p.contract_type_code ?? '';
+  // Year encoded in contract code: "R FTE 26" → "R FTE - 26"
+  const codeMatch = code.match(/^(.+?)\s+(\d{2,4})$/);
+  if (codeMatch) return `${codeMatch[1]} - ${codeMatch[2]}`;
+  // Year encoded in TBH ID: "TBH-26-001"
+  const tbhYr = p.tbh_id?.match(/^[A-Za-z]+-(\d{2,4})-/)?.[1];
+  if (tbhYr) return `${code} - ${tbhYr}`;
+  // Year embedded in name by saveRequest: "R FTE - 26 · Design"
+  const nameYrMatch = p.name?.match(/\s-\s(\d{2,4})/);
+  if (nameYrMatch) return `${code} - ${nameYrMatch[1]}`;
+  return code || p.name;
+}
+
+function isReplacement(p: Person): boolean {
+  const d = (p.contract_type_description ?? '').toLowerCase();
+  const n = (p.notes ?? '').toLowerCase();
+  return d.includes('repl') || d.includes('backfill') || n.includes('repl') || n.includes('backfill');
 }
 
 
@@ -132,11 +179,56 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   const [compCycleId,       setCompCycleId]       = useState<number | null>(null);
   const [compCountryAllocs, setCompCountryAllocs] = useState<CountryAllocation[]>([]);
 
-  useTabDirty(tabId, false);
+  // ── Ref data for Add Request form ─────────────────────────────────────────
+  const [refContractTypes, setRefContractTypes] = useState<ContractType[]>([]);
+  const [refLevels, setRefLevels]               = useState<Level[]>([]);
+  const [refDisciplines, setRefDisciplines]     = useState<Discipline[]>([]);
+
+  // ── Modal tab + request form state ───────────────────────────────────────
+  const [modalTab, setModalTab]           = useState<'person' | 'request'>('person');
+  const [reqTypeId, setReqTypeId]         = useState<number | ''>('');
+  const [reqYear, setReqYear]             = useState('');
+  const [reqDiscId, setReqDiscId]         = useState<number | ''>('');
+  const [reqLevelId, setReqLevelId]       = useState<number | ''>('');
+  const [reqLabel, setReqLabel]           = useState('');
+  const [reqNotes, setReqNotes]           = useState('');
+  const [reqSaving, setReqSaving]         = useState(false);
+
+  // ── Undo / redo history ───────────────────────────────────────────────────
+  type AllocSnapshot = { personId: number; cycleId: number | null; before: { country_id: number; fte_value: number }[]; after: { country_id: number; fte_value: number }[] };
+  const [undoStack, setUndoStack] = useState<AllocSnapshot[]>([]);
+  const [redoStack, setRedoStack] = useState<AllocSnapshot[]>([]);
+
+  // Dirty = any edit modal is open with potential unsaved data
+  const isModalDirty = addModal !== null || editPerson !== null;
+  useTabDirty(tabId, isModalDirty);
+
+  // Block in-app navigation when a modal form is open
+  const blocker = useBlocker(isModalDirty);
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      if (window.confirm('You have an open form with unsaved changes. Leave this page?')) {
+        blocker.proceed();
+      } else {
+        blocker.reset();
+      }
+    }
+  }, [blocker]);
+
+  // Warn on browser close/refresh when modal is open
+  useEffect(() => {
+    if (!isModalDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isModalDirty]);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     refDataApi.regions().then(setRegions).catch(() => setBackendError(true));
+    refDataApi.contractTypes().then(setRefContractTypes).catch(() => {});
+    refDataApi.levels().then(setRefLevels).catch(() => {});
+    refDataApi.disciplines().then(setRefDisciplines).catch(() => {});
   }, []);
 
   useEffect(() => { setCollapsedCountries(new Set()); setCountryFilter(''); }, [selectedRegionId]);
@@ -226,7 +318,11 @@ useEffect(() => {
   );
 
   const allocatedPeople = useMemo(
-    () => allPeople.filter(p => allocatedPersonIds.has(p.id)),
+    () => allPeople.filter(p =>
+      allocatedPersonIds.has(p.id) ||
+      contractGroup(p) === 'approved' ||
+      contractGroup(p) === 'request'
+    ),
     [allPeople, allocatedPersonIds]
   );
 
@@ -395,6 +491,13 @@ useEffect(() => {
     setModalAllocs({});
     setAllocMode('equal');
     setEqualCountries(new Set());
+    setModalTab('person');
+    setReqTypeId('');
+    setReqYear('');
+    setReqDiscId('');
+    setReqLevelId('');
+    setReqLabel('');
+    setReqNotes('');
   }
 
   function openAddModal(preDisciplineId?: number) {
@@ -403,6 +506,13 @@ useEffect(() => {
     setModalAllocs({});
     setAllocMode('equal');
     setEqualCountries(new Set());
+    setModalTab('person');
+    setReqTypeId('');
+    setReqYear('');
+    setReqDiscId(preDisciplineId ?? '');
+    setReqLevelId('');
+    setReqLabel('');
+    setReqNotes('');
     setAddModal({ preDisciplineId });
   }
 
@@ -433,14 +543,75 @@ useEffect(() => {
       const total = allocs.reduce((s, a) => s + a.fte_value, 0);
       if (total > 1.001) { toast.error(`Total FTE ${total.toFixed(2)} exceeds 1.0`); return; }
     }
+    const personIdNum = Number(modalPersonId);
+    const cycleId = selectedCycleId ?? null;
+    const before = countryAllocs
+      .filter(a => a.person_id === personIdNum && a.planning_cycle_id === cycleId)
+      .map(a => ({ country_id: a.country_id, fte_value: Number(a.fte_value) }));
     setModalSaving(true);
     try {
-      await countryAllocationsApi.save(Number(modalPersonId), selectedCycleId ?? null, allocs);
+      await countryAllocationsApi.save(personIdNum, cycleId, allocs);
+      setUndoStack(s => [...s, { personId: personIdNum, cycleId, before, after: allocs }]);
+      setRedoStack([]);
       toast.success('Allocations saved');
       closeModal();
       await loadData();
     } catch { toast.error('Failed to save'); }
     finally { setModalSaving(false); }
+  }
+
+  async function handleUndo() {
+    if (undoStack.length === 0) return;
+    const entry = undoStack[undoStack.length - 1];
+    try {
+      await countryAllocationsApi.save(entry.personId, entry.cycleId, entry.before);
+      setUndoStack(s => s.slice(0, -1));
+      setRedoStack(s => [...s, entry]);
+      await loadData();
+    } catch { toast.error('Undo failed'); }
+  }
+
+  async function handleRedo() {
+    if (redoStack.length === 0) return;
+    const entry = redoStack[redoStack.length - 1];
+    try {
+      await countryAllocationsApi.save(entry.personId, entry.cycleId, entry.after);
+      setRedoStack(s => s.slice(0, -1));
+      setUndoStack(s => [...s, entry]);
+      await loadData();
+    } catch { toast.error('Redo failed'); }
+  }
+
+  async function saveRequest() {
+    if (!reqTypeId) { toast.error('Select a request type'); return; }
+    if (!reqDiscId) { toast.error('Select a discipline'); return; }
+    setReqSaving(true);
+    try {
+      const ct = refContractTypes.find(c => c.id === reqTypeId);
+      const disc = refDisciplines.find(d => d.id === reqDiscId);
+      const lv = refLevels.find(l => l.id === reqLevelId);
+      // If a year was chosen, try to find a year-specific contract type ("R FTE 26")
+      const yr2 = reqYear ? reqYear.replace(/^20/, '') : '';  // normalise to 2-digit
+      const yearSpecificCt = yr2
+        ? refContractTypes.find(c => c.code === `${ct?.code} ${yr2}`)
+        : null;
+      const finalCtId = yearSpecificCt ? yearSpecificCt.id : reqTypeId;
+      const yearSuffix = yr2 && !yearSpecificCt ? ` - ${yr2}` : '';
+      const name = reqLabel.trim() ||
+        [ct?.code + yearSuffix, disc?.name, lv?.short_code].filter(Boolean).join(' · ');
+      await peopleApi.create({
+        name,
+        contract_type_id: finalCtId,
+        discipline_id: reqDiscId,
+        level_id: reqLevelId || null,
+        notes: reqNotes || null,
+        region_ids: selectedRegionId ? [selectedRegionId] : [],
+      });
+      toast.success('Request added');
+      closeModal();
+      await loadData();
+    } catch { toast.error('Failed to save request'); }
+    finally { setReqSaving(false); }
   }
 
   const modalTotal = allocMode === 'equal'
@@ -461,6 +632,9 @@ useEffect(() => {
   return (
     <div style={{ color: '#111111', height: '100%', display: 'flex', flexDirection: 'column' }}>
 
+      {/* Planning cycle status strip */}
+      <PlanningCycleBanner />
+
       {/* ── Banner ── */}
       <div style={{ flexShrink: 0, background: '#FFFFFF', borderBottom: '3px solid #086AE3' }}>
 
@@ -468,7 +642,7 @@ useEffect(() => {
         <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', borderBottom: '1px solid #E0E3E8' }}>
           {/* Title */}
           <div style={{ padding: '9px 16px', borderRight: '1px solid #E0E3E8', flexShrink: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1, whiteSpace: 'nowrap' }}>Resources</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1, whiteSpace: 'nowrap' }}>Resource Allocation</div>
           </div>
           {!loading && (
             <>
@@ -560,39 +734,6 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* ── Row 2: per-discipline metrics ── */}
-        {!loading && DISCIPLINES.some(disc => {
-          const curr = bannerMetrics.byDisc.find(d => d.discipline === disc)?.allocated ?? 0;
-          const comp = compBannerMetrics.byDisc.find(d => d.discipline === disc)?.allocated ?? 0;
-          return curr > 0 || (!!compCycleId && comp > 0);
-        }) && (
-          <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', background: '#FAFBFC' }}>
-            <div style={{ padding: '5px 16px', borderRight: '1px solid #E0E3E8', flexShrink: 0 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>By Discipline</div>
-            </div>
-            {DISCIPLINES.map(disc => {
-              const curr = bannerMetrics.byDisc.find(d => d.discipline === disc)?.allocated ?? 0;
-              const comp = compBannerMetrics.byDisc.find(d => d.discipline === disc)?.allocated ?? 0;
-              if (curr === 0 && (!compCycleId || comp === 0)) return null;
-              const dc = DISCIPLINE_COLOURS[disc] ?? DISCIPLINE_COLOURS['Other'];
-              return (
-                <div key={disc} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '5px 10px', borderRight: '1px solid #E0E3E8', minWidth: 0 }}>
-                  <span style={{ fontSize: 17, fontWeight: 700, color: dc.bg, lineHeight: 1 }}>{curr.toFixed(1)}</span>
-                  <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{disc}</span>
-                    <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· wt</span>
-                  </div>
-                  {compCycleId && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                      <span style={{ fontSize: 9, color: '#8B93A3' }}>{comp.toFixed(1)}</span>
-                      <DeltaBadge a={comp} b={curr} isFloat />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* ── Filter / action row ── */}
@@ -622,6 +763,16 @@ useEffect(() => {
               🔒 Read only
             </span>
           )}
+          <div style={{ display: 'flex', gap: 2 }}>
+            <button onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last allocation save"
+              style={{ padding: '4px 7px', background: undoStack.length > 0 ? '#F3F4F6' : '#FAFAFA', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 12, color: undoStack.length > 0 ? '#374151' : '#C0C0C0', cursor: undoStack.length > 0 ? 'pointer' : 'default', lineHeight: 1 }}>
+              ↩
+            </button>
+            <button onClick={handleRedo} disabled={redoStack.length === 0} title="Redo last allocation save"
+              style={{ padding: '4px 7px', background: redoStack.length > 0 ? '#F3F4F6' : '#FAFAFA', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 12, color: redoStack.length > 0 ? '#374151' : '#C0C0C0', cursor: redoStack.length > 0 ? 'pointer' : 'default', lineHeight: 1 }}>
+              ↪
+            </button>
+          </div>
           <button onClick={() => allDeptsCollapsed ? setCollapsedDisciplines(new Set()) : setCollapsedDisciplines(new Set(hierarchy.map(h => h.discipline)))}
             style={{ padding: '4px 10px', background: '#086AE3', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">{allDeptsCollapsed ? <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/> : <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>}</svg>
@@ -630,7 +781,7 @@ useEffect(() => {
           {canEdit && (
             <button onClick={() => openAddModal()}
               style={{ padding: '4px 12px', background: '#FFFFFF', border: '1px solid #086AE3', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#086AE3', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-              + Person
+              + Person / Request
             </button>
           )}
         </div>
@@ -702,12 +853,12 @@ useEffect(() => {
                     >
                       {collapsed ? (
                         <span style={{ fontSize: 9, writingMode: 'vertical-rl' as const, transform: 'rotate(180deg)', display: 'inline-block', color: '#AAAAAA', letterSpacing: '0.05em' }}>
-                          {g.country}
+                          {countryCode(g.country)}
                         </span>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, width: '100%', overflow: 'hidden' }}>
                           {flag && <img src={flag} alt="" width={16} height={12} style={{ borderRadius: 2, flexShrink: 0, objectFit: 'cover' }} />}
-                          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.03em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.country}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.03em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{countryCode(g.country)}</span>
                           <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', fontWeight: 500, flexShrink: 0 }}>Wt {g.totalWeight.toFixed(1)}</span>
                         </div>
                       )}
@@ -795,17 +946,24 @@ useEffect(() => {
                         return s;
                       };
 
+                      // Named people (employee/contingent) always before approved/request
                       const contractOrder = (p: Person) => {
-                        const code = p.contract_type_code ?? '';
-                        if (code.startsWith('A ')) return 1;
-                        if (code === 'CON')         return 2;
-                        if (code.startsWith('R '))  return 3;
-                        return 0;
+                        const grp = contractGroup(p);
+                        if (grp === 'employee')   return 0;
+                        if (grp === 'contingent') return 1;
+                        // approved: FTE before CON
+                        if (grp === 'approved')   return (p.contract_type_code ?? '').includes('CON') ? 3 : 2;
+                        // request: FTE before CON, always at bottom
+                        return (p.contract_type_code ?? '').includes('CON') ? 5 : 4;
                       };
 
                       const seniorPeople = h.allPeople
                         .filter(isSenior)
-                        .sort((a, b) => (LEVEL_ORDER[a.level_code ?? ''] ?? 99) - (LEVEL_ORDER[b.level_code ?? ''] ?? 99));
+                        .sort((a, b) => {
+                          const ca = contractOrder(a), cb = contractOrder(b);
+                          if (ca !== cb) return ca - cb;
+                          return (LEVEL_ORDER[a.level_code ?? ''] ?? 99) - (LEVEL_ORDER[b.level_code ?? ''] ?? 99);
+                        });
 
                       const nonSeniorPeople = h.allPeople
                         .filter(p => !isSenior(p))
@@ -862,7 +1020,14 @@ useEffect(() => {
                         rows.push(nr);
                       }
 
-                      return rows.map((row, ri) => {
+                      const unallocatedList = h.allPeople
+                        .filter(p =>
+                          getRuns(p).length === 0 &&
+                          (contractGroup(p) === 'approved' || contractGroup(p) === 'request')
+                        )
+                        .sort((a, b) => contractOrder(a) - contractOrder(b));
+
+                      const allocRows = rows.map((row, ri) => {
                         const rowBg = ri % 2 === 0 ? '#FFFFFF' : '#FAFBFC';
                         const cells: React.ReactElement[] = [];
                         let ci = 0;
@@ -874,6 +1039,9 @@ useEffect(() => {
                             if (run) {
                               const ps = getPillStyle(se.person);
                               const w = run.last - run.first + 1;
+                              const isReq = contractGroup(se.person) === 'approved' || contractGroup(se.person) === 'request';
+                              const pillTxt = pillLabel(se.person);
+                              const showRepl = isReq && isReplacement(se.person);
                               cells.push(
                                 <td key={`s${se.person.id}-${ci}`} colSpan={w} style={{ padding: '3px 4px', borderRight: '1px solid #E0E3E8', borderBottom: '1px solid #EEF0F3', background: rowBg }}>
                                   <div
@@ -881,9 +1049,10 @@ useEffect(() => {
                                     onMouseEnter={e => { setHoveredPill({ personId: se.person.id, x: e.clientX, y: e.clientY }); fetchLatestComment(se.person.id); }}
                                     onMouseMove={e => setHoveredPill(prev => prev?.personId === se.person.id ? { ...prev, x: e.clientX, y: e.clientY } : prev)}
                                     onMouseLeave={() => setHoveredPill(null)}
-                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 8px', borderRadius: 6, background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, fontSize: 11, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', whiteSpace: 'nowrap' as const, width: '100%', boxSizing: 'border-box' as const }}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, background: ps.bg, color: isReq ? '#E91C24' : ps.color, border: `1px solid ${ps.border}`, fontSize: 11, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', whiteSpace: 'nowrap' as const, width: '100%', boxSizing: 'border-box' as const }}
                                   >
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' as const }}>{se.person.name}</span>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' as const }}>{pillTxt}</span>
+                                    {showRepl && <span style={{ fontSize: 9, opacity: 0.85, flexShrink: 0 }}>· Repl</span>}
                                   </div>
                                 </td>
                               );
@@ -897,6 +1066,9 @@ useEffect(() => {
                             const collapsed = collapsedCountries.has(g.country);
                             if (pill) {
                               const ps = getPillStyle(pill);
+                              const isReqPill = contractGroup(pill) === 'approved' || contractGroup(pill) === 'request';
+                              const pillTxtP = pillLabel(pill);
+                              const showReplP = isReqPill && isReplacement(pill);
                               cells.push(
                                 <td key={`p${g.countryId}`} style={{ padding: collapsed ? '4px 2px' : '3px 4px', borderRight: '1px solid #E0E3E8', borderBottom: '1px solid #EEF0F3', background: rowBg }}>
                                   {!collapsed && (
@@ -905,9 +1077,10 @@ useEffect(() => {
                                       onMouseEnter={e => { setHoveredPill({ personId: pill.id, x: e.clientX, y: e.clientY }); fetchLatestComment(pill.id); }}
                                       onMouseMove={e => setHoveredPill(prev => prev?.personId === pill.id ? { ...prev, x: e.clientX, y: e.clientY } : prev)}
                                       onMouseLeave={() => setHoveredPill(null)}
-                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px 8px', borderRadius: 6, background: ps.bg, color: ps.color, border: `1px solid ${ps.border}`, fontSize: 11, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', whiteSpace: 'nowrap' as const, width: '100%', boxSizing: 'border-box' as const }}
+                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, background: ps.bg, color: isReqPill ? '#E91C24' : ps.color, border: `1px solid ${ps.border}`, fontSize: 11, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', whiteSpace: 'nowrap' as const, width: '100%', boxSizing: 'border-box' as const }}
                                     >
-                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' as const }}>{pill.name}</span>
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' as const }}>{pillTxtP}</span>
+                                      {showReplP && <span style={{ fontSize: 9, opacity: 0.85, flexShrink: 0 }}>· Repl</span>}
                                     </div>
                                   )}
                                 </td>
@@ -928,7 +1101,7 @@ useEffect(() => {
                                       height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
                                       border: `1px dashed ${dc.text}`, background: `${dc.bg}50`, borderRadius: 4,
                                     }}>
-                                      <span style={{ fontSize: 10, fontWeight: 700, color: dc.text, opacity: 0.85 }}>+ Person</span>
+                                      <span style={{ fontSize: 10, fontWeight: 700, color: dc.text, opacity: 0.85 }}>+ Person / Request</span>
                                     </div>
                                   )}
                                 </td>
@@ -944,6 +1117,36 @@ useEffect(() => {
                           </tr>
                         );
                       });
+
+                      const unallocRows = unallocatedList.map(p => {
+                        const ps = getPillStyle(p);
+                        const lbl = pillLabel(p);
+                        const showReplU = isReplacement(p);
+                        return (
+                          <tr key={`unalloc-${p.id}`}>
+                            <td colSpan={countryGroups.length + 1} style={{ padding: '3px 10px', borderBottom: '1px solid #EEF0F3', background: '#FAFBFF' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 6, background: ps.bg, border: `1px solid ${ps.border}`, fontSize: 11, fontWeight: 700, color: '#E91C24', whiteSpace: 'nowrap' as const }}>
+                                  <span>{lbl}</span>
+                                  {showReplU && <span style={{ fontSize: 9, opacity: 0.85 }}>· Repl</span>}
+                                </div>
+                                {p.level_code && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: '#E8EAF6', color: '#3949AB', fontWeight: 700 }}>{p.level_code}</span>}
+                                <span style={{ fontSize: 10, color: '#AAAAAA', fontStyle: 'italic', flexShrink: 0 }}>Unallocated</span>
+                                {canEdit && (
+                                  <button
+                                    onClick={() => openEditModal(p)}
+                                    style={{ fontSize: 10, padding: '1px 7px', borderRadius: 3, background: '#E8F4FD', border: '1px solid #086AE3', color: '#086AE3', cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}
+                                  >
+                                    Assign
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      });
+
+                      return [...allocRows, ...unallocRows];
                     })()}
 
                     {/* ── Per-discipline Proposed / Min / Max rows ── */}
@@ -988,7 +1191,7 @@ useEffect(() => {
 
           {allocatedPeople.length === 0 && !loading && (
             <div style={{ padding: '40px 16px', textAlign: 'center', color: '#888888', fontSize: 13 }}>
-              No people allocated yet — use <strong>+ Person</strong> to add allocations.
+              No people allocated yet — use <strong>+ Person / Request</strong> to add allocations.
             </div>
           )}
         </div>
@@ -1154,9 +1357,28 @@ useEffect(() => {
               padding: '24px 28px', boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
               border: '1px solid #E0E0E0',
             }}>
-              <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#111111' }}>
-                Add / Edit Person
-              </h2>
+              {/* Tab selector */}
+              <div style={{ display: 'flex', borderBottom: '2px solid #E8E8E8', marginBottom: 20 }}>
+                {(['person', 'request'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setModalTab(tab)}
+                    style={{
+                      padding: '8px 20px', border: 'none', background: 'transparent', cursor: 'pointer',
+                      fontSize: 14, fontWeight: modalTab === tab ? 700 : 400,
+                      color: modalTab === tab ? '#E91C24' : '#888888',
+                      borderBottom: modalTab === tab ? '2px solid #E91C24' : '2px solid transparent',
+                      marginBottom: -2,
+                    }}
+                  >
+                    {tab === 'person' ? 'Add Person' : 'Add Request'}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Add Person tab ── */}
+              {modalTab === 'person' && (
+              <div>
 
               {/* Person selector — dropdown when new, locked display when editing */}
               <div style={{ marginBottom: 16 }}>
@@ -1314,7 +1536,7 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* Footer buttons */}
+              {/* Footer buttons — Add Person */}
               <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
                 <button onClick={closeModal} style={{ flex: 1, padding: '9px 0', background: '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 5, fontSize: 13, color: '#555555', cursor: 'pointer' }}>
                   Cancel
@@ -1332,6 +1554,115 @@ useEffect(() => {
                   {modalSaving ? 'Saving…' : 'Save Allocations'}
                 </button>
               </div>
+              </div>)}
+
+              {/* ── Add Request tab ── */}
+              {modalTab === 'request' && (
+              <div>
+                {/* Request type */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Request Type</label>
+                  <select
+                    value={reqTypeId}
+                    onChange={e => setReqTypeId(e.target.value ? Number(e.target.value) : '')}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
+                  >
+                    <option value="">— Select type —</option>
+                    {refContractTypes.filter(ct => ct.category === 'approved' || ct.category === 'requested').map(ct => (
+                      <option key={ct.id} value={ct.id}>{ct.code} — {ct.description}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Year */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Year</label>
+                  <select
+                    value={reqYear}
+                    onChange={e => setReqYear(e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
+                  >
+                    <option value="">— Select year —</option>
+                    {[2025, 2026, 2027, 2028, 2029].map(y => (
+                      <option key={y} value={String(y).slice(-2)}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Discipline */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Discipline</label>
+                  <select
+                    value={reqDiscId}
+                    onChange={e => setReqDiscId(e.target.value ? Number(e.target.value) : '')}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
+                  >
+                    <option value="">— Select discipline —</option>
+                    {refDisciplines.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Level */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Level (optional)</label>
+                  <select
+                    value={reqLevelId}
+                    onChange={e => setReqLevelId(e.target.value ? Number(e.target.value) : '')}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
+                  >
+                    <option value="">— Any level —</option>
+                    {refLevels.map(l => (
+                      <option key={l.id} value={l.id}>{l.short_code} — {l.level_name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Label / name */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Label (optional)</label>
+                  <input
+                    type="text"
+                    value={reqLabel}
+                    onChange={e => setReqLabel(e.target.value)}
+                    placeholder="Auto-generated from type + discipline"
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', boxSizing: 'border-box' as const }}
+                  />
+                </div>
+
+                {/* Notes */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Notes (optional)</label>
+                  <textarea
+                    value={reqNotes}
+                    onChange={e => setReqNotes(e.target.value)}
+                    placeholder="Additional context for this request"
+                    rows={2}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', resize: 'vertical' as const, boxSizing: 'border-box' as const }}
+                  />
+                </div>
+
+                {/* Footer buttons — Add Request */}
+                <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                  <button onClick={closeModal} style={{ flex: 1, padding: '9px 0', background: '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 5, fontSize: 13, color: '#555555', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveRequest}
+                    disabled={!reqTypeId || !reqYear || !reqDiscId || reqSaving}
+                    style={{
+                      flex: 2, padding: '9px 0', background: '#E91C24', border: 'none', borderRadius: 5,
+                      fontSize: 13, fontWeight: 600, color: '#FFFFFF',
+                      cursor: (!reqTypeId || !reqYear || !reqDiscId || reqSaving) ? 'default' : 'pointer',
+                      opacity: (!reqTypeId || !reqYear || !reqDiscId || reqSaving) ? 0.5 : 1,
+                    }}
+                  >
+                    {reqSaving ? 'Saving…' : 'Add Request'}
+                  </button>
+                </div>
+              </div>)}
+
             </div>
           </div>
         );

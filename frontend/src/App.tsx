@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
+import ProjectList from './pages/ProjectList';
 import People from './pages/People';
 import Allocations from './pages/Allocations';
 import Requests from './pages/Requests';
@@ -33,15 +34,23 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/dashboard"       element={<Dashboard />} />
               <Route path="/projects"        element={<Projects />} />
+              <Route path="/project-list"   element={<ProjectList />} />
               <Route path="/people"          element={<People />} />
               <Route path="/allocations"     element={<Allocations />} />
               <Route path="/requests"        element={<Requests />} />
               <Route path="/change-requests" element={<ChangeRequests />} />
-              <Route path="/recruitment"     element={<Recruitment />} />
-              <Route path="/headcount"       element={<Headcount />} />
-              <Route path="/summary"         element={<Summary />} />
-              <Route path="/admin"           element={<Admin />} />
-              <Route path="/import"          element={<Import />} />
+              <Route path="/recruitment"        element={<Recruitment />} />
+              <Route path="/talent-acquisition" element={<Recruitment />} />
+              <Route path="/headcount"          element={<Headcount />} />
+              <Route path="/summary"            element={<Summary />} />
+              <Route path="/admin"              element={<Admin />} />
+              <Route path="/admin/system"       element={<Navigate to="/admin" replace />} />
+              <Route path="/admin/user-access"  element={<Navigate to="/admin" replace />} />
+              <Route path="/admin/alerts"       element={<Navigate to="/admin" replace />} />
+              <Route path="/admin/contract-types" element={<Navigate to="/admin" replace />} />
+              <Route path="/admin/people"       element={<Navigate to="/people" replace />} />
+              <Route path="/admin/import"       element={<Navigate to="/import" replace />} />
+              <Route path="/import"             element={<Import />} />
             </Route>
           </Route>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

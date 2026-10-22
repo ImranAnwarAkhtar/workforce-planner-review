@@ -1,16 +1,17 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { peopleApi, projectsApi, gearingApi, refDataApi, Person, Region, Project, GearingConstant } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
+import PlanningCycleBanner from '../components/PlanningCycleBanner';
 
 const DISCIPLINES = ['Construction', 'Design', 'Commercial', 'Commissioning', 'Other'] as const;
 type Disc = typeof DISCIPLINES[number];
 
 const DISC_COLOUR: Record<string, { bg: string }> = {
-  Construction:  { bg: '#1A4A7A' },
-  Design:        { bg: '#6A2FA0' },
-  Commercial:    { bg: '#0D7A4A' },
-  Commissioning: { bg: '#C25A00' },
-  Other:         { bg: '#3A3D42' },
+  Construction:  { bg: '#086AE3' },
+  Design:        { bg: '#33A85C' },
+  Commercial:    { bg: '#C59000' },
+  Commissioning: { bg: '#00737A' },
+  Other:         { bg: '#5A657B' },
 };
 
 interface Metrics {
@@ -266,12 +267,15 @@ export default function Summary() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8F9FB', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
+      {/* Planning cycle status strip */}
+      <PlanningCycleBanner />
+
       {/* ── Unified metrics banner ── */}
       <div style={{ flexShrink: 0, background: '#FFFFFF', borderBottom: '3px solid #33A85C', display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
 
         {/* Title */}
         <div style={{ padding: '9px 16px', borderRight: '1px solid #E0E3E8', flexShrink: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1, whiteSpace: 'nowrap' }}>People Summary</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1, whiteSpace: 'nowrap' }}>Resource Summary</div>
           <div style={{ fontSize: 10, color: '#6B7280', marginTop: 3, whiteSpace: 'nowrap' }}>Headcount vs gearing targets</div>
         </div>
 

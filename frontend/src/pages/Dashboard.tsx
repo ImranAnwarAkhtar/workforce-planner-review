@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import equinixFortressRed from '../assets/equinix-fortress-red.svg';
+import PlanningCycleBanner from '../components/PlanningCycleBanner';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList, ReferenceLine,
@@ -2494,6 +2495,9 @@ export default function Dashboard() {
         {backendOk === true && <span style={{ fontSize: 10, color: '#33A85C' }}>● Connected</span>}
         {backendOk === false && <span style={{ fontSize: 10, color: C.accent }}>⚠ Not connected</span>}
       </div>
+
+      {/* Planning cycle banner */}
+      <PlanningCycleBanner />
 
       {/* Tab bar */}
       <TabBar active={activeTab} onChange={setActiveTab} availableYears={Array.from(new Set([2022,2023,2024,2025,2026,2027,2028,...(hubData?.available_years??[])])).sort((a,b)=>a-b)} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} yearA={yearA} yearB={yearB} requestYear={requestYear ?? yearA} onRequestYearChange={setRequestYear} regionNamesAll={hubData?.region_names ?? []} hireStatusRegions={hireStatusRegions} onHireStatusRegionsChange={setHireStatusRegions} onboardingRegions={onboardingRegions} onOnboardingRegionsChange={setOnboardingRegions} />
