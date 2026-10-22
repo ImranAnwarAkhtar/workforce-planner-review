@@ -159,7 +159,7 @@ function regionColor(name: string): string {
 // Column definitions for sort / filter
 // ---------------------------------------------------------------------------
 
-type ColKey = 'name' | 'level' | 'discipline' | 'contract_type' | 'fte' | 'profile' | 'status';
+type ColKey = 'name' | 'level' | 'discipline' | 'contract_type' | 'fte' | 'profile' | 'login_email' | 'status';
 
 const COL_DEFS: { key: ColKey; label: string; get: (p: Person) => string }[] = [
   { key: 'name',          label: 'Name',          get: p => p.name },
@@ -168,6 +168,7 @@ const COL_DEFS: { key: ColKey; label: string; get: (p: Person) => string }[] = [
   { key: 'contract_type', label: 'Contract Type', get: p => p.contract_type_code ?? '' },
   { key: 'fte',           label: 'FTE',           get: p => Number(p.contracted_fte).toFixed(1) },
   { key: 'profile',       label: 'Profile',       get: p => p.system_profile ?? '' },
+  { key: 'login_email',   label: 'Login Email',   get: p => p.login_email ?? '' },
   { key: 'status',        label: 'Status',        get: p => p.is_active ? 'Active' : 'Inactive' },
 ];
 
@@ -225,6 +226,14 @@ export default function People() {
 
   const [permDeleteTarget, setPermDeleteTarget] = useState<Person | null>(null);
   const [permDeleting, setPermDeleting] = useState(false);
+
+  // Password management state
+  const [pwForm, setPwForm]           = useState({ password: '', confirm: '' });
+  const [pwError, setPwError]         = useState('');
+  const [pwSuccess, setPwSuccess]     = useState('');
+  const [pwSaving, setPwSaving]       = useState(false);
+  const [tempPw, setTempPw]           = useState('');
+  const [resetSaving, setResetSaving] = useState(false);
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -414,6 +423,8 @@ export default function People() {
       platform_access_enabled: p.platform_access_enabled ?? false,
     });
     setNameError('');
+    setPwForm({ password: '', confirm: '' });
+    setPwError(''); setPwSuccess(''); setTempPw('');
     setModalTab('details');
     setModalOpen(true);
   }
@@ -451,6 +462,40 @@ export default function People() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // ── Password handlers ─────────────────────────────────────────────────────
+
+  async function handleSetPassword() {
+    if (!editTarget) return;
+    if (pwForm.password.length < 8) { setPwError('Password must be at least 8 characters'); return; }
+    if (pwForm.password !== pwForm.confirm) { setPwError('Passwords do not match'); return; }
+    setPwError(''); setPwSaving(true);
+    try {
+      const BASE = (process.env.REACT_APP_API_URL ?? 'http://localhost:3001') + '/api';
+      await fetch(`${BASE}/admin/users/${editTarget.id}/set-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwForm.password }),
+      }).then(async r => { if (!r.ok) { const d = await r.json(); throw new Error(d.error ?? 'Failed'); } });
+      setPwForm({ password: '', confirm: '' });
+      setPwSuccess('Password set successfully.');
+      setTimeout(() => setPwSuccess(''), 4000);
+    } catch (e: unknown) { setPwError((e as Error).message ?? 'Failed to set password'); } finally { setPwSaving(false); }
+  }
+
+  async function handleResetPassword() {
+    if (!editTarget) return;
+    setResetSaving(true); setTempPw(''); setPwSuccess('');
+    try {
+      const BASE = (process.env.REACT_APP_API_URL ?? 'http://localhost:3001') + '/api';
+      const r = await fetch(`${BASE}/admin/users/${editTarget.id}/reset-password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? 'Failed');
+      setTempPw(d.data.temp_password);
+    } catch (e: unknown) { setPwError((e as Error).message ?? 'Failed'); } finally { setResetSaving(false); }
   }
 
   // ── Delete handlers ───────────────────────────────────────────────────────
@@ -863,6 +908,56 @@ export default function People() {
                     </div>
                   </div>
                 )}
+
+                {/* Password management — only available when editing an existing person */}
+                {editTarget && (
+                  <div style={{ borderTop: '1px solid #EEEEEE', paddingTop: 16, marginTop: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 12, textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>Password Management</div>
+
+                    {/* Set password */}
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={S.label}>Set Password</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <input type="password" placeholder="New password (min 8 chars)" value={pwForm.password}
+                          onChange={e => { setPwForm(f => ({ ...f, password: e.target.value })); setPwError(''); }}
+                          style={S.input} />
+                        <input type="password" placeholder="Confirm password" value={pwForm.confirm}
+                          onChange={e => { setPwForm(f => ({ ...f, confirm: e.target.value })); setPwError(''); }}
+                          style={S.input} />
+                      </div>
+                      {pwError && <div style={{ fontSize: 12, color: '#DC2626', marginBottom: 6 }}>{pwError}</div>}
+                      {pwSuccess && <div style={{ fontSize: 12, color: '#059669', marginBottom: 6 }}>{pwSuccess}</div>}
+                      <button onClick={handleSetPassword} disabled={pwSaving || !pwForm.password}
+                        style={{ padding: '7px 14px', background: !pwForm.password ? '#D5D5D5' : '#1D4ED8', color: '#FFF', border: 'none', borderRadius: 5, fontSize: 13, fontWeight: 600, cursor: !pwForm.password ? 'default' : 'pointer' }}>
+                        {pwSaving ? 'Setting…' : 'Set Password'}
+                      </button>
+                    </div>
+
+                    {/* Reset / generate temp password */}
+                    <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 4 }}>Generate Temporary Password</div>
+                      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 10, lineHeight: 1.5 }}>
+                        Creates a random 12-character password. Share it securely with the user so they can sign in.
+                      </div>
+                      <button onClick={handleResetPassword} disabled={resetSaving}
+                        style={{ padding: '7px 14px', background: '#D97706', color: '#FFF', border: 'none', borderRadius: 5, fontSize: 13, fontWeight: 600, cursor: resetSaving ? 'wait' : 'pointer' }}>
+                        {resetSaving ? 'Generating…' : 'Generate Temp Password'}
+                      </button>
+                      {tempPw && (
+                        <div style={{ marginTop: 12, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '10px 14px' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>Temporary Password</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: '#1F2937', letterSpacing: '0.1em', userSelect: 'all' as const }}>{tempPw}</div>
+                          <div style={{ fontSize: 11, color: '#B45309', marginTop: 4 }}>Copy this now — it will not be shown again.</div>
+                          <button
+                            onClick={() => { try { navigator.clipboard.writeText(tempPw); } catch { /* user can select text */ } }}
+                            style={{ marginTop: 8, padding: '4px 12px', background: '#92400E', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                            Copy
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -1115,6 +1210,12 @@ function PersonRow({ person: p, onEdit, onDelete, onPermDelete, selected, onTogg
       <td style={S.td}>
         {p.system_profile
           ? <span style={S.badge(PROFILE_COLOURS[p.system_profile] ?? '#666')}>{p.system_profile}</span>
+          : <span style={{ color: '#AAAAAA' }}>—</span>}
+      </td>
+
+      <td style={S.td}>
+        {p.login_email
+          ? <span style={{ fontSize: 12, color: '#374151' }}>{p.login_email}</span>
           : <span style={{ color: '#AAAAAA' }}>—</span>}
       </td>
 
