@@ -13,21 +13,23 @@ const ChangeRequests = lazy(() => import('../pages/ChangeRequests'));
 const Recruitment   = lazy(() => import('../pages/Recruitment'));
 const Admin         = lazy(() => import('../pages/Admin'));
 const Import        = lazy(() => import('../pages/Import'));
-const Summary       = lazy(() => import('../pages/Summary'));
+const Summary           = lazy(() => import('../pages/Summary'));
+const HeadcountBudget   = lazy(() => import('../pages/HeadcountBudget'));
 
 const PAGE_MAP: Record<string, React.ComponentType<any>> = {
-  '/dashboard':       Dashboard,
-  '/projects':        Projects,
-  '/project-list':    ProjectList,
-  '/allocations':     Allocations,
-  '/summary':         Summary,
-  '/people':          People,
-  '/headcount':       Headcount,
-  '/requests':        Requests,
-  '/change-requests': ChangeRequests,
-  '/recruitment':     Recruitment,
-  '/admin':           Admin,
-  '/import':          Import,
+  '/dashboard':           Dashboard,
+  '/projects':            Projects,
+  '/project-list':        ProjectList,
+  '/allocations':         Allocations,
+  '/summary':             Summary,
+  '/people':              People,
+  '/headcount':           Headcount,
+  '/requests':            Requests,
+  '/change-requests':     ChangeRequests,
+  '/recruitment':         Recruitment,
+  '/admin':               Admin,
+  '/import':              Import,
+  '/headcount-budget':    HeadcountBudget,
 };
 
 // ---------------------------------------------------------------------------

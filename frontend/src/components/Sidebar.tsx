@@ -6,6 +6,7 @@ import equinixFortressWhite from '../assets/equinix-fortress-white.svg';
 
 const ICONS: Record<string, string> = {
   summary:     'M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z',
+  budget:      'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z',
   dashboard:   'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
   projects:    'M3 3h18v2H3zm0 4h18v2H3zm0 4h18v2H3zm0 4h12v2H3zm0 4h12v2H3z',
   people:      'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
@@ -31,7 +32,8 @@ const ROUTE_GRADIENTS: Record<string, string> = {
   '/recruitment':     'linear-gradient(160deg, #33A85C 0%, #086AE3 100%)',
   '/admin':           'linear-gradient(160deg, #2F3541 0%, #111111 100%)',
   '/import':          'linear-gradient(160deg, #00737A 0%, #086AE3 100%)',
-  '/summary':         'linear-gradient(160deg, #33A85C 0%, #1A4A7A 100%)',
+  '/summary':             'linear-gradient(160deg, #33A85C 0%, #1A4A7A 100%)',
+  '/headcount-budget':    'linear-gradient(160deg, #E91C24 0%, #00408C 50%, #411980 100%)',
 };
 
 type NavLink  = { kind: 'link';  to: string; label: string; icon: string };
@@ -45,7 +47,8 @@ const NAV: NavItem[] = [
   { kind: 'link',  to: '/summary',         label: 'Resource Summary',   icon: 'summary'      },
   { kind: 'link',  to: '/headcount',       label: 'Headcount Requests', icon: 'headcount'    },
   { kind: 'link',  to: '/change-requests', label: 'Change Requests',    icon: 'changes'      },
-  { kind: 'link',  to: '/recruitment',     label: 'Talent Acquisition', icon: 'recruitment'  },
+  { kind: 'link',  to: '/recruitment',       label: 'Talent Acquisition',  icon: 'recruitment'  },
+  { kind: 'link',  to: '/headcount-budget', label: 'Headcount Budget',     icon: 'budget'       },
   { kind: 'group', label: 'Admin', icon: 'admin', children: [
     { to: '/people',       label: 'People List'  },
     { to: '/project-list', label: 'Project List' },

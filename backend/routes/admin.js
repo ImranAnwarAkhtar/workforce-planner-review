@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const pool = require('../db/pool');
-const bcrypt = require('bcryptjs');
+let bcrypt;
+try { bcrypt = require('bcryptjs'); } catch { bcrypt = null; }
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES, PROFILES, isAdmin } = require('../middleware/rbac');
 const { writeAudit } = require('../db/auditLog');
@@ -99,6 +100,7 @@ router.put('/users/:id', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO
 // ── User password management ──────────────────────────────────────────────────
 
 router.post('/users/:id/set-password', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  if (!bcrypt) return res.status(503).json({ error: 'Password hashing library not available on this server.' });
   const { password } = req.body;
   if (!password || password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -114,6 +116,7 @@ router.post('/users/:id/set-password', requireAuth, requireRole(ROLES.PMO, PROFI
 });
 
 router.post('/users/:id/reset-password', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  if (!bcrypt) return res.status(503).json({ error: 'Password hashing library not available on this server.' });
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
   const tempPassword = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
   const hash = await bcrypt.hash(tempPassword, 12);

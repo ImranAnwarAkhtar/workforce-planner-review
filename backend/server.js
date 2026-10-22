@@ -28,6 +28,7 @@ const countryAllocationsRouter = require('./routes/countryAllocations');
 const personCommentsRouter     = require('./routes/personComments');
 const smartsheetRouter         = require('./routes/smartsheet');
 const alertsRouter             = require('./routes/alerts');
+const headcountBudgetRouter    = require('./routes/headcountBudget');
 
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
@@ -450,8 +451,9 @@ app.use('/api/admin',           wrapAsync(adminRouter));
 app.use('/api/comments',        wrapAsync(commentsRouter));
 app.use('/api/imports',         wrapAsync(importsRouter));
 app.use('/api/headcount',       wrapAsync(headcountRouter));
-app.use('/api/smartsheet', wrapAsync(smartsheetRouter));
-app.use('/api/alerts',    wrapAsync(alertsRouter));
+app.use('/api/smartsheet',        wrapAsync(smartsheetRouter));
+app.use('/api/alerts',            wrapAsync(alertsRouter));
+app.use('/api/headcount-budget',  wrapAsync(headcountBudgetRouter));
 
 // Serve React build (production only — public/ is populated by npm run build)
 app.use(express.static(path.join(__dirname, 'public')));

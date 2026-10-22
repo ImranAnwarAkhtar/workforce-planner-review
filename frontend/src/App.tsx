@@ -16,6 +16,7 @@ import Admin from './pages/Admin';
 import Import from './pages/Import';
 import Headcount from './pages/Headcount';
 import Summary from './pages/Summary';
+import HeadcountBudget from './pages/HeadcountBudget';
 
 export default function App() {
   return (
@@ -51,6 +52,7 @@ export default function App() {
               <Route path="/admin/people"       element={<Navigate to="/people" replace />} />
               <Route path="/admin/import"       element={<Navigate to="/import" replace />} />
               <Route path="/import"             element={<Import />} />
+              <Route path="/headcount-budget"  element={<HeadcountBudget />} />
             </Route>
           </Route>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
