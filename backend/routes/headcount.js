@@ -15,6 +15,7 @@ const SELECT_PERSON = `
          l.level_name, l.short_code AS level_code, l.id AS level_id,
          d.name AS discipline_name, d.id AS discipline_id,
          t.tbh_id,
+         pe.planning_cycle_id, pc.name AS planning_cycle_name,
          COALESCE((SELECT STRING_AGG(r.name, ', ' ORDER BY r.name)
                    FROM person_regions pr JOIN regions r ON pr.region_id = r.id
                    WHERE pr.person_id = pe.id), '') AS region_names,
@@ -26,6 +27,7 @@ const SELECT_PERSON = `
   LEFT JOIN levels l ON pe.level_id = l.id
   LEFT JOIN disciplines d ON pe.discipline_id = d.id
   LEFT JOIN tbh_codes t ON pe.tbh_code_id = t.id
+  LEFT JOIN planning_cycles pc ON pe.planning_cycle_id = pc.id
 `;
 
 // GET /api/headcount — all placeholder records (R FTE, A FTE, R CON, A CON)
@@ -46,7 +48,7 @@ router.post('/', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => 
   const {
     name, contract_type_code = 'R FTE',
     level_id, discipline_id, contracted_fte = 1.0,
-    country_id, region_id, notes,
+    country_id, region_id, notes, planning_cycle_id,
   } = req.body;
 
   if (!name) return res.status(400).json({ error: 'name is required' });
@@ -65,9 +67,9 @@ router.post('/', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => 
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
-      `INSERT INTO people (name, contract_type_id, level_id, discipline_id, contracted_fte, notes)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [name, ctRows[0].id, level_id ?? null, discipline_id ?? null, contracted_fte, notes ?? null]
+      `INSERT INTO people (name, contract_type_id, level_id, discipline_id, contracted_fte, notes, planning_cycle_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, ctRows[0].id, level_id ?? null, discipline_id ?? null, contracted_fte, notes ?? null, planning_cycle_id ?? null]
     );
     const personId = rows[0].id;
 

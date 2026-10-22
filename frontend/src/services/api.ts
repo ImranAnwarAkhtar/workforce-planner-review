@@ -164,6 +164,8 @@ export interface Person {
   app_role: string | null;
   platform_access_enabled: boolean | null;
   last_login: string | null;
+  planning_cycle_id: number | null;
+  planning_cycle_name: string | null;
 }
 
 export interface PersonDetail extends Person {
@@ -262,6 +264,7 @@ export interface CreateHeadcountBody {
   country_id?: number | null;
   region_id?: number | null;
   notes?: string | null;
+  planning_cycle_id?: number | null;
 }
 
 export const headcountApi = {

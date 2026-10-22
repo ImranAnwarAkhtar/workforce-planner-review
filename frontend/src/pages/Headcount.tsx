@@ -5,6 +5,8 @@ import {
   type Person, type Discipline, type Level, type Country,
 } from '../services/api';
 import PersonEditPanel from '../components/PersonEditPanel';
+import PlanningCycleBanner from '../components/PlanningCycleBanner';
+import { usePlanningCycle } from '../context/PlanningCycleContext';
 
 const DISCIPLINES = ['Construction', 'Design', 'Commercial', 'Commissioning', 'Other'];
 
@@ -33,6 +35,8 @@ const SEL: React.CSSProperties = {
 };
 
 export default function Headcount() {
+  const { cycles } = usePlanningCycle();
+
   const [records, setRecords]         = useState<Person[]>([]);
   const [loading, setLoading]         = useState(false);
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
@@ -78,7 +82,7 @@ export default function Headcount() {
   const [showNew, setShowNew]   = useState(false);
   const [newForm, setNewForm]   = useState({
     name: '', contract_type_code: 'R FTE' as 'R FTE' | 'R CON',
-    discipline_id: '', level_id: '', country_id: '', notes: '',
+    discipline_id: '', level_id: '', country_id: '', notes: '', planning_cycle_id: '',
   });
   const [creating, setCreating] = useState(false);
 
@@ -186,11 +190,12 @@ export default function Headcount() {
         level_id:           newForm.level_id ? Number(newForm.level_id) : undefined,
         country_id:         newForm.country_id ? Number(newForm.country_id) : undefined,
         notes:              newForm.notes.trim() || undefined,
+        planning_cycle_id:  newForm.planning_cycle_id ? Number(newForm.planning_cycle_id) : null,
       });
       toast.success('Headcount request created');
       setRecords(prev => [created, ...prev]);
       setShowNew(false);
-      setNewForm({ name: '', contract_type_code: 'R FTE', discipline_id: '', level_id: '', country_id: '', notes: '' });
+      setNewForm({ name: '', contract_type_code: 'R FTE', discipline_id: '', level_id: '', country_id: '', notes: '', planning_cycle_id: '' });
     } catch { toast.error('Failed to create request'); }
     finally { setCreating(false); }
   }
@@ -264,6 +269,14 @@ export default function Headcount() {
           {r.tbh_id
             ? <span style={{ fontSize: 11, fontWeight: 600, color: '#33A85C', background: '#EBF7EF',
                 padding: '2px 7px', borderRadius: 3, border: '1px solid #A8DDB5' }}>{r.tbh_id}</span>
+            : <span style={{ fontSize: 11, color: '#AAAAAA' }}>—</span>}
+        </td>
+        <td style={{ padding: '8px 14px' }}>
+          {r.planning_cycle_name
+            ? <span style={{ fontSize: 10, fontWeight: 600, color: '#1D4ED8', background: '#EFF6FF',
+                padding: '1px 7px', borderRadius: 8, border: '1px solid #BFDBFE', whiteSpace: 'nowrap' }}>
+                {r.planning_cycle_name}
+              </span>
             : <span style={{ fontSize: 11, color: '#AAAAAA' }}>—</span>}
         </td>
         <td style={{ padding: '8px 14px' }}>
@@ -357,6 +370,9 @@ export default function Headcount() {
           </div>
         </div>
 
+        {/* Planning cycle banner */}
+        <PlanningCycleBanner />
+
         {/* Sub-bar: filters */}
         <div style={{ padding: '10px 16px', background: '#F2F3F5', borderBottom: '1px solid #E0E3E8', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={SEL}>
@@ -406,6 +422,7 @@ export default function Headcount() {
                 <th style={TH}>Level</th>
                 <th style={TH}>Country</th>
                 <th style={TH}>TBH Code</th>
+                <th style={TH}>Planning Cycle</th>
                 <th style={TH}>Actions</th>
               </tr>
             </thead>
@@ -413,7 +430,7 @@ export default function Headcount() {
               {byDiscipline.map(({ discipline, rows }) => (
                 <React.Fragment key={discipline}>
                   <tr>
-                    <td colSpan={6} style={{
+                    <td colSpan={7} style={{
                       padding: '8px 14px', background: '#F2F4F8',
                       borderLeft: `4px solid ${DISCIPLINE_COLOURS[discipline] ?? '#888888'}`,
                       borderTop: '2px solid #D8DDE8', borderBottom: '1px solid #D8DDE8',
@@ -428,7 +445,7 @@ export default function Headcount() {
               {ungrouped.length > 0 && (
                 <React.Fragment>
                   <tr>
-                    <td colSpan={6} style={{
+                    <td colSpan={7} style={{
                       padding: '8px 14px', background: '#F8F9FA',
                       fontWeight: 700, fontSize: 12, color: '#888888',
                     }}>
@@ -651,6 +668,13 @@ export default function Headcount() {
                 </select>
               </Field>
             </div>
+            <Field label="Planning Cycle">
+              <select style={INP} value={newForm.planning_cycle_id}
+                onChange={e => setNewForm(prev => ({ ...prev, planning_cycle_id: e.target.value }))}>
+                <option value="">— Not assigned —</option>
+                {cycles.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </Field>
             <Field label="Notes / Justification">
               <textarea rows={3} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }}
                 value={newForm.notes}
