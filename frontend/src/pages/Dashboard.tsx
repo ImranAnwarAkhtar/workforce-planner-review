@@ -1546,8 +1546,8 @@ function RequestsTab({ yearA, yearB, dataA, dataB, regionCodeMap, activeYear }: 
         {deltaData.length === 0 ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No data for both years</div>
         ) : (
-          <div style={{ flex: 1, minHeight: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={deltaData} margin={{ top: 20, right: 12, bottom: 4, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                 <XAxis dataKey="disc" tick={{ fontSize: 9, fill: C.muted }} tickLine={false} axisLine={false} />
