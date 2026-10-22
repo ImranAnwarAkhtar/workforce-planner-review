@@ -135,6 +135,7 @@ const REC_COL_DEFS: ColDef<TbhCode>[] = [
   { key: 'tbh_id',                  label: 'TBH ID',                          get: t => t.tbh_id },
   { key: 'old_tbh',                 label: 'Old TBH',                         get: t => t.old_tbh ?? '' },
   { key: 'req_status',              label: 'Hire Status',                     get: t => t.req_status ?? '' },
+  { key: 'planning_cycle_name',     label: 'Planning Cycle',                  get: t => t.planning_cycle_name ?? '' },
   { key: 'creation_date',           label: 'Created',                         get: t => t.created_at ? new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' },
   { key: 'in_summary',              label: 'In Summary',                      get: t => t.in_summary ?? '' },
   { key: 'status_query',            label: 'Status / Query',                  get: t => t.status_query ?? '' },
@@ -163,7 +164,6 @@ const REC_COL_DEFS: ColDef<TbhCode>[] = [
   { key: 'fp_and_a_notes',          label: 'Note from FP&A',                  get: t => t.fp_and_a_notes ?? '' },
   { key: 'tbh_description',         label: 'TBH Description',                 get: t => t.tbh_description ?? '' },
   { key: 'ta_status_comments',      label: 'TA Status Comments',              get: t => t.ta_status_comments ?? '' },
-  { key: 'planning_cycle_name',     label: 'Planning Cycle',                  get: t => t.planning_cycle_name ?? '' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -516,6 +516,13 @@ export default function Recruitment() {
                     </td>
 
                     {/* ── Non-sticky / collapsible columns ── */}
+                    {!hiddenCols.has('planning_cycle_name') && (
+                      <td title={t.planning_cycle_name ?? ''} style={TD}>
+                        {t.planning_cycle_name
+                          ? <span style={{ fontSize: 10, fontWeight: 600, color: '#1D4ED8', background: '#EFF6FF', padding: '1px 7px', borderRadius: 8, border: '1px solid #BFDBFE', whiteSpace: 'nowrap' }}>{t.planning_cycle_name}</span>
+                          : <span style={{ color: '#9CA3AF', fontSize: 10 }}>—</span>}
+                      </td>
+                    )}
                     {!hiddenCols.has('creation_date') && (() => { const d = t.created_at ? new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null; return (
                       <td title={d ?? ''} style={{ ...TD, textAlign: 'center' }}>
                         {d ? <span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{d}</span>
@@ -624,6 +631,12 @@ export default function Recruitment() {
                     {!hiddenCols.has('estimated_hire_date') && (
                       <td title={fmtDate(t.estimated_hire_date) ?? ''} style={TD}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(t.estimated_hire_date) ?? '—'}</span></td>
                     )}
+                    {!hiddenCols.has('confirmed_start_date') && (
+                      <td title={fmtDate(t.confirmed_start_date) ?? ''} style={TD}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(t.confirmed_start_date) ?? '—'}</span></td>
+                    )}
+                    {!hiddenCols.has('hire_source_details') && (
+                      <td title={t.hire_source_details ?? ''} style={{ ...TD, maxWidth: 200 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.hire_source_details ?? '—'}</span></td>
+                    )}
                     {!hiddenCols.has('target_hire_date') && (
                       <td title={fmtDate(t.target_hire_date) ?? ''} style={TD}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(t.target_hire_date) ?? '—'}</span></td>
                     )}
@@ -638,13 +651,6 @@ export default function Recruitment() {
                     )}
                     {!hiddenCols.has('ta_status_comments') && (
                       <td title={t.ta_status_comments ?? ''} style={{ ...TD, maxWidth: 220 }}><span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.ta_status_comments ?? '—'}</span></td>
-                    )}
-                    {!hiddenCols.has('planning_cycle_name') && (
-                      <td title={t.planning_cycle_name ?? ''} style={TD}>
-                        {t.planning_cycle_name
-                          ? <span style={{ fontSize: 10, fontWeight: 600, color: '#1D4ED8', background: '#EFF6FF', padding: '1px 7px', borderRadius: 8, border: '1px solid #BFDBFE', whiteSpace: 'nowrap' }}>{t.planning_cycle_name}</span>
-                          : <span style={{ color: '#9CA3AF', fontSize: 10 }}>—</span>}
-                      </td>
                     )}
 
                     {/* Actions */}
