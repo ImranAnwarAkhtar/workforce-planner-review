@@ -111,6 +111,7 @@ pool.query(`
   ALTER TABLE people ADD COLUMN IF NOT EXISTS email VARCHAR(255);
   ALTER TABLE users  ADD COLUMN IF NOT EXISTS system_profile VARCHAR(50);
   ALTER TABLE users  ADD COLUMN IF NOT EXISTS access_tier    VARCHAR(20) NOT NULL DEFAULT 'standard';
+  ALTER TABLE users  ADD COLUMN IF NOT EXISTS password_hash  TEXT;
   UPDATE levels SET level_name = 'Contingent' WHERE short_code = 'Cons' AND level_name = 'Consultant';
 `).catch(err => logger.error('Startup migration failed', { error: err.message }));
 

@@ -1684,10 +1684,250 @@ function AlertsTab() {
 }
 
 // ---------------------------------------------------------------------------
+// People List tab
+// ---------------------------------------------------------------------------
+
+
+function PeopleListTab() {
+  const [users, setUsers]         = useState<User[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [editUser, setEditUser]   = useState<User | null>(null);
+  const [saving, setSaving]       = useState(false);
+  const [form, setForm]           = useState({ name: '', email: '', system_profile: '', access_tier: 'standard', is_active: true });
+  const [pwForm, setPwForm]       = useState({ password: '', confirm: '' });
+  const [pwError, setPwError]     = useState('');
+  const [tempPw, setTempPw]       = useState('');
+  const [pwSaving, setPwSaving]   = useState(false);
+  const [resetSaving, setResetSaving] = useState(false);
+  const [pwSuccess, setPwSuccess] = useState('');
+
+  function load() {
+    setLoading(true);
+    rawClient.get<{ data: User[] }>('/admin/users')
+      .then(r => setUsers(r.data.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function openEdit(u: User) {
+    setEditUser(u);
+    setForm({ name: u.name, email: u.email, system_profile: u.system_profile ?? '', access_tier: u.access_tier, is_active: u.is_active });
+    setPwForm({ password: '', confirm: '' });
+    setPwError(''); setTempPw(''); setPwSuccess('');
+  }
+
+  async function handleSave() {
+    if (!editUser) return;
+    setSaving(true);
+    try {
+      await rawClient.put(`/admin/users/${editUser.id}`, {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        system_profile: form.system_profile || null,
+        access_tier: form.access_tier,
+        is_active: form.is_active,
+        role: form.system_profile || 'Workforce Planning',
+      });
+      toast.success('User updated');
+      load();
+      setEditUser(null);
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleSetPassword() {
+    if (!editUser) return;
+    if (pwForm.password.length < 8) { setPwError('Password must be at least 8 characters'); return; }
+    if (pwForm.password !== pwForm.confirm) { setPwError('Passwords do not match'); return; }
+    setPwError(''); setPwSaving(true);
+    try {
+      await rawClient.post(`/admin/users/${editUser.id}/set-password`, { password: pwForm.password });
+      setPwForm({ password: '', confirm: '' });
+      setPwSuccess('Password set successfully.');
+      setTimeout(() => setPwSuccess(''), 4000);
+    } catch (e: unknown) { setPwError(errMsg(e)); } finally { setPwSaving(false); }
+  }
+
+  async function handleResetPassword() {
+    if (!editUser) return;
+    setResetSaving(true); setTempPw(''); setPwSuccess('');
+    try {
+      const r = await rawClient.post<{ data: { temp_password: string } }>(`/admin/users/${editUser.id}/reset-password`, {});
+      setTempPw(r.data.data.temp_password);
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setResetSaving(false); }
+  }
+
+  const TIER_BADGE: Record<string, { bg: string; color: string; border: string }> = {
+    administrator: { bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
+    approver:      { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+    standard:      { bg: '#F3F4F6', color: '#374151', border: '#D1D5DB' },
+  };
+
+  return (
+    <div>
+      <p style={{ fontSize: 13, color: '#666', marginBottom: 14 }}>
+        Manage user accounts, system profiles, access tiers, and passwords.
+      </p>
+
+      <div style={{ ...card, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={th}>Name</th>
+              <th style={th}>Email</th>
+              <th style={th}>System Profile</th>
+              <th style={th}>Access Tier</th>
+              <th style={{ ...th, width: 80 }}>Status</th>
+              <th style={{ ...th, width: 90 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? <LoadingRows cols={6} /> : users.length === 0 ? (
+              <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: '#999', padding: 32 }}>No users found.</td></tr>
+            ) : users.map(u => {
+              const tier = TIER_BADGE[u.access_tier] ?? TIER_BADGE.standard;
+              return (
+                <tr key={u.id} style={{ background: !u.is_active ? '#FAFAFA' : undefined }}>
+                  <td style={{ ...td, fontWeight: 600, opacity: u.is_active ? 1 : 0.55 }}>{u.name}</td>
+                  <td style={{ ...td, fontSize: 12, color: '#666', opacity: u.is_active ? 1 : 0.55 }}>{u.email}</td>
+                  <td style={td}>
+                    {u.system_profile
+                      ? <span style={{ fontSize: 11, fontWeight: 600, color: '#1D4ED8', background: '#EFF6FF', padding: '2px 8px', borderRadius: 8, border: '1px solid #BFDBFE' }}>{u.system_profile}</span>
+                      : <span style={{ fontSize: 11, color: '#AAAAAA' }}>—</span>}
+                  </td>
+                  <td style={td}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, border: `1px solid ${tier.border}`, background: tier.bg, color: tier.color, textTransform: 'capitalize' }}>{u.access_tier}</span>
+                  </td>
+                  <td style={td}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 8, border: u.is_active ? '1px solid #A7F3D0' : '1px solid #E5E7EB', background: u.is_active ? '#D1FAE5' : '#F9FAFB', color: u.is_active ? '#065F46' : '#9CA3AF' }}>
+                      {u.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td style={td}>
+                    <button onClick={() => openEdit(u)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12 }}>Edit</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Edit modal */}
+      {editUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setEditUser(null); }}>
+          <div style={{ background: '#FFFFFF', borderRadius: 10, padding: 28, width: 500, maxWidth: '95vw', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>Edit User — {editUser.name}</div>
+
+            {/* Basic info */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={lbl}>Full Name</label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={inp} />
+              </div>
+              <div>
+                <label style={lbl}>Email Address</label>
+                <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={inp} />
+              </div>
+            </div>
+
+            {/* System profile */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>System Profile</label>
+              <select value={form.system_profile} onChange={e => setForm(f => ({ ...f, system_profile: e.target.value }))} style={{ ...inp, width: '100%' }}>
+                <option value="">— No profile —</option>
+                {USER_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+
+            {/* Access tier */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Access Tier</label>
+              <select value={form.access_tier} onChange={e => setForm(f => ({ ...f, access_tier: e.target.value }))} style={{ ...inp, width: '100%' }}>
+                {ACCESS_TIERS.map(t => <option key={t} value={t} style={{ textTransform: 'capitalize' }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+              </select>
+              <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                Standard: profile-based access · Approver: can approve requests · Administrator: full system access
+              </div>
+            </div>
+
+            {/* Active toggle */}
+            <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <label style={{ ...lbl, margin: 0 }}>Account Status</label>
+              <button onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
+                style={{ padding: '4px 14px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  background: form.is_active ? '#D1FAE5' : '#F5F5F5', color: form.is_active ? '#065F46' : '#999' }}>
+                {form.is_active ? 'Active' : 'Inactive'}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 24 }}>
+              <button onClick={() => setEditUser(null)} style={btnSecondary}>Cancel</button>
+              <button onClick={handleSave} disabled={saving}
+                style={{ padding: '7px 18px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+
+            {/* Password section */}
+            <div style={{ borderTop: '1px solid #E5E5E5', paddingTop: 18 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 12 }}>Password Management</div>
+
+              {/* Set password */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={lbl}>Set Password</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <input type="password" placeholder="New password (min 8 chars)" value={pwForm.password}
+                    onChange={e => { setPwForm(f => ({ ...f, password: e.target.value })); setPwError(''); }}
+                    style={inp} />
+                  <input type="password" placeholder="Confirm password" value={pwForm.confirm}
+                    onChange={e => { setPwForm(f => ({ ...f, confirm: e.target.value })); setPwError(''); }}
+                    style={inp} />
+                </div>
+                {pwError && <div style={{ fontSize: 12, color: '#DC2626', marginBottom: 6 }}>{pwError}</div>}
+                {pwSuccess && <div style={{ fontSize: 12, color: '#059669', marginBottom: 6 }}>{pwSuccess}</div>}
+                <button onClick={handleSetPassword} disabled={pwSaving || !pwForm.password}
+                  style={{ padding: '6px 14px', background: !pwForm.password ? '#D5D5D5' : '#1D4ED8', color: '#FFF', border: 'none', borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: !pwForm.password ? 'default' : 'pointer' }}>
+                  {pwSaving ? 'Setting…' : 'Set Password'}
+                </button>
+              </div>
+
+              {/* Reset password */}
+              <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Generate Temporary Password</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 10 }}>
+                  Creates a random 12-character password and saves it. Share it securely with the user so they can log in and update it.
+                </div>
+                <button onClick={handleResetPassword} disabled={resetSaving}
+                  style={{ padding: '6px 14px', background: '#D97706', color: '#FFF', border: 'none', borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: resetSaving ? 'wait' : 'pointer' }}>
+                  {resetSaving ? 'Generating…' : 'Generate Temp Password'}
+                </button>
+                {tempPw && (
+                  <div style={{ marginTop: 12, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '10px 14px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Temporary Password</div>
+                    <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: '#1F2937', letterSpacing: '0.1em', userSelect: 'all' }}>{tempPw}</div>
+                    <div style={{ fontSize: 11, color: '#B45309', marginTop: 6 }}>Copy this now — it will not be shown again.</div>
+                    <button onClick={() => { try { navigator.clipboard.writeText(tempPw); } catch { /* fallback: user can select text above */ } toast.success('Copied!'); }}
+                      style={{ marginTop: 8, padding: '4px 12px', background: '#92400E', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                      Copy to Clipboard
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Admin page
 // ---------------------------------------------------------------------------
 
-const TABS = ['Planning Cycles', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'User Access', 'Gearing Ratios', 'Alerts'] as const;
+const TABS = ['Planning Cycles', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'People List', 'User Access', 'Gearing Ratios', 'Alerts'] as const;
 type Tab = typeof TABS[number];
 
 export default function Admin() {
@@ -1718,6 +1958,7 @@ export default function Admin() {
       {activeTab === 'Levels'         && <LevelsTab />}
       {activeTab === 'Contract Types' && <ContractTypesTab />}
       {activeTab === 'Regions'        && <RegionsTab />}
+      {activeTab === 'People List'    && <PeopleListTab />}
       {activeTab === 'User Access'     && <UserAccessTab />}
       {activeTab === 'Gearing Ratios' && <GearingRatiosTab />}
       {activeTab === 'Alerts'          && <AlertsTab />}

@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const pool = require('../db/pool');
+const bcrypt = require('bcryptjs');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES, PROFILES, isAdmin } = require('../middleware/rbac');
 const { writeAudit } = require('../db/auditLog');
@@ -93,6 +94,36 @@ router.put('/users/:id', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO
   await req.auditLog({ actionType: 'UPDATE', resourceType: 'user', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'users', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
   res.json({ data: rows[0] });
+});
+
+// ── User password management ──────────────────────────────────────────────────
+
+router.post('/users/:id/set-password', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  const { password } = req.body;
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  const hash = await bcrypt.hash(password, 12);
+  const { rows } = await pool.query(
+    `UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id, name, email`,
+    [hash, req.params.id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'User not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'SET_PASSWORD', tableName: 'users', recordId: rows[0].id, ipAddress: req.ip });
+  res.json({ data: { message: 'Password updated successfully' } });
+});
+
+router.post('/users/:id/reset-password', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
+  const tempPassword = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const hash = await bcrypt.hash(tempPassword, 12);
+  const { rows } = await pool.query(
+    `UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id, name, email`,
+    [hash, req.params.id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'User not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'RESET_PASSWORD', tableName: 'users', recordId: rows[0].id, ipAddress: req.ip });
+  res.json({ data: { temp_password: tempPassword, message: 'Temporary password generated. Share it securely with the user.' } });
 });
 
 // ── Colour thresholds (PMO only for write) ────────────────────────────────────
