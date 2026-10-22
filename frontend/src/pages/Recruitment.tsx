@@ -6,37 +6,28 @@ import { useColFilter, type ColDef } from '../hooks/useColFilter';
 // Constants
 // ---------------------------------------------------------------------------
 
-const REQ_STATUSES     = ['Open', 'In Progress', 'Offer Extended', 'Filled', 'On Hold', 'Cancelled'];
-const HIRE_TYPES       = ['Net New', 'Backfill', 'Conversion', 'Uplift'];
-const PIPELINE_STAGES  = ['Applied', 'Screening', 'Interviewing', 'Assessment', 'Offer Made', 'Declined', 'Placed'];
-
-const STAGE_META: Record<string, { color: string; bg: string; border: string }> = {
-  'Applied':      { color: '#0369A1', bg: '#E0F2FE', border: '#7DD3FC' },
-  'Screening':    { color: '#0891B2', bg: '#ECFEFF', border: '#67E8F9' },
-  'Interviewing': { color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
-  'Assessment':   { color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
-  'Offer Made':   { color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
-  'Declined':     { color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
-  'Placed':       { color: '#16A34A', bg: '#DCFCE7', border: '#86EFAC' },
-};
+const REQ_STATUSES = ['Req not raised', 'Screening', 'Interviewing', 'Offer Pending', 'Offer Accepted', 'Hired', 'Closed'];
+const HIRE_TYPES   = ['Net New', 'Backfill', 'Conversion', 'Uplift'];
 
 const STATUS_META: Record<string, { color: string; bg: string; border: string }> = {
-  'Open':           { color: '#2563EB', bg: '#EFF6FF', border: '#BFDBFE' },
-  'In Progress':    { color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
-  'Offer Extended': { color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
-  'Filled':         { color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
-  'On Hold':        { color: '#6B7280', bg: '#F9FAFB', border: '#E5E7EB' },
-  'Cancelled':      { color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
+  'Req not raised': { color: '#6B7280', bg: '#F9FAFB', border: '#E5E7EB' },
+  'Screening':      { color: '#0369A1', bg: '#E0F2FE', border: '#7DD3FC' },
+  'Interviewing':   { color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+  'Offer Pending':  { color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
+  'Offer Accepted': { color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
+  'Hired':          { color: '#16A34A', bg: '#DCFCE7', border: '#86EFAC' },
+  'Closed':         { color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
 };
 
 // Colours shown in the dark banner stat items
 const STATUS_BANNER_COLOR: Record<string, string> = {
-  'Open':           '#60A5FA',
-  'In Progress':    '#FBBF24',
-  'Offer Extended': '#A78BFA',
-  'Filled':         '#33A85C',
-  'On Hold':        '#9CA3AF',
-  'Cancelled':      '#F87171',
+  'Req not raised': '#9CA3AF',
+  'Screening':      '#60A5FA',
+  'Interviewing':   '#FBBF24',
+  'Offer Pending':  '#A78BFA',
+  'Offer Accepted': '#34D399',
+  'Hired':          '#33A85C',
+  'Closed':         '#F87171',
 };
 
 function statusMeta(s: string | null) {
@@ -141,7 +132,6 @@ const REC_COL_DEFS: ColDef<TbhCode>[] = [
   { key: 'funding_year',            label: 'Funding',                         get: t => t.funding_year ? String(t.funding_year) : '' },
   { key: 'hire_type',               label: 'Hire Type',                       get: t => t.hire_type ?? '' },
   { key: 'hire_source',             label: 'Hire Source',                     get: t => t.hire_source ?? '' },
-  { key: 'pipeline_stage',          label: 'Pipeline Stage',                   get: t => t.pipeline_stage ?? '' },
   { key: 'region',                  label: 'Region',                          get: t => t.region_name ?? '' },
   { key: 'project_type',            label: 'Project',                         get: t => t.project_type ?? '' },
   { key: 'legal_entity',            label: 'Legal Entity Final',              get: t => t.legal_entity ?? '' },
@@ -176,7 +166,6 @@ interface FormState {
   candidate_name: string; estimated_hire_date: string; ta_status_comments: string;
   tbh_description: string; fp_and_a_approver_notes: string; fp_and_a_notes: string;
   confirmed_start_date: string; hire_source: string; hire_source_details: string;
-  pipeline_stage: string;
 }
 
 const emptyForm: FormState = {
@@ -187,7 +176,7 @@ const emptyForm: FormState = {
   target_hire_date: '', jr_id: '', req_status: 'Open', ta_contact: '', candidate_name: '',
   estimated_hire_date: '', ta_status_comments: '', tbh_description: '',
   fp_and_a_approver_notes: '', fp_and_a_notes: '',
-  confirmed_start_date: '', hire_source: '', hire_source_details: '', pipeline_stage: '',
+  confirmed_start_date: '', hire_source: '', hire_source_details: '',
 };
 
 function tbhToForm(t: TbhCode): FormState {
@@ -206,7 +195,6 @@ function tbhToForm(t: TbhCode): FormState {
     fp_and_a_approver_notes: t.fp_and_a_approver_notes ?? '', fp_and_a_notes: t.fp_and_a_notes ?? '',
     confirmed_start_date: t.confirmed_start_date ? t.confirmed_start_date.slice(0, 10) : '',
     hire_source: t.hire_source ?? '', hire_source_details: t.hire_source_details ?? '',
-    pipeline_stage: t.pipeline_stage ?? '',
   };
 }
 
@@ -221,7 +209,6 @@ export default function Recruitment() {
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [yearFilter,   setYearFilter]   = useState('');
-  const [stageFilter,  setStageFilter]  = useState('');
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState<string | null>(null);
 
@@ -273,10 +260,9 @@ export default function Recruitment() {
         (t.region_name ?? '').toLowerCase().includes(q)
       );
     }
-    if (stageFilter) list = list.filter(t => (t.pipeline_stage ?? '') === stageFilter);
     return colFilter.applyToList(list);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tbhCodes, search, stageFilter, colFilter.colFilters, colFilter.sortConfig]);
+  }, [tbhCodes, search, colFilter.colFilters, colFilter.sortConfig]);
 
   const years = useMemo(() => {
     const ys = new Set(tbhCodes.map(t => t.funding_year).filter(Boolean) as number[]);
@@ -331,7 +317,6 @@ export default function Recruitment() {
         confirmed_start_date:     form.confirmed_start_date     || null,
         hire_source:              form.hire_source              || null,
         hire_source_details:      form.hire_source_details      || null,
-        pipeline_stage:           form.pipeline_stage           || null,
       };
       if (editTarget) await tbhCodesApi.update(editTarget.id, body);
       else            await tbhCodesApi.create(body);
@@ -407,15 +392,15 @@ export default function Recruitment() {
         </select>
         {!loading && <span style={{ color: '#888', fontSize: 12 }}>{filtered.length} records</span>}
 
-        {/* Pipeline stage filter chips */}
+        {/* Hire status filter chips */}
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Stage:</span>
-          <button onClick={() => setStageFilter('')} style={{ padding: '3px 9px', borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: stageFilter === '' ? '1.5px solid #374151' : '1px solid #E0E0E0', background: stageFilter === '' ? '#374151' : '#F9FAFB', color: stageFilter === '' ? '#FFFFFF' : '#555' }}>All</button>
-          {PIPELINE_STAGES.map(s => {
-            const m = STAGE_META[s];
-            const active = stageFilter === s;
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Status:</span>
+          <button onClick={() => setStatusFilter('')} style={{ padding: '3px 9px', borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: statusFilter === '' ? '1.5px solid #374151' : '1px solid #E0E0E0', background: statusFilter === '' ? '#374151' : '#F9FAFB', color: statusFilter === '' ? '#FFFFFF' : '#555' }}>All</button>
+          {REQ_STATUSES.map(s => {
+            const m = STATUS_META[s];
+            const active = statusFilter === s;
             return (
-              <button key={s} onClick={() => setStageFilter(active ? '' : s)} style={{ padding: '3px 9px', borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: active ? `1.5px solid ${m.color}` : `1px solid ${m.border}`, background: active ? m.color : m.bg, color: active ? '#FFFFFF' : m.color }}>
+              <button key={s} onClick={() => setStatusFilter(active ? '' : s)} style={{ padding: '3px 9px', borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: active ? `1.5px solid ${m.color}` : `1px solid ${m.border}`, background: active ? m.color : m.bg, color: active ? '#FFFFFF' : m.color }}>
                 {s}
               </button>
             );
@@ -551,29 +536,6 @@ export default function Recruitment() {
                               {t.hire_source}
                             </span>
                           : <span style={{ color: '#9CA3AF' }}>—</span>}
-                      </td>
-                    )}
-                    {!hiddenCols.has('pipeline_stage') && (
-                      <td style={{ ...TD, minWidth: 120 }}>
-                        {(() => {
-                          const m = t.pipeline_stage ? STAGE_META[t.pipeline_stage] : null;
-                          return (
-                            <select
-                              value={t.pipeline_stage ?? ''}
-                              onChange={async e => {
-                                const val = e.target.value || null;
-                                try {
-                                  await tbhCodesApi.update(t.id, { pipeline_stage: val } as any);
-                                  setTbhCodes(prev => prev.map(r => r.id === t.id ? { ...r, pipeline_stage: val } : r));
-                                } catch {}
-                              }}
-                              style={{ fontSize: 10, fontWeight: 700, padding: '2px 5px', borderRadius: 4, cursor: 'pointer', outline: 'none', border: m ? `1px solid ${m.border}` : '1px solid #E0E0E0', background: m ? m.bg : '#F9FAFB', color: m ? m.color : '#9CA3AF' }}
-                            >
-                              <option value="">— stage —</option>
-                              {PIPELINE_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                          );
-                        })()}
                       </td>
                     )}
                     {!hiddenCols.has('region') && (
@@ -756,14 +718,6 @@ export default function Recruitment() {
             <div style={{ marginBottom: 8 }}>
               <label style={labelSt}>Hire Source Details - Co/Dept</label>
               <input style={inputSt} value={form.hire_source_details} onChange={e => sf('hire_source_details', e.target.value)} placeholder="e.g. Company / Department" />
-            </div>
-
-            <div style={{ marginBottom: 8 }}>
-              <label style={labelSt}>Pipeline Stage</label>
-              <select style={selectSt} value={form.pipeline_stage} onChange={e => sf('pipeline_stage', e.target.value)}>
-                <option value="">— not set —</option>
-                {PIPELINE_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
             </div>
 
             <div style={{ marginBottom: 8 }}>

@@ -195,6 +195,7 @@ export interface CreatePersonBody {
   system_profile?: string | null;
   region_ids?: number[];
   country_ids?: number[];
+  planning_cycle_id?: number | null;
 }
 
 // ---------------------------------------------------------------------------

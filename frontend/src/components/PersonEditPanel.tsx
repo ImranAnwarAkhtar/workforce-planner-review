@@ -5,6 +5,7 @@ import {
   type Person, type Discipline, type Level, type ContractType, type Region, type Country,
   type CountryAllocation,
 } from '../services/api';
+import { usePlanningCycle } from '../context/PlanningCycleContext';
 
 
 const COUNTRY_FLAGS: Record<string, string> = {
@@ -64,6 +65,8 @@ const CONTRACT_CATEGORY_LABELS: Record<string, string> = {
 const PLACEHOLDER_TYPES = ['R FTE', 'R CON', 'A FTE', 'A CON'];
 
 export default function PersonEditPanel({ person, onClose, onSaved, countryAllocs, countryGroups, selectedCycleId, onAllocsSaved }: Props) {
+  const { cycles } = usePlanningCycle();
+
   const [disciplines, setDisciplines]   = useState<Discipline[]>([]);
   const [levels, setLevels]             = useState<Level[]>([]);
   const [contractTypes, setContractTypes] = useState<ContractType[]>([]);
@@ -78,17 +81,18 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
 
 
   const [form, setForm] = useState({
-    name:             '',
-    level_id:         '' as string | number,
-    discipline_id:    '' as string | number,
-    contract_type_id: '' as string | number,
-    contracted_fte:   '1.0',
-    tbh_code_id:      '' as string | number,
-    workday_jr_id:    '',
-    email:            '',
-    notes:            '',
-    region_ids:       [] as number[],
-    country_ids:      [] as number[],
+    name:               '',
+    level_id:           '' as string | number,
+    discipline_id:      '' as string | number,
+    contract_type_id:   '' as string | number,
+    contracted_fte:     '1.0',
+    tbh_code_id:        '' as string | number,
+    workday_jr_id:      '',
+    email:              '',
+    notes:              '',
+    region_ids:         [] as number[],
+    country_ids:        [] as number[],
+    planning_cycle_id:  '' as string | number,
   });
 
   const loadRefData = useCallback(async () => {
@@ -113,17 +117,18 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
   useEffect(() => {
     if (!person) return;
     setForm({
-      name:             person.name ?? '',
-      level_id:         person.level_id ?? '',
-      discipline_id:    person.discipline_id ?? '',
-      contract_type_id: person.contract_type_id ?? '',
-      contracted_fte:   String(person.contracted_fte ?? '1.0'),
-      tbh_code_id:      person.tbh_code_id ?? '',
-      workday_jr_id:    person.workday_jr_id ?? '',
-      email:            person.email ?? '',
-      notes:            person.notes ?? '',
-      region_ids:       [],
-      country_ids:      [],
+      name:              person.name ?? '',
+      level_id:          person.level_id ?? '',
+      discipline_id:     person.discipline_id ?? '',
+      contract_type_id:  person.contract_type_id ?? '',
+      contracted_fte:    String(person.contracted_fte ?? '1.0'),
+      tbh_code_id:       person.tbh_code_id ?? '',
+      workday_jr_id:     person.workday_jr_id ?? '',
+      email:             person.email ?? '',
+      notes:             person.notes ?? '',
+      region_ids:        [],
+      country_ids:       [],
+      planning_cycle_id: person.planning_cycle_id ?? '',
     });
 
     if (person.id) {
@@ -201,17 +206,18 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
     setSaving(true);
     try {
       const updated = await peopleApi.update(person.id, {
-        name:             form.name.trim(),
-        level_id:         form.level_id !== '' ? Number(form.level_id) : null,
-        discipline_id:    form.discipline_id !== '' ? Number(form.discipline_id) : null,
-        contract_type_id: form.contract_type_id !== '' ? Number(form.contract_type_id) : undefined,
-        contracted_fte:   parseFloat(form.contracted_fte) || 1.0,
-        tbh_code_id:      form.tbh_code_id !== '' ? Number(form.tbh_code_id) : null,
-        workday_jr_id:    form.workday_jr_id.trim() || null,
-        email:            form.email.trim() || null,
-        notes:            form.notes.trim() || null,
-        region_ids:       form.region_ids,
-        country_ids:      form.country_ids,
+        name:              form.name.trim(),
+        level_id:          form.level_id !== '' ? Number(form.level_id) : null,
+        discipline_id:     form.discipline_id !== '' ? Number(form.discipline_id) : null,
+        contract_type_id:  form.contract_type_id !== '' ? Number(form.contract_type_id) : undefined,
+        contracted_fte:    parseFloat(form.contracted_fte) || 1.0,
+        tbh_code_id:       form.tbh_code_id !== '' ? Number(form.tbh_code_id) : null,
+        workday_jr_id:     form.workday_jr_id.trim() || null,
+        email:             form.email.trim() || null,
+        notes:             form.notes.trim() || null,
+        region_ids:        form.region_ids,
+        country_ids:       form.country_ids,
+        planning_cycle_id: form.planning_cycle_id !== '' ? Number(form.planning_cycle_id) : null,
       });
       toast.success('Saved');
       onSaved(updated);
@@ -334,6 +340,17 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
               {tbhCodes.map(t => <option key={t.id} value={t.id}>{t.tbh_id}</option>)}
             </select>
           </div>
+
+          {/* Planning Cycle — only for headcount/placeholder records */}
+          {isPlaceholder && (
+            <div style={FIELD}>
+              <label style={LBL}>Planning Cycle</label>
+              <select style={SEL} value={form.planning_cycle_id} onChange={e => set('planning_cycle_id', e.target.value)}>
+                <option value="">— Not assigned —</option>
+                {cycles.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Workday JR ID */}
           <div style={FIELD}>

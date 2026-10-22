@@ -464,9 +464,9 @@ export default function Headcount() {
       <PersonEditPanel
         person={editPerson}
         onClose={() => setEditPerson(null)}
-        onSaved={updated => {
-          setRecords(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r));
+        onSaved={() => {
           setEditPerson(null);
+          load();
         }}
       />
 

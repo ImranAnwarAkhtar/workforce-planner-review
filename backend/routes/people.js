@@ -154,7 +154,7 @@ router.post('/bulk-delete', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_
 router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => {
   const { name, contract_type_id, level_id, discipline_id, contracted_fte,
           tbh_code_id, workday_jr_id, is_active, notes, system_profile, email,
-          login_email, app_role, platform_access_enabled,
+          login_email, app_role, platform_access_enabled, planning_cycle_id,
           region_ids, country_ids } = req.body;
   const sets = [];
   const params = [];
@@ -174,6 +174,7 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
   if (login_email             !== undefined) { sets.push(`login_email = $${i++}`);              params.push(login_email || null); }
   if (app_role                !== undefined) { sets.push(`app_role = $${i++}`);                 params.push(app_role || null); }
   if (platform_access_enabled !== undefined) { sets.push(`platform_access_enabled = $${i++}`); params.push(platform_access_enabled); }
+  if (planning_cycle_id       !== undefined) { sets.push(`planning_cycle_id = $${i++}`);       params.push(planning_cycle_id ?? null); }
 
   const client = await pool.connect();
   try {
