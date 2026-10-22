@@ -144,6 +144,10 @@ pool.query(`
 `).catch(err => logger.error('TBH codes onboarding column migration failed', { error: err.message }));
 
 pool.query(`
+  ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS pipeline_stage VARCHAR(50);
+`).catch(err => logger.error('TBH codes pipeline stage migration failed', { error: err.message }));
+
+pool.query(`
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '14 days'
     WHERE req_status = 'Filled' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL;
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '21 days'

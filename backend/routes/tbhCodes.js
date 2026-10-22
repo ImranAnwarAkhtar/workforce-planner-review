@@ -102,7 +102,7 @@ router.get('/', requireAuth, async (req, res) => {
             t.req_status, t.ta_contact, t.candidate_name, t.estimated_hire_date,
             t.confirmed_start_date, t.hire_source, t.hire_source_details,
             t.ta_status_comments, t.tbh_description, t.fp_and_a_approver_notes,
-            t.fp_and_a_notes, t.created_at, t.updated_at, r.name AS region_name,
+            t.fp_and_a_notes, t.pipeline_stage, t.created_at, t.updated_at, r.name AS region_name,
             EXISTS (SELECT 1 FROM people pe WHERE pe.tbh_code_id = t.id AND pe.is_active = TRUE) AS is_in_plan
      FROM tbh_codes t
      LEFT JOIN regions r ON t.region_id = r.id
@@ -298,7 +298,7 @@ router.put('/:id', requireAuth, requireRole(...WRITE_ROLES), async (req, res) =>
     'target_hire_date','jr_id','req_status','ta_contact','candidate_name',
     'estimated_hire_date','ta_status_comments','tbh_description',
     'fp_and_a_approver_notes','fp_and_a_notes',
-    'confirmed_start_date','hire_source','hire_source_details',
+    'confirmed_start_date','hire_source','hire_source_details','pipeline_stage',
   ];
   const sets = [];
   const params = [];

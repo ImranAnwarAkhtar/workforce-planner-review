@@ -705,6 +705,7 @@ export interface TbhCode {
   confirmed_start_date: string | null;
   hire_source: string | null;
   hire_source_details: string | null;
+  pipeline_stage: string | null;
   region_name: string | null;
   is_in_plan: boolean;
   created_at: string | null;
