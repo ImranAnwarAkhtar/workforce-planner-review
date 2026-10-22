@@ -452,6 +452,11 @@ app.get('/*splat', (req, res, next) => {
   const fs = require('fs');
   fs.access(indexHtml, (err) => {
     if (err) return next();
+    // Prevent browsers and proxies from caching index.html so they always
+    // load the latest hashed JS/CSS bundle references.
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(indexHtml);
   });
 });
