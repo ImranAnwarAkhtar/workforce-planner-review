@@ -163,6 +163,11 @@ pool.query(`
 `).catch(err => logger.error('People planning_cycle_id migration failed', { error: err.message }));
 
 pool.query(`
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS dept_head VARCHAR(255);
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS hiring_manager VARCHAR(255);
+`).catch(err => logger.error('People dept_head/hiring_manager migration failed', { error: err.message }));
+
+pool.query(`
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '14 days'
     WHERE req_status = 'Filled' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL;
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '21 days'

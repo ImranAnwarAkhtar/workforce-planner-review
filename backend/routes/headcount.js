@@ -16,6 +16,7 @@ const SELECT_PERSON = `
          d.name AS discipline_name, d.id AS discipline_id,
          t.tbh_id,
          pe.planning_cycle_id, pc.name AS planning_cycle_name,
+         pe.dept_head, pe.hiring_manager,
          COALESCE((SELECT STRING_AGG(r.name, ', ' ORDER BY r.name)
                    FROM person_regions pr JOIN regions r ON pr.region_id = r.id
                    WHERE pr.person_id = pe.id), '') AS region_names,

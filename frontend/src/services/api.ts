@@ -166,6 +166,8 @@ export interface Person {
   last_login: string | null;
   planning_cycle_id: number | null;
   planning_cycle_name: string | null;
+  dept_head: string | null;
+  hiring_manager: string | null;
 }
 
 export interface PersonDetail extends Person {
@@ -196,6 +198,8 @@ export interface CreatePersonBody {
   region_ids?: number[];
   country_ids?: number[];
   planning_cycle_id?: number | null;
+  dept_head?: string | null;
+  hiring_manager?: string | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -93,6 +93,8 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
     region_ids:         [] as number[],
     country_ids:        [] as number[],
     planning_cycle_id:  '' as string | number,
+    dept_head:          '',
+    hiring_manager:     '',
   });
 
   const loadRefData = useCallback(async () => {
@@ -129,6 +131,8 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
       region_ids:        [],
       country_ids:       [],
       planning_cycle_id: person.planning_cycle_id ?? '',
+      dept_head:         person.dept_head ?? '',
+      hiring_manager:    person.hiring_manager ?? '',
     });
 
     if (person.id) {
@@ -218,6 +222,8 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
         region_ids:        form.region_ids,
         country_ids:       form.country_ids,
         planning_cycle_id: form.planning_cycle_id !== '' ? Number(form.planning_cycle_id) : null,
+        dept_head:         form.dept_head.trim() || null,
+        hiring_manager:    form.hiring_manager.trim() || null,
       });
       toast.success('Saved');
       onSaved(updated);
@@ -352,19 +358,39 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
             </div>
           )}
 
-          {/* Workday JR ID */}
-          <div style={FIELD}>
-            <label style={LBL}>Workday JR ID</label>
-            <input style={INPUT} value={form.workday_jr_id} onChange={e => set('workday_jr_id', e.target.value)}
-              placeholder="JR-000000" />
-          </div>
+          {/* Dept Head + Hiring Manager — placeholder records only */}
+          {isPlaceholder && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={FIELD}>
+                <label style={LBL}>Department Head</label>
+                <input style={INPUT} value={form.dept_head} onChange={e => set('dept_head', e.target.value)}
+                  placeholder="Name" />
+              </div>
+              <div style={FIELD}>
+                <label style={LBL}>Hiring Manager</label>
+                <input style={INPUT} value={form.hiring_manager} onChange={e => set('hiring_manager', e.target.value)}
+                  placeholder="Name" />
+              </div>
+            </div>
+          )}
 
-          {/* Email */}
-          <div style={FIELD}>
-            <label style={LBL}>Email</label>
-            <input type="email" style={INPUT} value={form.email} onChange={e => set('email', e.target.value)}
-              placeholder="name@equinix.com" />
-          </div>
+          {/* Workday JR ID — non-placeholder records only */}
+          {!isPlaceholder && (
+            <div style={FIELD}>
+              <label style={LBL}>Workday JR ID</label>
+              <input style={INPUT} value={form.workday_jr_id} onChange={e => set('workday_jr_id', e.target.value)}
+                placeholder="JR-000000" />
+            </div>
+          )}
+
+          {/* Email — non-placeholder records only */}
+          {!isPlaceholder && (
+            <div style={FIELD}>
+              <label style={LBL}>Email</label>
+              <input type="email" style={INPUT} value={form.email} onChange={e => set('email', e.target.value)}
+                placeholder="name@equinix.com" />
+            </div>
+          )}
 
           {/* Regions */}
           <div style={FIELD}>
@@ -411,6 +437,18 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
                 );
               })}
             </div>
+          </div>
+
+          {/* Comments / Notes */}
+          <div style={FIELD}>
+            <label style={LBL}>{isPlaceholder ? 'Comments' : 'Notes'}</label>
+            <textarea
+              rows={3}
+              style={{ ...INPUT, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+              placeholder={isPlaceholder ? 'Justification, context or comments…' : 'Notes…'}
+            />
           </div>
 
           {/* ── Country Allocations (only shown when context is passed from Allocations page) ── */}

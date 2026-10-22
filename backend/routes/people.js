@@ -155,6 +155,7 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
   const { name, contract_type_id, level_id, discipline_id, contracted_fte,
           tbh_code_id, workday_jr_id, is_active, notes, system_profile, email,
           login_email, app_role, platform_access_enabled, planning_cycle_id,
+          dept_head, hiring_manager,
           region_ids, country_ids } = req.body;
   const sets = [];
   const params = [];
@@ -175,6 +176,8 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
   if (app_role                !== undefined) { sets.push(`app_role = $${i++}`);                 params.push(app_role || null); }
   if (platform_access_enabled !== undefined) { sets.push(`platform_access_enabled = $${i++}`); params.push(platform_access_enabled); }
   if (planning_cycle_id       !== undefined) { sets.push(`planning_cycle_id = $${i++}`);       params.push(planning_cycle_id ?? null); }
+  if (dept_head               !== undefined) { sets.push(`dept_head = $${i++}`);               params.push(dept_head || null); }
+  if (hiring_manager          !== undefined) { sets.push(`hiring_manager = $${i++}`);          params.push(hiring_manager || null); }
 
   const client = await pool.connect();
   try {
