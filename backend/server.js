@@ -203,6 +203,102 @@ pool.query(`
 `).catch(err => logger.error('Cycle stage access migration failed', { error: err.message }));
 
 pool.query(`
+  CREATE TABLE IF NOT EXISTS metros (
+    id         SERIAL       PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    region_id  INTEGER      REFERENCES regions(id) ON DELETE SET NULL,
+    sub_region VARCHAR(100),
+    sort_order INTEGER      NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    UNIQUE (name, region_id)
+  );
+  INSERT INTO metros (name, region_id, sub_region, sort_order)
+  SELECT v.name, r.id, v.sub_region, v.sort_order
+  FROM (VALUES
+    ('Atlanta',          'AMER', 'North America',  1),
+    ('Austin',           'AMER', 'North America',  2),
+    ('Boston',           'AMER', 'North America',  3),
+    ('Calgary',          'AMER', 'North America',  4),
+    ('Chicago',          'AMER', 'North America',  5),
+    ('Culpeper',         'AMER', 'North America',  6),
+    ('Dallas',           'AMER', 'North America',  7),
+    ('Washington, D.C.', 'AMER', 'North America',  8),
+    ('Denver',           'AMER', 'North America',  9),
+    ('Houston',          'AMER', 'North America', 10),
+    ('Kamloops',         'AMER', 'North America', 11),
+    ('Los Angeles',      'AMER', 'North America', 12),
+    ('Miami',            'AMER', 'North America', 13),
+    ('Mexico City',      'AMER', 'North America', 14),
+    ('Monterrey',        'AMER', 'North America', 15),
+    ('Montreal',         'AMER', 'North America', 16),
+    ('New York',         'AMER', 'North America', 17),
+    ('Ottawa',           'AMER', 'North America', 18),
+    ('Philadelphia',     'AMER', 'North America', 19),
+    ('Saint John',       'AMER', 'North America', 20),
+    ('Seattle',          'AMER', 'North America', 21),
+    ('Silicon Valley',   'AMER', 'North America', 22),
+    ('Toronto',          'AMER', 'North America', 23),
+    ('Vancouver',        'AMER', 'North America', 24),
+    ('Winnipeg',         'AMER', 'North America', 25),
+    ('Bogotá',           'AMER', 'South America', 26),
+    ('Lima',             'AMER', 'South America', 27),
+    ('Rio de Janeiro',   'AMER', 'South America', 28),
+    ('São Paulo',        'AMER', 'South America', 29),
+    ('Santiago',         'AMER', 'South America', 30),
+    ('Abidjan',          'EMEA', NULL,  1),
+    ('Abu Dhabi',        'EMEA', NULL,  2),
+    ('Accra',            'EMEA', NULL,  3),
+    ('Amsterdam',        'EMEA', NULL,  4),
+    ('Barcelona',        'EMEA', NULL,  5),
+    ('Cape Town',        'EMEA', NULL,  6),
+    ('Dubai',            'EMEA', NULL,  7),
+    ('Dublin',           'EMEA', NULL,  8),
+    ('Düsseldorf',       'EMEA', NULL,  9),
+    ('Enschede',         'EMEA', NULL, 10),
+    ('Frankfurt',        'EMEA', NULL, 11),
+    ('Geneva',           'EMEA', NULL, 12),
+    ('Genoa',            'EMEA', NULL, 13),
+    ('Hamburg',          'EMEA', NULL, 14),
+    ('Helsinki',         'EMEA', NULL, 15),
+    ('Istanbul',         'EMEA', NULL, 16),
+    ('Johannesburg',     'EMEA', NULL, 17),
+    ('Lagos',            'EMEA', NULL, 18),
+    ('Lisbon',           'EMEA', NULL, 19),
+    ('London',           'EMEA', NULL, 20),
+    ('Madrid',           'EMEA', NULL, 21),
+    ('Manchester',       'EMEA', NULL, 22),
+    ('Milan',            'EMEA', NULL, 23),
+    ('Munich',           'EMEA', NULL, 24),
+    ('Muscat',           'EMEA', NULL, 25),
+    ('Paris',            'EMEA', NULL, 26),
+    ('Riyadh',           'EMEA', NULL, 27),
+    ('Seville',          'EMEA', NULL, 28),
+    ('Stockholm',        'EMEA', NULL, 29),
+    ('Warsaw',           'EMEA', NULL, 30),
+    ('Zurich',           'EMEA', NULL, 31),
+    ('Zwolle',           'EMEA', NULL, 32),
+    ('Adelaide',         'APAC', NULL,  1),
+    ('Bangkok',          'APAC', NULL,  2),
+    ('Brisbane',         'APAC', NULL,  3),
+    ('Canberra',         'APAC', NULL,  4),
+    ('Chennai',          'APAC', NULL,  5),
+    ('Hong Kong',        'APAC', NULL,  6),
+    ('Manila',           'APAC', NULL,  7),
+    ('Melbourne',        'APAC', NULL,  8),
+    ('Mumbai',           'APAC', NULL,  9),
+    ('Osaka',            'APAC', NULL, 10),
+    ('Perth',            'APAC', NULL, 11),
+    ('Seoul',            'APAC', NULL, 12),
+    ('Shanghai',         'APAC', NULL, 13),
+    ('Singapore City',   'APAC', NULL, 14),
+    ('Sydney',           'APAC', NULL, 15),
+    ('Tokyo',            'APAC', NULL, 16)
+  ) AS v(name, region_code, sub_region, sort_order)
+  JOIN regions r ON r.code = v.region_code
+  ON CONFLICT (name, region_id) DO NOTHING;
+`).catch(err => logger.error('Metros migration failed', { error: err.message }));
+
+pool.query(`
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '14 days'
     WHERE req_status = 'Filled' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL;
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '21 days'

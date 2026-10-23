@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { refDataApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type PlanningCycle, type CycleApprover, type CycleStageAccess, type GearingConstant, type AlertConfig, type AlertLog, type Person } from '../services/api';
+import { refDataApi, metrosApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type Metro, type PlanningCycle, type CycleApprover, type CycleStageAccess, type GearingConstant, type AlertConfig, type AlertLog, type Person } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import axios from 'axios';
 
@@ -613,6 +613,216 @@ function RegionsTab() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MetrosTab
+// ---------------------------------------------------------------------------
+
+function MetrosTab() {
+  const blankM = { name: '', region_id: '' as string | number, sub_region: '', sort_order: '0' };
+  const [data, setData]           = useState<Metro[]>([]);
+  const [regions, setRegions]     = useState<Region[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [creating, setCreating]   = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [saving, setSaving]       = useState(false);
+  const [form, setForm]           = useState(blankM);
+  const [editForm, setEditForm]   = useState(blankM);
+  const [filterRegion, setFilterRegion] = useState<string>('');
+
+  function load() {
+    setLoading(true);
+    Promise.all([metrosApi.list(), refDataApi.regions()])
+      .then(([metros, regs]) => { setData(metros); setRegions(regs); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleCreate() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await metrosApi.create({
+        name: form.name.trim(),
+        region_id: form.region_id !== '' ? Number(form.region_id) : null,
+        sub_region: form.sub_region.trim() || null,
+        sort_order: parseInt(String(form.sort_order)) || 0,
+      });
+      load(); setCreating(false); setForm(blankM);
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleUpdate(id: number) {
+    setSaving(true);
+    try {
+      await metrosApi.update(id, {
+        name: String(editForm.name).trim(),
+        region_id: editForm.region_id !== '' ? Number(editForm.region_id) : null,
+        sub_region: String(editForm.sub_region).trim() || null,
+        sort_order: parseInt(String(editForm.sort_order)) || 0,
+      });
+      load(); setEditingId(null);
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleDelete(id: number) {
+    setSaving(true);
+    try {
+      await metrosApi.delete(id);
+      load(); setDeletingId(null);
+    } catch (e: unknown) { toast.error(errMsg(e)); setDeletingId(null); } finally { setSaving(false); }
+  }
+
+  const saveBtn: React.CSSProperties = { padding: '5px 12px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' };
+  const delConfirmBtn: React.CSSProperties = { padding: '4px 10px', background: '#AD050C', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
+  const inpSm: React.CSSProperties = { width: '100%', padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 13 };
+
+  const filtered = filterRegion
+    ? data.filter(m => m.region_id === Number(filterRegion))
+    : data;
+
+  // Group by region → sub_region for display
+  const grouped: { regionName: string; regionCode: string; groups: { sub: string | null; metros: Metro[] }[] }[] = [];
+  const regionOrder = regions.map(r => r.id);
+  const byRegion: Record<number, Metro[]> = {};
+  filtered.forEach(m => {
+    const rid = m.region_id ?? -1;
+    if (!byRegion[rid]) byRegion[rid] = [];
+    byRegion[rid].push(m);
+  });
+  const sortedRegionIds = Object.keys(byRegion).map(Number).sort((a, b) => {
+    const ai = regionOrder.indexOf(a), bi = regionOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+  sortedRegionIds.forEach(rid => {
+    const reg = regions.find(r => r.id === rid);
+    const metros = byRegion[rid];
+    const subMap: Record<string, Metro[]> = {};
+    metros.forEach(m => {
+      const key = m.sub_region ?? '__none__';
+      if (!subMap[key]) subMap[key] = [];
+      subMap[key].push(m);
+    });
+    const subGroups = Object.entries(subMap).map(([sub, ms]) => ({
+      sub: sub === '__none__' ? null : sub,
+      metros: ms,
+    }));
+    grouped.push({ regionName: reg?.name ?? 'Unknown', regionCode: reg?.code ?? '', groups: subGroups });
+  });
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <p style={{ fontSize: 13, color: '#666', margin: 0 }}>Manage metro locations (cities) linked to regions. These are selectable throughout the application.</p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} style={{ padding: '6px 10px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, color: '#333' }}>
+            <option value="">All Regions</option>
+            {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+          <button onClick={() => { setCreating(true); setEditingId(null); setDeletingId(null); }}
+            style={{ padding: '7px 14px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ New Metro</button>
+        </div>
+      </div>
+
+      {creating && (
+        <div style={{ ...card, marginBottom: 16, padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 12 }}>New Metro</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 80px', gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={lbl}>Name *</label>
+              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. London" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Region</label>
+              <select value={form.region_id} onChange={e => setForm(f => ({ ...f, region_id: e.target.value }))} style={inp}>
+                <option value="">— none —</option>
+                {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Sub-region</label>
+              <input value={form.sub_region} onChange={e => setForm(f => ({ ...f, sub_region: e.target.value }))} placeholder="e.g. North America" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Sort</label>
+              <input type="number" value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))} style={inp} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => { setCreating(false); setForm(blankM); }} style={btnSecondary}>Cancel</button>
+            <button onClick={handleCreate} disabled={saving || !form.name.trim()}
+              style={{ padding: '7px 16px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: !form.name.trim() ? 0.6 : 1 }}>
+              {saving ? 'Saving…' : 'Create'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={card}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>
+          <th style={th}>Name</th><th style={th}>Region</th><th style={th}>Sub-region</th><th style={{ ...th, width: 60 }}>Sort</th><th style={{ ...th, width: 180 }}>Actions</th>
+        </tr></thead><tbody><LoadingRows cols={5} /></tbody></table></div>
+      ) : filtered.length === 0 ? (
+        <div style={{ ...card, padding: 24, textAlign: 'center', color: '#555', fontSize: 13 }}>No metros found</div>
+      ) : grouped.map(({ regionName, regionCode, groups }) => (
+        <div key={regionName} style={{ ...card, marginBottom: 16 }}>
+          <div style={{ padding: '10px 14px', background: '#F3F4F6', borderBottom: '1px solid #E5E5E5', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>{regionName}</span>
+            <span style={{ padding: '1px 7px', borderRadius: 8, background: '#E4E6EA', color: '#555', border: '1px solid #C8CCD4', fontSize: 11 }}>{regionCode}</span>
+            <span style={{ fontSize: 12, color: '#888', marginLeft: 4 }}>{groups.reduce((s, g) => s + g.metros.length, 0)} metros</span>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              <th style={th}>Name</th><th style={th}>Sub-region</th><th style={{ ...th, width: 60 }}>Sort</th><th style={{ ...th, width: 180 }}>Actions</th>
+            </tr></thead>
+            <tbody>
+              {groups.map(({ sub, metros }) => metros.map(m => {
+                if (editingId === m.id) return (
+                  <tr key={m.id} style={{ background: '#FAFAFA' }}>
+                    <td style={td}><input value={String(editForm.name)} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={inpSm} /></td>
+                    <td style={td}><input value={String(editForm.sub_region)} onChange={e => setEditForm(f => ({ ...f, sub_region: e.target.value }))} placeholder="sub-region" style={inpSm} /></td>
+                    <td style={td}><input type="number" value={String(editForm.sort_order)} onChange={e => setEditForm(f => ({ ...f, sort_order: e.target.value }))} style={{ ...inpSm, width: 60 }} /></td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => handleUpdate(m.id)} disabled={saving} style={saveBtn}>{saving ? '…' : 'Save'}</button>
+                        <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+                return (
+                  <tr key={m.id}>
+                    <td style={{ ...td, color: '#111', fontWeight: 500 }}>{m.name}</td>
+                    <td style={td}><span style={{ fontSize: 12, color: '#666' }}>{sub ?? '—'}</span></td>
+                    <td style={td}>{m.sort_order}</td>
+                    <td style={td}>
+                      {deletingId === m.id ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <span style={{ fontSize: 12, color: '#AD050C' }}>Delete?</span>
+                          <button onClick={() => handleDelete(m.id)} disabled={saving} style={delConfirmBtn}>{saving ? '…' : 'Yes'}</button>
+                          <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '4px 8px', fontSize: 11 }}>No</button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => { setEditingId(m.id); setEditForm({ name: m.name, region_id: m.region_id ?? '', sub_region: m.sub_region ?? '', sort_order: String(m.sort_order) }); setDeletingId(null); }}
+                            style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Edit</button>
+                          <button onClick={() => { setDeletingId(m.id); setEditingId(null); }}
+                            style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12, color: '#AD050C', borderColor: '#FBBDBA' }}>Delete</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              }))}
+            </tbody>
+          </table>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1899,7 +2109,7 @@ function CycleStagesTab() {
 // ---------------------------------------------------------------------------
 
 
-const TABS = ['Planning Cycles', 'Cycle Stages', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'User Access', 'Gearing Ratios', 'Alerts'] as const;
+const TABS = ['Planning Cycles', 'Cycle Stages', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'Metros', 'User Access', 'Gearing Ratios', 'Alerts'] as const;
 type Tab = typeof TABS[number];
 
 export default function Admin() {
@@ -1931,6 +2141,7 @@ export default function Admin() {
       {activeTab === 'Levels'         && <LevelsTab />}
       {activeTab === 'Contract Types' && <ContractTypesTab />}
       {activeTab === 'Regions'        && <RegionsTab />}
+      {activeTab === 'Metros'         && <MetrosTab />}
       {activeTab === 'User Access'     && <UserAccessTab />}
       {activeTab === 'Gearing Ratios' && <GearingRatiosTab />}
       {activeTab === 'Alerts'          && <AlertsTab />}

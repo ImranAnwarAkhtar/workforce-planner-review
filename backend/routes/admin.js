@@ -472,4 +472,76 @@ router.put('/cycle-stage-access/:stageKey', requireAuth, requireRole(ROLES.PMO, 
   res.json({ data: rows[0] });
 });
 
+// ── Metros ────────────────────────────────────────────────────────────────────
+
+router.get('/metros', requireAuth, async (req, res) => {
+  const { region_id } = req.query;
+  const params = [];
+  let where = '';
+  if (region_id) {
+    params.push(Number(region_id));
+    where = 'WHERE m.region_id = $1';
+  }
+  const { rows } = await pool.query(
+    `SELECT m.*, r.name AS region_name, r.code AS region_code
+       FROM metros m
+       LEFT JOIN regions r ON r.id = m.region_id
+       ${where}
+      ORDER BY r.sort_order NULLS LAST, m.sub_region NULLS LAST, m.sort_order, m.name`,
+    params
+  );
+  res.json({ data: rows });
+});
+
+router.post('/metros', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  const { name, region_id, sub_region, sort_order } = req.body;
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+  const { rows } = await pool.query(
+    `INSERT INTO metros (name, region_id, sub_region, sort_order)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [name.trim(), region_id ?? null, sub_region?.trim() ?? null, sort_order ?? 0]
+  );
+  const full = await pool.query(
+    'SELECT m.*, r.name AS region_name, r.code AS region_code FROM metros m LEFT JOIN regions r ON r.id = m.region_id WHERE m.id = $1',
+    [rows[0].id]
+  );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'metros', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
+  res.status(201).json({ data: full.rows[0] });
+});
+
+router.put('/metros/:id', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, region_id, sub_region, sort_order } = req.body;
+  const fields = [];
+  const vals = [];
+  if (name !== undefined)       { fields.push(`name = $${vals.length+1}`);       vals.push(name.trim()); }
+  if (region_id !== undefined)  { fields.push(`region_id = $${vals.length+1}`);  vals.push(region_id); }
+  if (sub_region !== undefined) { fields.push(`sub_region = $${vals.length+1}`); vals.push(sub_region?.trim() ?? null); }
+  if (sort_order !== undefined) { fields.push(`sort_order = $${vals.length+1}`); vals.push(sort_order); }
+  if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
+  vals.push(id);
+  const { rows } = await pool.query(
+    `UPDATE metros SET ${fields.join(', ')} WHERE id = $${vals.length} RETURNING *`,
+    vals
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Metro not found' });
+  const full = await pool.query(
+    'SELECT m.*, r.name AS region_name, r.code AS region_code FROM metros m LEFT JOIN regions r ON r.id = m.region_id WHERE m.id = $1',
+    [id]
+  );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'metros', recordId: id, newValues: rows[0], ipAddress: req.ip });
+  res.json({ data: full.rows[0] });
+});
+
+router.delete('/metros/:id', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  const id = Number(req.params.id);
+  const { rows } = await pool.query('DELETE FROM metros WHERE id = $1 RETURNING id', [id]);
+  if (!rows.length) return res.status(404).json({ error: 'Metro not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE', tableName: 'metros', recordId: id, ipAddress: req.ip });
+  res.json({ data: { id } });
+});
+
 module.exports = router;

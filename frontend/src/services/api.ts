@@ -798,6 +798,16 @@ export interface ContractType { id: number; code: string; description: string; c
 export interface Region  { id: number; name: string; code: string; sort_order: number }
 export interface Country { id: number; name: string; code: string; region_id: number; region_name: string }
 
+export interface Metro {
+  id: number;
+  name: string;
+  region_id: number | null;
+  sub_region: string | null;
+  sort_order: number;
+  region_name: string | null;
+  region_code: string | null;
+}
+
 export const refDataApi = {
   disciplines:   () => client.get<ListResponse<Discipline>>('/admin/disciplines').then((r) => r.data.data),
   levels:        () => client.get<ListResponse<Level>>('/admin/levels').then((r) => r.data.data),
@@ -806,6 +816,28 @@ export const refDataApi = {
   countries:     (region_id?: number) =>
     client.get<ListResponse<Country>>('/admin/countries', { params: region_id ? { region_id } : undefined })
       .then((r) => r.data.data),
+  metros: (region_id?: number) =>
+    client.get<ListResponse<Metro>>('/admin/metros', { params: region_id ? { region_id } : undefined })
+      .then((r) => r.data.data),
+};
+
+// ---------------------------------------------------------------------------
+// Metros admin CRUD
+// ---------------------------------------------------------------------------
+
+export const metrosApi = {
+  list: (region_id?: number) =>
+    client.get<ListResponse<Metro>>('/admin/metros', { params: region_id ? { region_id } : undefined })
+      .then((r) => r.data.data),
+
+  create: (body: { name: string; region_id: number | null; sub_region?: string | null; sort_order?: number }) =>
+    client.post<ItemResponse<Metro>>('/admin/metros', body).then((r) => r.data.data),
+
+  update: (id: number, body: { name?: string; region_id?: number | null; sub_region?: string | null; sort_order?: number }) =>
+    client.put<ItemResponse<Metro>>(`/admin/metros/${id}`, body).then((r) => r.data.data),
+
+  delete: (id: number) =>
+    client.delete(`/admin/metros/${id}`),
 };
 
 // ---------------------------------------------------------------------------
