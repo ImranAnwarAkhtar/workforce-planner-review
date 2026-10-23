@@ -5,6 +5,7 @@ const pool   = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
 const { writeAudit } = require('../db/auditLog');
+const { fireEventAlerts } = require('./alerts');
 
 const WRITE_ROLES = [ROLES.PMO, ROLES.WORKFORCE_PLANNING, ROLES.FINANCE];
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -324,6 +325,12 @@ router.put('/:id', requireAuth, requireRole(...WRITE_ROLES), async (req, res) =>
   if (!rows.length) return res.status(404).json({ error: 'TBH code not found' });
   await req.auditLog({ actionType: 'UPDATE', resourceType: 'tbh_code', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'tbh_codes', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
+  if (req.body.req_status === 'Filled') {
+    fireEventAlerts('position_filled', {
+      tbh_id: rows[0].tbh_id, candidate_name: rows[0].candidate_name,
+      region_id: rows[0].region_id,
+    }).catch(() => {});
+  }
   res.json({ data: rows[0] });
 });
 

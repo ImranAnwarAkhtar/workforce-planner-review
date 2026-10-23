@@ -1010,12 +1010,24 @@ export interface HubIqResponse {
 
 export interface AlertRecipient { id: number; name: string; email: string | null }
 
+export type AlertTriggerType =
+  // event-based
+  | 'hire_request_submitted' | 'hire_request_approved' | 'hire_request_final_approved' | 'hire_request_rejected'
+  | 'position_filled' | 'person_added' | 'person_updated' | 'cycle_stage_changed'
+  | 'change_request_submitted' | 'change_request_approved' | 'change_request_rejected'
+  // threshold
+  | 'overdue_role' | 'open_roles_above' | 'upcoming_starter'
+  | 'utilisation_above' | 'utilisation_below' | 'unallocated_people' | 'cycle_days_remaining';
+
 export interface AlertConfig {
   id: number;
   name: string;
-  trigger_type: 'overdue_role' | 'open_roles_above' | 'upcoming_starter';
+  trigger_type: AlertTriggerType;
   trigger_value: number;
+  trigger_config: Record<string, unknown>;
   message_template: string;
+  recipient_role_groups: string[];
+  recipient_context: string[];
   recipient_ids: number[];
   recipients: AlertRecipient[];
   active: boolean;

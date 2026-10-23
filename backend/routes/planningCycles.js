@@ -2,6 +2,7 @@ const { Router } = require('express');
 const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
+const { fireEventAlerts } = require('./alerts');
 
 const router = Router();
 
@@ -158,6 +159,12 @@ router.put('/:id', requireAuth, requireRole(...WP_ONLY), async (req, res) => {
   );
   if (!rows.length) return res.status(404).json({ error: 'Planning cycle not found' });
   await req.auditLog({ actionType: 'UPDATE', resourceType: 'planning_cycle', resourceId: rows[0].id, newValue: rows[0] });
+  if (req.body.status !== undefined) {
+    fireEventAlerts('cycle_stage_changed', {
+      cycle_name: rows[0].name, cycle_id: rows[0].id,
+      new_status: rows[0].status, changed_by_name: req.user.name,
+    }).catch(() => {});
+  }
   res.json({ data: rows[0] });
 });
 

@@ -3,6 +3,7 @@ const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, WRITER_ROLES, ROLES } = require('../middleware/rbac');
 const { writeAudit } = require('../db/auditLog');
+const { fireEventAlerts } = require('./alerts');
 
 const router = Router();
 
@@ -117,6 +118,10 @@ router.post('/', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => 
     await client.query('COMMIT');
     await req.auditLog({ actionType: 'CREATE', resourceType: 'person', resourceId: personId, newValue: rows[0] });
     await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'people', recordId: personId, newValues: rows[0], ipAddress: req.ip });
+    fireEventAlerts('person_added', {
+      person_name: rows[0].name, person_id: personId,
+      added_by_name: req.user.name, added_by_email: req.user.email,
+    }).catch(() => {});
     res.status(201).json({ data: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -213,6 +218,10 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
     await client.query('COMMIT');
     await req.auditLog({ actionType: 'UPDATE', resourceType: 'person', resourceId: updated.id, newValue: updated });
     await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'people', recordId: updated.id, newValues: updated, ipAddress: req.ip });
+    fireEventAlerts('person_updated', {
+      person_name: updated.name, person_id: updated.id,
+      updated_by_name: req.user.name, updated_by_email: req.user.email,
+    }).catch(() => {});
     res.json({ data: updated });
   } catch (err) {
     await client.query('ROLLBACK');

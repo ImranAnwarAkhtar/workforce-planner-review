@@ -336,6 +336,9 @@ pool.query(`
     email_sent           BOOLEAN NOT NULL DEFAULT FALSE,
     error_message        TEXT
   );
+  ALTER TABLE alerts ADD COLUMN IF NOT EXISTS trigger_config       JSONB    NOT NULL DEFAULT '{}';
+  ALTER TABLE alerts ADD COLUMN IF NOT EXISTS recipient_role_groups TEXT[]   NOT NULL DEFAULT '{}';
+  ALTER TABLE alerts ADD COLUMN IF NOT EXISTS recipient_context     TEXT[]   NOT NULL DEFAULT '{}';
 `).catch(err => logger.error('Alerts table migration failed', { error: err.message }));
 
 // Merge VP + Sr Director levels and VP + Dr contract types into a single SNR (Senior Staff) entry

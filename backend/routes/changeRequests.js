@@ -2,6 +2,7 @@ const { Router } = require('express');
 const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, ALL_ROLES, ROLES } = require('../middleware/rbac');
+const { fireEventAlerts } = require('./alerts');
 
 const router = Router();
 
@@ -154,6 +155,10 @@ router.post('/', requireAuth, requireRole(...ALL_ROLES), async (req, res) => {
     ]
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'change_request', resourceId: rows[0].id, newValue: rows[0] });
+  fireEventAlerts('change_request_submitted', {
+    request_id: rows[0].id, change_type: rows[0].change_type,
+    submitter_name: req.user.name, submitter_email: req.user.email,
+  }).catch(() => {});
   res.status(201).json({ data: rows[0] });
 });
 
@@ -171,6 +176,10 @@ router.post('/:id/approve', requireAuth, requireRole(ROLES.PMO), async (req, res
   );
   if (!rows.length) return res.status(404).json({ error: 'Change request not found or not pending' });
   await req.auditLog({ actionType: 'APPROVE', resourceType: 'change_request', resourceId: rows[0].id, newValue: rows[0] });
+  fireEventAlerts('change_request_approved', {
+    request_id: rows[0].id, change_type: rows[0].change_type,
+    approver_name: req.user.name,
+  }).catch(() => {});
   res.json({ data: rows[0] });
 });
 
@@ -187,6 +196,10 @@ router.post('/:id/reject', requireAuth, requireRole(ROLES.PMO), async (req, res)
   );
   if (!rows.length) return res.status(404).json({ error: 'Change request not found or not pending' });
   await req.auditLog({ actionType: 'REJECT', resourceType: 'change_request', resourceId: rows[0].id, newValue: rows[0] });
+  fireEventAlerts('change_request_rejected', {
+    request_id: rows[0].id, change_type: rows[0].change_type,
+    rejection_reason: rows[0].rejection_reason, rejector_name: req.user.name,
+  }).catch(() => {});
   res.json({ data: rows[0] });
 });
 

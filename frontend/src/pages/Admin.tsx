@@ -1578,22 +1578,64 @@ function GearingRatiosTab() {
 // Alerts tab
 // ---------------------------------------------------------------------------
 
-const TRIGGER_LABELS: Record<string, string> = {
-  overdue_role:      'Role overdue by > N days',
-  open_roles_above:  'Open role count exceeds N',
-  upcoming_starter:  'Starter within next N days',
+// Trigger catalogue
+const TRIGGER_CATALOGUE: { value: string; label: string; category: 'event' | 'threshold'; hasValue: boolean; unit?: string; tokens: string[] }[] = [
+  // Event-based
+  { value: 'hire_request_submitted',      label: 'Hire request submitted',          category: 'event',     hasValue: false, tokens: ['request_type','submitter_name','submitter_email'] },
+  { value: 'hire_request_approved',       label: 'Hire request approved (stage)',   category: 'event',     hasValue: false, tokens: ['request_type','stage','approver_name'] },
+  { value: 'hire_request_final_approved', label: 'Hire request fully approved',     category: 'event',     hasValue: false, tokens: ['request_type','approver_name'] },
+  { value: 'hire_request_rejected',       label: 'Hire request rejected',           category: 'event',     hasValue: false, tokens: ['request_type','rejection_reason','rejector_name'] },
+  { value: 'position_filled',             label: 'Position filled',                 category: 'event',     hasValue: false, tokens: ['tbh_id','candidate_name'] },
+  { value: 'person_added',                label: 'Person added to system',          category: 'event',     hasValue: false, tokens: ['person_name','added_by_name'] },
+  { value: 'person_updated',              label: 'Person record updated',           category: 'event',     hasValue: false, tokens: ['person_name','updated_by_name'] },
+  { value: 'cycle_stage_changed',         label: 'Planning cycle stage changed',    category: 'event',     hasValue: false, tokens: ['cycle_name','new_status','changed_by_name'] },
+  { value: 'change_request_submitted',    label: 'Change request submitted',        category: 'event',     hasValue: false, tokens: ['change_type','submitter_name','submitter_email'] },
+  { value: 'change_request_approved',     label: 'Change request approved',         category: 'event',     hasValue: false, tokens: ['change_type','approver_name'] },
+  { value: 'change_request_rejected',     label: 'Change request rejected',         category: 'event',     hasValue: false, tokens: ['change_type','rejection_reason','rejector_name'] },
+  // Threshold-based
+  { value: 'overdue_role',       label: 'Role overdue by more than N days',  category: 'threshold', hasValue: true,  unit: 'days',  tokens: ['alert_name','count','record_list'] },
+  { value: 'open_roles_above',   label: 'Open role count exceeds N',         category: 'threshold', hasValue: true,  unit: 'roles', tokens: ['alert_name','count'] },
+  { value: 'upcoming_starter',   label: 'Starter within next N days',        category: 'threshold', hasValue: true,  unit: 'days',  tokens: ['alert_name','count','record_list'] },
+  { value: 'utilisation_above',  label: 'Utilisation above N%',              category: 'threshold', hasValue: true,  unit: '%',     tokens: ['alert_name','count','record_list'] },
+  { value: 'utilisation_below',  label: 'Utilisation below N%',              category: 'threshold', hasValue: true,  unit: '%',     tokens: ['alert_name','count','record_list'] },
+  { value: 'unallocated_people', label: 'Unallocated people count above N',  category: 'threshold', hasValue: true,  unit: 'people',tokens: ['alert_name','count','record_list'] },
+  { value: 'cycle_days_remaining', label: 'Cycle has fewer than N days left',category: 'threshold', hasValue: true,  unit: 'days',  tokens: ['alert_name','count','record_list'] },
+];
+
+const CONTEXT_OPTIONS = [
+  { value: 'submitter', label: 'Submitter of request' },
+  { value: 'manager',   label: 'Manager of person' },
+];
+
+const CATEGORY_STYLE = {
+  event:     { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  threshold: { bg: '#FFFBEB', color: '#B45309', border: '#FDE68A' },
 };
 
-const TRIGGER_UNIT: Record<string, string> = {
-  overdue_role:     'days',
-  open_roles_above: 'roles',
-  upcoming_starter: 'days',
-};
+const blankAlertForm = () => ({
+  name: '', trigger_type: 'hire_request_submitted' as AlertConfig['trigger_type'],
+  trigger_value: 30,
+  trigger_config: {} as Record<string, unknown>,
+  message_template: '',
+  recipient_ids: [] as number[],
+  recipient_role_groups: [] as string[],
+  recipient_context: [] as string[],
+  active: true,
+});
 
-const blankAlert = {
-  name: '', trigger_type: 'overdue_role' as AlertConfig['trigger_type'],
-  trigger_value: 30, message_template: '', recipient_ids: [] as number[], active: true,
-};
+function renderPreview(template: string, tokens: string[]): string {
+  if (!template) return '';
+  const sample: Record<string, string> = {
+    alert_name: 'Alert Name', count: '3', record_list: '- Example record',
+    request_type: 'New Hire', submitter_name: 'Jane Smith', submitter_email: 'jane@example.com',
+    approver_name: 'John Doe', stage: '2', rejection_reason: 'Budget frozen',
+    rejector_name: 'John Doe', tbh_id: 'TBH-0042', candidate_name: 'Alex Johnson',
+    person_name: 'Alex Johnson', added_by_name: 'Jane Smith', updated_by_name: 'Jane Smith',
+    cycle_name: 'Q4 2026', new_status: 'Active', changed_by_name: 'Jane Smith',
+    change_type: 'Level Change', triggered_at: new Date().toLocaleString('en-GB'),
+  };
+  return template.replace(/\{\{(\w+)\}\}/g, (_, k) => sample[k] ?? `{{${k}}}`);
+}
 
 function AlertsTab() {
   const [alerts, setAlerts]         = useState<AlertConfig[]>([]);
@@ -1602,13 +1644,12 @@ function AlertsTab() {
   const [loading, setLoading]       = useState(true);
   const [modal, setModal]           = useState<'create' | 'edit' | null>(null);
   const [editTarget, setEditTarget] = useState<AlertConfig | null>(null);
-  const [form, setForm]             = useState(blankAlert);
+  const [form, setForm]             = useState(blankAlertForm());
   const [saving, setSaving]         = useState(false);
   const [evaluating, setEvaluating] = useState<number | null>(null);
-  const [evalResult, setEvalResult] = useState<{ id: number; triggered: boolean; count: number; email_sent: boolean } | null>(null);
+  const [evalResult, setEvalResult] = useState<{ id: number; triggered: boolean; count: number; note?: string; email_sent: boolean } | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  const sgConfigured = !!process.env.REACT_APP_SENDGRID_CONFIGURED;
+  const [previewMode, setPreviewMode] = useState(false);
 
   function load() {
     setLoading(true);
@@ -1620,23 +1661,27 @@ function AlertsTab() {
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function openCreate() {
-    setForm(blankAlert); setEditTarget(null); setModal('create'); setEvalResult(null);
+    setForm(blankAlertForm()); setEditTarget(null); setModal('create'); setEvalResult(null); setPreviewMode(false);
   }
   function openEdit(a: AlertConfig) {
-    setForm({ name: a.name, trigger_type: a.trigger_type, trigger_value: a.trigger_value,
-      message_template: a.message_template, recipient_ids: a.recipient_ids, active: a.active });
-    setEditTarget(a); setModal('edit'); setEvalResult(null);
+    setForm({
+      name: a.name, trigger_type: a.trigger_type, trigger_value: a.trigger_value,
+      trigger_config: a.trigger_config ?? {},
+      message_template: a.message_template,
+      recipient_ids: a.recipient_ids,
+      recipient_role_groups: a.recipient_role_groups ?? [],
+      recipient_context: a.recipient_context ?? [],
+      active: a.active,
+    });
+    setEditTarget(a); setModal('edit'); setEvalResult(null); setPreviewMode(false);
   }
 
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      if (modal === 'create') {
-        await alertsApi.create(form);
-      } else if (editTarget) {
-        await alertsApi.update(editTarget.id, form);
-      }
+      if (modal === 'create') { await alertsApi.create(form); }
+      else if (editTarget)    { await alertsApi.update(editTarget.id, form); }
       load(); setModal(null);
     } catch (e) { toast.error(errMsg(e)); } finally { setSaving(false); }
   }
@@ -1651,21 +1696,33 @@ function AlertsTab() {
     setEvaluating(id); setEvalResult(null);
     try {
       const r = await alertsApi.evaluate(id);
-      setEvalResult({ id, triggered: r.triggered, count: r.count, email_sent: r.email_sent });
+      setEvalResult({ id, triggered: r.triggered, count: r.count, note: (r as any).note, email_sent: r.email_sent });
       load();
     } catch (e) { toast.error(errMsg(e)); } finally { setEvaluating(null); }
   }
 
-  function toggleRecipient(personId: number) {
-    setForm(f => ({
-      ...f,
-      recipient_ids: f.recipient_ids.includes(personId)
-        ? f.recipient_ids.filter(id => id !== personId)
-        : [...f.recipient_ids, personId],
-    }));
+  function toggleRoleGroup(g: string) {
+    setForm(f => ({ ...f, recipient_role_groups: f.recipient_role_groups.includes(g)
+      ? f.recipient_role_groups.filter(x => x !== g) : [...f.recipient_role_groups, g] }));
+  }
+  function toggleContext(c: string) {
+    setForm(f => ({ ...f, recipient_context: f.recipient_context.includes(c)
+      ? f.recipient_context.filter(x => x !== c) : [...f.recipient_context, c] }));
+  }
+  function toggleRecipient(pid: number) {
+    setForm(f => ({ ...f, recipient_ids: f.recipient_ids.includes(pid)
+      ? f.recipient_ids.filter(x => x !== pid) : [...f.recipient_ids, pid] }));
+  }
+  function insertToken(token: string) {
+    setForm(f => ({ ...f, message_template: f.message_template + `{{${token}}}` }));
   }
 
+  const catalogue    = TRIGGER_CATALOGUE.find(t => t.value === form.trigger_type);
+  const isEventBased = catalogue?.category === 'event';
+  const tokens       = catalogue?.tokens ?? [];
   const peopleWithEmail = people.filter(p => p.email && p.is_active);
+
+  const totalRecipients = form.recipient_ids.length + form.recipient_role_groups.length + form.recipient_context.length;
 
   const saveBtn: React.CSSProperties = {
     padding: '7px 16px', background: tk.accent, color: '#FFF',
@@ -1674,135 +1731,146 @@ function AlertsTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
           <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-            Configure automated alerts that evaluate workforce data and notify people by email.
+            Configure automated alerts for workforce events and thresholds. Alerts fire instantly on events or on manual evaluation.
           </p>
-          {!process.env.REACT_APP_API_URL?.includes('railway') && (
-            <p style={{ fontSize: 11, color: '#E91C24', margin: '4px 0 0' }}>
-              Email delivery requires <strong>SENDGRID_API_KEY</strong> and <strong>SENDGRID_FROM</strong> set in Railway environment variables.
-            </p>
-          )}
         </div>
-        <button onClick={openCreate} style={{ padding: '7px 14px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        <button onClick={openCreate} style={{ padding: '7px 14px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 16 }}>
           + New Alert
         </button>
       </div>
 
-      {/* Alert list */}
-      <div style={{ ...card, marginBottom: 24 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr>
-            <th style={th}>Alert Name</th>
-            <th style={th}>Trigger</th>
-            <th style={th}>Recipients</th>
-            <th style={{ ...th, width: 80 }}>Status</th>
-            <th style={{ ...th, width: 140 }}>Last Triggered</th>
-            <th style={{ ...th, width: 200 }}>Actions</th>
-          </tr></thead>
-          <tbody>
-            {loading ? (
-              <LoadingRows cols={6} />
-            ) : alerts.length === 0 ? (
-              <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: '#999', padding: 32 }}>No alerts configured yet. Click "+ New Alert" to create one.</td></tr>
-            ) : alerts.map(a => (
-              <tr key={a.id}>
-                <td style={td}><span style={{ fontWeight: 600 }}>{a.name}</span></td>
-                <td style={td}>
-                  <span style={{ fontSize: 12, color: '#555' }}>
-                    {TRIGGER_LABELS[a.trigger_type] ?? a.trigger_type}&nbsp;&mdash;&nbsp;
-                    <strong>{a.trigger_value}</strong> {TRIGGER_UNIT[a.trigger_type]}
-                  </span>
-                </td>
-                <td style={td}>
-                  <span style={{ fontSize: 12, color: '#555' }}>
-                    {a.recipients?.length ? a.recipients.map(r => r.name).join(', ') : <em style={{ color: '#aaa' }}>none</em>}
-                  </span>
-                </td>
-                <td style={td}>
-                  <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
-                    background: a.active ? '#E8F5E9' : '#F5F5F5', color: a.active ? '#2E7D32' : '#999' }}>
-                    {a.active ? 'Active' : 'Paused'}
-                  </span>
-                </td>
-                <td style={{ ...td, fontSize: 12, color: '#666' }}>
-                  {a.last_triggered ? new Date(a.last_triggered).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                </td>
-                <td style={td}>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button onClick={() => openEdit(a)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12 }}>Edit</button>
-                    {deletingId === a.id ? (
-                      <>
-                        <button onClick={() => handleDelete(a.id)} disabled={saving} style={{ padding: '4px 10px', background: '#AD050C', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Confirm</button>
-                        <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12 }}>Cancel</button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => handleEvaluate(a.id)} disabled={evaluating === a.id}
-                          style={{ padding: '4px 10px', background: '#1565C0', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: evaluating === a.id ? 'wait' : 'pointer' }}>
-                          {evaluating === a.id ? 'Checking...' : 'Evaluate'}
-                        </button>
-                        <button onClick={() => setDeletingId(a.id)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12, color: '#AD050C', borderColor: '#FFCDD2' }}>Delete</button>
-                      </>
+      {/* Alert cards */}
+      {loading ? (
+        <div style={{ ...card, padding: 32, textAlign: 'center', color: '#999', fontSize: 13 }}>Loading alerts...</div>
+      ) : alerts.length === 0 ? (
+        <div style={{ ...card, padding: 48, textAlign: 'center', color: '#999', fontSize: 13 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>{'(bell)'[0]}</div>
+          No alerts configured yet. Click <strong>+ New Alert</strong> to create one.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
+          {alerts.map(a => {
+            const cat = TRIGGER_CATALOGUE.find(t => t.value === a.trigger_type);
+            const catStyle = cat ? CATEGORY_STYLE[cat.category] : CATEGORY_STYLE.threshold;
+            const evalR = evalResult?.id === a.id ? evalResult : null;
+            return (
+              <div key={a.id} style={{ ...card, padding: '14px 18px', borderLeft: `4px solid ${catStyle.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                  {/* Left: name + trigger info */}
+                  <div style={{ flex: 1, minWidth: 220 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{a.name}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 8,
+                        background: catStyle.bg, color: catStyle.color, border: `1px solid ${catStyle.border}`, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        {cat?.category ?? 'threshold'}
+                      </span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 8,
+                        background: a.active ? '#F0FDF4' : '#F5F5F5', color: a.active ? '#15803D' : '#999', border: `1px solid ${a.active ? '#86EFAC' : '#E0E0E0'}` }}>
+                        {a.active ? 'Active' : 'Paused'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#555', marginBottom: 6 }}>
+                      {cat?.label ?? a.trigger_type}
+                      {cat?.hasValue && <span style={{ color: '#1D4ED8', fontWeight: 600 }}> - {a.trigger_value} {cat.unit}</span>}
+                    </div>
+                    {/* Recipient chips */}
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {(a.recipient_role_groups ?? []).map(g => (
+                        <span key={g} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#EEF2FF', color: '#4338CA', border: '1px solid #C7D2FE' }}>{g}</span>
+                      ))}
+                      {(a.recipient_context ?? []).map(c => (
+                        <span key={c} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#F0FDF4', color: '#166534', border: '1px solid #86EFAC' }}>
+                          {CONTEXT_OPTIONS.find(o => o.value === c)?.label ?? c}
+                        </span>
+                      ))}
+                      {(a.recipients ?? []).map(r => (
+                        <span key={r.id} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#F9FAFB', color: '#374151', border: '1px solid #E5E7EB' }}>{r.name}</span>
+                      ))}
+                      {!a.recipient_role_groups?.length && !a.recipient_context?.length && !a.recipients?.length && (
+                        <span style={{ fontSize: 11, color: '#AAAAAA', fontStyle: 'italic' }}>No recipients</span>
+                      )}
+                    </div>
+                    {a.last_triggered && (
+                      <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
+                        Last triggered: {new Date(a.last_triggered).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
                     )}
                   </div>
-                  {evalResult?.id === a.id && (
-                    <div style={{ marginTop: 6, fontSize: 11, padding: '4px 8px', borderRadius: 4,
-                      background: evalResult.triggered ? '#FFF8E1' : '#F1F8E9',
-                      color: evalResult.triggered ? '#E65100' : '#33691E', border: `1px solid ${evalResult.triggered ? '#FFCC02' : '#AED581'}` }}>
-                      {evalResult.triggered
-                        ? `Triggered - ${evalResult.count} record(s)${evalResult.email_sent ? ' - Email sent' : ' - No email (check SENDGRID_API_KEY)'}`
-                        : 'No trigger - conditions not met'}
+                  {/* Right: actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => openEdit(a)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12 }}>Edit</button>
+                      {isEventBased ? null : (
+                        <button onClick={() => handleEvaluate(a.id)} disabled={evaluating === a.id}
+                          style={{ padding: '4px 10px', background: '#1D4ED8', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: evaluating === a.id ? 'wait' : 'pointer' }}>
+                          {evaluating === a.id ? 'Checking...' : 'Test Now'}
+                        </button>
+                      )}
+                      {deletingId === a.id ? (
+                        <>
+                          <button onClick={() => handleDelete(a.id)} disabled={saving} style={{ padding: '4px 10px', background: '#DC2626', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Confirm</button>
+                          <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12 }}>Cancel</button>
+                        </>
+                      ) : (
+                        <button onClick={() => setDeletingId(a.id)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12, color: '#DC2626', borderColor: '#FCA5A5' }}>Delete</button>
+                      )}
                     </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                    {evalR && (
+                      <div style={{ fontSize: 11, padding: '4px 10px', borderRadius: 4, maxWidth: 260, textAlign: 'right',
+                        background: evalR.triggered ? '#FFFBEB' : '#F0FDF4',
+                        color: evalR.triggered ? '#B45309' : '#15803D',
+                        border: `1px solid ${evalR.triggered ? '#FDE68A' : '#86EFAC'}` }}>
+                        {evalR.note || (evalR.triggered
+                          ? `Triggered - ${evalR.count} record(s)${evalR.email_sent ? ' - Email sent' : ' - No email'}`
+                          : 'Conditions not met')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Recent log */}
+      {/* Activity timeline */}
       {logs.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#444', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Recent Activity</div>
-          <div style={{ ...card, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr>
-                <th style={th}>Alert</th>
-                <th style={th}>Triggered</th>
-                <th style={th}>Records</th>
-                <th style={th}>Email</th>
-                <th style={th}>Recipients</th>
-              </tr></thead>
-              <tbody>
-                {logs.slice(0, 10).map(l => (
-                  <tr key={l.id}>
-                    <td style={{ ...td, fontWeight: 600 }}>{l.alert_name}</td>
-                    <td style={{ ...td, fontSize: 12 }}>{new Date(l.triggered_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td style={{ ...td, fontSize: 12 }}>{l.trigger_data?.count ?? '-'}</td>
-                    <td style={td}>
-                      <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4,
-                        background: l.email_sent ? '#E8F5E9' : '#F5F5F5', color: l.email_sent ? '#2E7D32' : '#999' }}>
-                        {l.email_sent ? 'Sent' : 'Not sent'}
-                      </span>
-                    </td>
-                    <td style={{ ...td, fontSize: 12, color: '#666' }}>
-                      {(l.recipients_notified as any[])?.map((r: any) => r.name).join(', ') || '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 10 }}>Recent Activity</div>
+          <div style={{ position: 'relative', paddingLeft: 18 }}>
+            <div style={{ position: 'absolute', left: 6, top: 0, bottom: 0, width: 2, background: '#E5E7EB', borderRadius: 1 }} />
+            {logs.slice(0, 12).map(l => (
+              <div key={l.id} style={{ position: 'relative', marginBottom: 14, paddingLeft: 18 }}>
+                <div style={{ position: 'absolute', left: -12, top: 4, width: 8, height: 8, borderRadius: '50%',
+                  background: l.email_sent ? '#22C55E' : '#94A3B8', border: '2px solid #FFF', boxShadow: '0 0 0 1px #E5E7EB' }} />
+                <div style={{ fontSize: 12, fontWeight: 600 }}>{l.alert_name}</div>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>
+                  {new Date(l.triggered_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {' - '}
+                  <span style={{ color: l.email_sent ? '#15803D' : '#94A3B8' }}>{l.email_sent ? 'Email sent' : 'No email'}</span>
+                  {(l.trigger_data as any)?.count > 0 && <span style={{ color: '#555' }}>{' - '}{(l.trigger_data as any).count} record(s)</span>}
+                </div>
+                {(l.recipients_notified as any[])?.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {(l.recipients_notified as any[]).map((r: any, i: number) => (
+                      <span key={i} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0' }}>{r.name}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {/* Create / Edit modal */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#FFF', borderRadius: 10, padding: 24, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+          <div style={{ background: '#FFF', borderRadius: 10, padding: 24, width: '100%', maxWidth: 660, boxShadow: '0 8px 40px rgba(0,0,0,0.2)', marginBottom: 24 }}>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 18 }}>{modal === 'create' ? 'New Alert' : 'Edit Alert'}</div>
 
             {/* Name */}
@@ -1812,66 +1880,144 @@ function AlertsTab() {
                 placeholder="e.g. Overdue roles - APAC" style={{ ...inp, width: '100%', boxSizing: 'border-box' }} />
             </div>
 
-            {/* Trigger type + threshold */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 14 }}>
-              <div>
-                <label style={lbl}>Trigger Condition *</label>
-                <select value={form.trigger_type} onChange={e => setForm(f => ({ ...f, trigger_type: e.target.value as AlertConfig['trigger_type'] }))}
-                  style={{ ...inp, width: '100%', boxSizing: 'border-box' }}>
-                  <option value="overdue_role">Role overdue by &gt; N days</option>
-                  <option value="open_roles_above">Open role count exceeds N</option>
-                  <option value="upcoming_starter">Starter within next N days</option>
+            {/* Trigger */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Trigger Condition *</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <select value={form.trigger_type}
+                  onChange={e => setForm(f => ({ ...f, trigger_type: e.target.value as AlertConfig['trigger_type'] }))}
+                  style={{ ...inp, flex: 1 }}>
+                  <optgroup label="-- On Event --">
+                    {TRIGGER_CATALOGUE.filter(t => t.category === 'event').map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="-- Threshold (manual/scheduled test) --">
+                    {TRIGGER_CATALOGUE.filter(t => t.category === 'threshold').map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </optgroup>
                 </select>
+                {catalogue?.hasValue && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <input type="number" min={0} value={form.trigger_value}
+                      onChange={e => setForm(f => ({ ...f, trigger_value: parseInt(e.target.value) || 0 }))}
+                      style={{ ...inp, width: 80, textAlign: 'center' }} />
+                    <span style={{ fontSize: 12, color: '#888' }}>{catalogue.unit}</span>
+                  </div>
+                )}
               </div>
-              <div>
-                <label style={lbl}>Threshold (N)</label>
-                <input type="number" min={0} value={form.trigger_value}
-                  onChange={e => setForm(f => ({ ...f, trigger_value: parseInt(e.target.value) || 0 }))}
-                  style={{ ...inp, width: '100%', boxSizing: 'border-box' }} />
-                <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>{TRIGGER_UNIT[form.trigger_type]}</div>
-              </div>
+              {isEventBased && (
+                <div style={{ fontSize: 11, color: '#1D4ED8', marginTop: 4, padding: '4px 8px', background: '#EFF6FF', borderRadius: 4, border: '1px solid #BFDBFE' }}>
+                  This alert fires automatically when the event occurs - no manual evaluation needed.
+                </div>
+              )}
             </div>
 
-            {/* Message */}
+            {/* Message template */}
             <div style={{ marginBottom: 14 }}>
-              <label style={lbl}>Message Template</label>
-              <textarea value={form.message_template}
-                onChange={e => setForm(f => ({ ...f, message_template: e.target.value }))}
-                rows={3} placeholder="Optional message included in the email notification..."
-                style={{ ...inp, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <label style={{ ...lbl, marginBottom: 0 }}>Message Template</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => setPreviewMode(false)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: `1px solid ${!previewMode ? tk.accent : '#D5D5D5'}`, background: !previewMode ? '#FFF5F5' : 'transparent', color: !previewMode ? tk.accent : '#666', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+                  <button onClick={() => setPreviewMode(true)}  style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: `1px solid ${previewMode  ? tk.accent : '#D5D5D5'}`, background: previewMode  ? '#FFF5F5' : 'transparent', color: previewMode  ? tk.accent : '#666', cursor: 'pointer', fontWeight: 600 }}>Preview</button>
+                </div>
+              </div>
+              {previewMode ? (
+                <div style={{ ...inp, minHeight: 80, whiteSpace: 'pre-wrap', fontSize: 12, color: '#333', background: '#FAFAFA', lineHeight: 1.6 }}>
+                  {renderPreview(form.message_template, tokens) || <em style={{ color: '#AAA' }}>No template - default message will be used.</em>}
+                </div>
+              ) : (
+                <textarea value={form.message_template}
+                  onChange={e => setForm(f => ({ ...f, message_template: e.target.value }))}
+                  rows={4} placeholder="Use {{token}} for dynamic values. Leave blank for a default message."
+                  style={{ ...inp, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }} />
+              )}
+              {tokens.length > 0 && !previewMode && (
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 10, color: '#888', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Available tokens - click to insert</div>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {tokens.map(tok => (
+                      <button key={tok} onClick={() => insertToken(tok)}
+                        style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#4338CA', cursor: 'pointer', fontFamily: 'monospace' }}>
+                        {'{{'}{tok}{'}}'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Recipients */}
             <div style={{ marginBottom: 14 }}>
               <label style={lbl}>Recipients</label>
-              {peopleWithEmail.length === 0 ? (
-                <div style={{ fontSize: 12, color: '#888', padding: '8px 0' }}>
-                  No people with email addresses found. Add emails in the People section to enable notifications.
+
+              {/* Role groups */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: '#666', marginBottom: 6, fontWeight: 600 }}>Role Groups</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {PERM_PROFILES.map(p => {
+                    const active = form.recipient_role_groups.includes(p.name);
+                    return (
+                      <button key={p.name} onClick={() => toggleRoleGroup(p.name)}
+                        style={{ fontSize: 11, padding: '3px 10px', borderRadius: 10, border: `1px solid ${active ? p.colour : '#D5D5D5'}`,
+                          background: active ? p.colour + '22' : 'transparent', color: active ? p.colour : '#555',
+                          cursor: 'pointer', fontWeight: active ? 700 : 400, transition: 'all 0.1s' }}>
+                        {p.name}
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : (
-                <div style={{ border: '1px solid #D5D5D5', borderRadius: 5, maxHeight: 180, overflowY: 'auto' }}>
-                  {peopleWithEmail.map(p => (
-                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer',
-                      background: form.recipient_ids.includes(p.id) ? '#FFF5F5' : 'transparent',
-                      borderBottom: '1px solid #F5F5F5' }}>
-                      <input type="checkbox" checked={form.recipient_ids.includes(p.id)} onChange={() => toggleRecipient(p.id)} />
-                      <span style={{ fontSize: 13, flex: 1 }}>{p.name}</span>
-                      <span style={{ fontSize: 11, color: '#888' }}>{p.email}</span>
-                    </label>
-                  ))}
+              </div>
+
+              {/* Context */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: '#666', marginBottom: 6, fontWeight: 600 }}>Auto-context (for event triggers)</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {CONTEXT_OPTIONS.map(o => {
+                    const active = form.recipient_context.includes(o.value);
+                    return (
+                      <button key={o.value} onClick={() => toggleContext(o.value)}
+                        style={{ fontSize: 11, padding: '3px 10px', borderRadius: 10, border: `1px solid ${active ? '#15803D' : '#D5D5D5'}`,
+                          background: active ? '#F0FDF4' : 'transparent', color: active ? '#15803D' : '#555',
+                          cursor: 'pointer', fontWeight: active ? 700 : 400 }}>
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Specific people */}
+              {peopleWithEmail.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, color: '#666', marginBottom: 6, fontWeight: 600 }}>Specific People</div>
+                  <div style={{ border: '1px solid #E5E7EB', borderRadius: 5, maxHeight: 150, overflowY: 'auto' }}>
+                    {peopleWithEmail.map(p => (
+                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', cursor: 'pointer',
+                        background: form.recipient_ids.includes(p.id) ? '#FEF2F2' : 'transparent', borderBottom: '1px solid #F9FAFB' }}>
+                        <input type="checkbox" checked={form.recipient_ids.includes(p.id)} onChange={() => toggleRecipient(p.id)} />
+                        <span style={{ fontSize: 12, flex: 1 }}>{p.name}</span>
+                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>{p.email}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
-              {form.recipient_ids.length > 0 && (
-                <div style={{ fontSize: 11, color: '#555', marginTop: 4 }}>{form.recipient_ids.length} recipient(s) selected</div>
+
+              {totalRecipients > 0 && (
+                <div style={{ fontSize: 11, color: '#555', marginTop: 6 }}>
+                  {totalRecipients} recipient source(s) selected
+                </div>
               )}
             </div>
 
             {/* Active toggle */}
             <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <label style={{ ...lbl, margin: 0 }}>Active</label>
+              <label style={{ ...lbl, margin: 0 }}>Status</label>
               <button onClick={() => setForm(f => ({ ...f, active: !f.active }))}
                 style={{ padding: '4px 14px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                  background: form.active ? '#E8F5E9' : '#F5F5F5', color: form.active ? '#2E7D32' : '#999' }}>
+                  background: form.active ? '#F0FDF4' : '#F5F5F5', color: form.active ? '#15803D' : '#9CA3AF' }}>
                 {form.active ? 'Active' : 'Paused'}
               </button>
             </div>
