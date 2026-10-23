@@ -8,6 +8,7 @@ import {
 } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import { useTabDirty } from '../context/TabContext';
+import { getUser } from '../hooks/useAuth';
 import PlanningCycleBanner from '../components/PlanningCycleBanner';
 import PersonEditPanel from '../components/PersonEditPanel';
 
@@ -465,7 +466,11 @@ useEffect(() => {
     setEqualCountries(new Set());
     setModalTab('person');
     setReqTypeId('');
-    setReqYear('');
+    // Auto-populate year from the active planning cycle, falling back to current year
+    const cycleYear = selectedCycle?.start_date
+      ? String(new Date(selectedCycle.start_date).getFullYear()).slice(-2)
+      : String(new Date().getFullYear()).slice(-2);
+    setReqYear(cycleYear);
     setReqDiscId(preDisciplineId ?? '');
     setReqLevelId('');
     setReqLabel('');
@@ -552,7 +557,6 @@ useEffect(() => {
     setReqSaving(true);
     try {
       const ct = refContractTypes.find(c => c.id === reqTypeId);
-      const disc = refDisciplines.find(d => d.id === reqDiscId);
       const lv = refLevels.find(l => l.id === reqLevelId);
       // If a year was chosen, try to find a year-specific contract type ("R FTE 26")
       const yr2 = reqYear ? reqYear.replace(/^20/, '') : '';  // normalise to 2-digit
@@ -561,14 +565,23 @@ useEffect(() => {
         : null;
       const finalCtId = yearSpecificCt ? yearSpecificCt.id : reqTypeId;
       const yearSuffix = yr2 && !yearSpecificCt ? ` - ${yr2}` : '';
-      const name = reqLabel.trim() ||
-        [ct?.code + yearSuffix, disc?.name, lv?.short_code].filter(Boolean).join(' · ');
+      // Label auto-generated from type + year (not discipline)
+      const name = reqLabel.trim() || (ct?.code ?? '') + yearSuffix;
+      // Prepend timestamp and user name to notes
+      const wfpUser = getUser();
+      const ts = new Date().toLocaleString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+      const noteStamp = wfpUser ? `[${ts} — ${wfpUser.name}]` : `[${ts}]`;
+      const notesValue = reqNotes.trim() ? `${noteStamp} ${reqNotes.trim()}` : null;
+      void lv; // level is stored on the person record, not used in name generation
       await peopleApi.create({
         name,
         contract_type_id: finalCtId,
         discipline_id: reqDiscId,
         level_id: reqLevelId || null,
-        notes: reqNotes || null,
+        notes: notesValue,
         region_ids: selectedRegionId ? [selectedRegionId] : [],
         planning_cycle_id: selectedCycleId ?? null,
       });
@@ -1536,9 +1549,11 @@ useEffect(() => {
                     style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
                   >
                     <option value="">— Select type —</option>
-                    {refContractTypes.filter(ct => ct.category === 'approved' || ct.category === 'requested').map(ct => (
-                      <option key={ct.id} value={ct.id}>{ct.code} — {ct.description}</option>
-                    ))}
+                    {(['R FTE', 'R CON', 'R CON FTE'] as const).map(code => {
+                      const ct = refContractTypes.find(c => c.code === code);
+                      if (!ct) return null;
+                      return <option key={ct.id} value={ct.id}>{ct.code}{ct.description ? ` — ${ct.description}` : ''}</option>;
+                    })}
                   </select>
                 </div>
 
@@ -1594,7 +1609,7 @@ useEffect(() => {
                     type="text"
                     value={reqLabel}
                     onChange={e => setReqLabel(e.target.value)}
-                    placeholder="Auto-generated from type + discipline"
+                    placeholder="Auto-generated from type + year (e.g. R FTE - 26)"
                     style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', boxSizing: 'border-box' as const }}
                   />
                 </div>
@@ -1605,7 +1620,7 @@ useEffect(() => {
                   <textarea
                     value={reqNotes}
                     onChange={e => setReqNotes(e.target.value)}
-                    placeholder="Additional context for this request"
+                    placeholder="Additional context — your name and timestamp will be prepended automatically"
                     rows={2}
                     style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', resize: 'vertical' as const, boxSizing: 'border-box' as const }}
                   />
