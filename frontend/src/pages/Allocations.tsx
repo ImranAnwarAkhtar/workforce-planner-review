@@ -606,6 +606,7 @@ useEffect(() => {
         level_id: reqLevelId || null,
         notes: reqNotes || null,
         region_ids: selectedRegionId ? [selectedRegionId] : [],
+        planning_cycle_id: selectedCycleId ?? null,
       });
       toast.success('Request added');
       closeModal();
@@ -1283,7 +1284,7 @@ useEffect(() => {
           <div style={{
             position: 'fixed', zIndex: 1000,
             left: Math.min(hoveredPill.x + 14, window.innerWidth - 270),
-            top: hoveredPill.y + 14,
+            top: Math.min(hoveredPill.y + 14, window.innerHeight - 320),
             background: '#1A1A2E', color: '#FFFFFF',
             border: '1px solid #333355', borderRadius: 8,
             padding: '10px 14px', minWidth: 200, maxWidth: 280,
@@ -1583,7 +1584,7 @@ useEffect(() => {
                     style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
                   >
                     <option value="">— Select year —</option>
-                    {[2025, 2026, 2027, 2028, 2029].map(y => (
+                    {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - 1 + i).map(y => (
                       <option key={y} value={String(y).slice(-2)}>{y}</option>
                     ))}
                   </select>
