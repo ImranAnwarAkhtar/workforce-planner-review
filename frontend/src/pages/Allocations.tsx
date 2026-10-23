@@ -1,6 +1,5 @@
 ﻿import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { flagUrl, countryCode, COUNTRY_ORDER } from '../data/countryData';
-import { useBlocker } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   peopleApi, projectsApi, refDataApi, gearingApi, countryAllocationsApi, personCommentsApi,
@@ -157,18 +156,6 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   // Dirty = any edit modal is open with potential unsaved data
   const isModalDirty = addModal !== null || editPerson !== null;
   useTabDirty(tabId, isModalDirty);
-
-  // Block in-app navigation when a modal form is open
-  const blocker = useBlocker(isModalDirty);
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      if (window.confirm('You have an open form with unsaved changes. Leave this page?')) {
-        blocker.proceed();
-      } else {
-        blocker.reset();
-      }
-    }
-  }, [blocker]);
 
   // Warn on browser close/refresh when modal is open
   useEffect(() => {
