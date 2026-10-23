@@ -170,6 +170,10 @@ pool.query(`
 `).catch(err => logger.error('People dept_head/hiring_manager migration failed', { error: err.message }));
 
 pool.query(`
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS job_title VARCHAR(255);
+`).catch(err => logger.error('People job_title migration failed', { error: err.message }));
+
+pool.query(`
   CREATE TABLE IF NOT EXISTS cycle_stage_access (
     stage_key      VARCHAR(50)  PRIMARY KEY,
     stage_label    VARCHAR(100) NOT NULL,

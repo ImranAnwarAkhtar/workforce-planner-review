@@ -40,12 +40,13 @@ router.get('/', requireAuth, async (req, res) => {
     `SELECT pe.id, pe.name, pe.contracted_fte, pe.is_active, pe.workday_jr_id, pe.notes,
             pe.system_profile, pe.email, pe.created_at, pe.updated_at,
             pe.login_email, pe.app_role, pe.platform_access_enabled, pe.last_login,
-            pe.contract_type_id,
+            pe.contract_type_id, pe.hiring_manager, pe.dept_head, pe.job_title,
             ct.code AS contract_type_code, ct.description AS contract_type_description,
             ct.colour_hex, ct.category AS contract_category,
             l.level_name, l.short_code AS level_code, l.id AS level_id,
             d.name AS discipline_name, d.id AS discipline_id,
             t.tbh_id, pe.tbh_code_id,
+            t.confirmed_start_date, t.cost_centre, t.job_profile AS tbh_job_profile,
             COALESCE((SELECT STRING_AGG(r.name, ', ' ORDER BY r.name)
                       FROM person_regions pr3 JOIN regions r ON pr3.region_id = r.id
                       WHERE pr3.person_id = pe.id), '') AS region_names,
@@ -160,7 +161,7 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
   const { name, contract_type_id, level_id, discipline_id, contracted_fte,
           tbh_code_id, workday_jr_id, is_active, notes, system_profile, email,
           login_email, app_role, platform_access_enabled, planning_cycle_id,
-          dept_head, hiring_manager,
+          dept_head, hiring_manager, job_title,
           region_ids, country_ids } = req.body;
   const sets = [];
   const params = [];
@@ -183,6 +184,7 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
   if (planning_cycle_id       !== undefined) { sets.push(`planning_cycle_id = $${i++}`);       params.push(planning_cycle_id ?? null); }
   if (dept_head               !== undefined) { sets.push(`dept_head = $${i++}`);               params.push(dept_head || null); }
   if (hiring_manager          !== undefined) { sets.push(`hiring_manager = $${i++}`);          params.push(hiring_manager || null); }
+  if (job_title               !== undefined) { sets.push(`job_title = $${i++}`);               params.push(job_title || null); }
 
   const client = await pool.connect();
   try {

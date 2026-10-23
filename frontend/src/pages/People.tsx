@@ -159,17 +159,24 @@ function regionColor(name: string): string {
 // Column definitions for sort / filter
 // ---------------------------------------------------------------------------
 
-type ColKey = 'name' | 'level' | 'discipline' | 'contract_type' | 'fte' | 'profile' | 'login_email' | 'status';
+type ColKey = 'name' | 'level' | 'discipline' | 'contract_type' | 'fte' | 'profile' | 'login_email' | 'status'
+           | 'manager' | 'hire_date' | 'region' | 'cost_centre' | 'job_profile' | 'job_title';
 
 const COL_DEFS: { key: ColKey; label: string; get: (p: Person) => string }[] = [
-  { key: 'name',          label: 'Name',          get: p => p.name },
-  { key: 'level',         label: 'Level / Role',  get: p => p.level_name ?? '' },
-  { key: 'discipline',    label: 'Discipline',    get: p => p.discipline_name ?? '' },
-  { key: 'contract_type', label: 'Contract Type', get: p => p.contract_type_code ?? '' },
-  { key: 'fte',           label: 'FTE',           get: p => Number(p.contracted_fte).toFixed(1) },
-  { key: 'profile',       label: 'Profile',       get: p => p.system_profile ?? '' },
-  { key: 'login_email',   label: 'Login Email',   get: p => p.login_email ?? '' },
-  { key: 'status',        label: 'Status',        get: p => p.is_active ? 'Active' : 'Inactive' },
+  { key: 'name',          label: 'Name',            get: p => p.name },
+  { key: 'level',         label: 'Level / Role',    get: p => p.level_name ?? '' },
+  { key: 'discipline',    label: 'Discipline',      get: p => p.discipline_name ?? '' },
+  { key: 'contract_type', label: 'Contract Type',   get: p => p.contract_type_code ?? '' },
+  { key: 'fte',           label: 'FTE',             get: p => Number(p.contracted_fte).toFixed(1) },
+  { key: 'profile',       label: 'Profile',         get: p => p.system_profile ?? '' },
+  { key: 'login_email',   label: 'Login Email',     get: p => p.login_email ?? '' },
+  { key: 'status',        label: 'Status',          get: p => p.is_active ? 'Active' : 'Inactive' },
+  { key: 'manager',       label: 'Manager',         get: p => p.hiring_manager ?? '' },
+  { key: 'hire_date',     label: 'Hire Date',       get: p => p.confirmed_start_date ? new Date(p.confirmed_start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' },
+  { key: 'region',        label: 'Region',          get: p => p.region_names ?? '' },
+  { key: 'cost_centre',   label: 'Cost Centre',     get: p => p.cost_centre ?? '' },
+  { key: 'job_profile',   label: 'Job Profile',     get: p => p.tbh_job_profile ?? '' },
+  { key: 'job_title',     label: 'Job Title',       get: p => p.job_title ?? '' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -187,12 +194,15 @@ interface FormState {
   login_email: string;
   app_role: string;
   platform_access_enabled: boolean;
+  hiring_manager: string;
+  job_title: string;
 }
 
 const emptyForm: FormState = {
   name: '', contracted_fte: '1', workday_jr_id: '',
   level_id: '', discipline_id: '', contract_type_id: '', system_profile: '',
   login_email: '', app_role: '', platform_access_enabled: false,
+  hiring_manager: '', job_title: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -421,6 +431,8 @@ export default function People() {
       login_email: p.login_email ?? '',
       app_role: p.app_role ?? '',
       platform_access_enabled: p.platform_access_enabled ?? false,
+      hiring_manager: p.hiring_manager ?? '',
+      job_title: p.job_title ?? '',
     });
     setNameError('');
     setPwForm({ password: '', confirm: '' });
@@ -451,6 +463,8 @@ export default function People() {
         login_email: form.login_email.trim() || null,
         app_role: form.app_role || null,
         platform_access_enabled: form.platform_access_enabled,
+        hiring_manager: form.hiring_manager.trim() || null,
+        job_title: form.job_title.trim() || null,
       };
       if (editTarget) {
         await peopleApi.update(editTarget.id, body);
@@ -798,6 +812,27 @@ export default function People() {
                       value={form.workday_jr_id}
                       onChange={e => setField('workday_jr_id', e.target.value)}
                       placeholder="Optional"
+                    />
+                  </div>
+                </div>
+
+                <div style={S.formRow}>
+                  <div style={S.fieldGroup}>
+                    <label style={S.label}>Manager</label>
+                    <input
+                      style={S.input}
+                      value={form.hiring_manager}
+                      onChange={e => setField('hiring_manager', e.target.value)}
+                      placeholder="e.g. Jane Smith"
+                    />
+                  </div>
+                  <div style={S.fieldGroup}>
+                    <label style={S.label}>Job Title</label>
+                    <input
+                      style={S.input}
+                      value={form.job_title}
+                      onChange={e => setField('job_title', e.target.value)}
+                      placeholder="e.g. Senior Engineer"
                     />
                   </div>
                 </div>
@@ -1223,6 +1258,42 @@ function PersonRow({ person: p, onEdit, onDelete, onPermDelete, selected, onTogg
         <span style={S.activeBadge(p.is_active)}>
           {p.is_active ? 'Active' : 'Inactive'}
         </span>
+      </td>
+
+      <td style={S.td}>
+        {p.hiring_manager
+          ? <span style={{ fontSize: 12, color: '#374151' }}>{p.hiring_manager}</span>
+          : <span style={{ color: '#AAAAAA' }}>-</span>}
+      </td>
+
+      <td style={S.td}>
+        {p.confirmed_start_date
+          ? <span style={{ fontSize: 12, color: '#374151' }}>{new Date(p.confirmed_start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+          : <span style={{ color: '#AAAAAA' }}>-</span>}
+      </td>
+
+      <td style={S.td}>
+        {p.region_names
+          ? <span style={{ fontSize: 12, color: '#374151' }}>{p.region_names}</span>
+          : <span style={{ color: '#AAAAAA' }}>-</span>}
+      </td>
+
+      <td style={S.td}>
+        {p.cost_centre
+          ? <span style={{ fontSize: 12, color: '#374151' }}>{p.cost_centre}</span>
+          : <span style={{ color: '#AAAAAA' }}>-</span>}
+      </td>
+
+      <td style={S.td}>
+        {p.tbh_job_profile
+          ? <span style={{ fontSize: 12, color: '#374151' }}>{p.tbh_job_profile}</span>
+          : <span style={{ color: '#AAAAAA' }}>-</span>}
+      </td>
+
+      <td style={S.td}>
+        {p.job_title
+          ? <span style={{ fontSize: 12, color: '#374151' }}>{p.job_title}</span>
+          : <span style={{ color: '#AAAAAA' }}>-</span>}
       </td>
 
       <td style={{ ...S.td, borderBottom: S.td.borderBottom }}>

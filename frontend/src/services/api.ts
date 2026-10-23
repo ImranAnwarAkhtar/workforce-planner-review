@@ -189,6 +189,11 @@ export interface Person {
   planning_cycle_name: string | null;
   dept_head: string | null;
   hiring_manager: string | null;
+  job_title: string | null;
+  // From linked TBH code
+  confirmed_start_date: string | null;
+  cost_centre: string | null;
+  tbh_job_profile: string | null;
 }
 
 export interface PersonDetail extends Person {
@@ -221,6 +226,7 @@ export interface CreatePersonBody {
   planning_cycle_id?: number | null;
   dept_head?: string | null;
   hiring_manager?: string | null;
+  job_title?: string | null;
 }
 
 // ---------------------------------------------------------------------------
