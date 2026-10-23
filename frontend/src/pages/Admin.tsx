@@ -1683,28 +1683,23 @@ function AlertsTab() {
 // Cycle Stages tab
 // ---------------------------------------------------------------------------
 
-const ALL_STAGE_ROLES = [
-  'Senior PMO', 'PMO Team', 'Workforce Planning', 'Administration',
-  'Department Head', 'Hub Lead', 'Senior TA', 'Talent Acquisition',
-  'Finance', 'EVP',
-];
+// Derived from PERM_PROFILES so new profiles appear automatically
+const ALL_STAGE_ROLES = PERM_PROFILES.map(p => p.name);
 
+// Build chip colours from PERM_PROFILES + legacy role names
+function hexToChip(hex: string): { bg: string; color: string; border: string } {
+  // Derive a light bg tint and border from the brand hex
+  return { bg: hex + '18', color: hex, border: hex + '55' };
+}
 const STAGE_ROLE_CHIP: Record<string, { bg: string; color: string; border: string }> = {
-  'Senior PMO':         { bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
-  'PMO Team':           { bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
+  // Legacy names kept for backward compat with existing DB data
   'PMO':                { bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
-  'Workforce Planning': { bg: '#EFF6FF', color: '#1E40AF', border: '#BFDBFE' },
-  'Administration':     { bg: '#F0F9FF', color: '#0369A1', border: '#BAE6FD' },
-  'Department Head':    { bg: '#F5F3FF', color: '#5B21B6', border: '#DDD6FE' },
-  'Hub Lead':           { bg: '#FDF4FF', color: '#7E22CE', border: '#E9D5FF' },
   'Dept Lead':          { bg: '#F5F3FF', color: '#5B21B6', border: '#DDD6FE' },
   'Function Lead':      { bg: '#F5F3FF', color: '#5B21B6', border: '#DDD6FE' },
   'Head of Dept':       { bg: '#FFF7ED', color: '#C2410C', border: '#FED7AA' },
   'Head of Commercial': { bg: '#F0FDF4', color: '#166534', border: '#BBF7D0' },
-  'Senior TA':          { bg: '#ECFDF5', color: '#065F46', border: '#6EE7B7' },
-  'Talent Acquisition': { bg: '#ECFDF5', color: '#065F46', border: '#6EE7B7' },
-  'Finance':            { bg: '#FEFCE8', color: '#854D0E', border: '#FEF08A' },
-  'EVP':                { bg: '#F8FAFC', color: '#334155', border: '#CBD5E1' },
+  // All current PERM_PROFILES — generated from their brand colours
+  ...Object.fromEntries(PERM_PROFILES.map(p => [p.name, hexToChip(p.colour)])),
 };
 
 function RoleChips({ roles }: { roles: string[] }) {
