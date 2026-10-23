@@ -119,7 +119,7 @@ function DisciplinesTab() {
             <button onClick={() => { setCreating(false); setFormName(''); }} style={btnSecondary}>Cancel</button>
             <button onClick={handleCreate} disabled={saving || !formName.trim()}
               style={{ padding: '7px 16px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: !formName.trim() ? 0.6 : 1 }}>
-              {saving ? 'Savingâ€¦' : 'Create'}
+              {saving ? 'Saving...' : 'Create'}
             </button>
           </div>
         </div>
@@ -138,7 +138,7 @@ function DisciplinesTab() {
                   <td style={td}><input value={editCode} onChange={e => setEditCode(e.target.value)} placeholder="e.g. CON" style={{ ...inp, maxWidth: 100 }} /></td>
                   <td style={td}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => handleUpdate(d.id)} disabled={saving} style={saveBtn}>{saving ? 'â€¦' : 'Save'}</button>
+                      <button onClick={() => handleUpdate(d.id)} disabled={saving} style={saveBtn}>{saving ? '...' : 'Save'}</button>
                       <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
                     </div>
                   </td>
@@ -147,12 +147,12 @@ function DisciplinesTab() {
               return (
                 <tr key={d.id}>
                   <td style={{ ...td, color: '#111', fontWeight: 500 }}>{d.name}</td>
-                  <td style={{ ...td, color: '#555', fontFamily: 'monospace', fontSize: 12 }}>{d.code ?? 'â€”'}</td>
+                  <td style={{ ...td, color: '#555', fontFamily: 'monospace', fontSize: 12 }}>{d.code ?? '-'}</td>
                   <td style={td}>
                     {deletingId === d.id ? (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <span style={{ fontSize: 12, color: '#AD050C' }}>Delete?</span>
-                        <button onClick={() => handleDelete(d.id)} disabled={saving} style={delConfirmBtn}>{saving ? 'â€¦' : 'Yes'}</button>
+                        <button onClick={() => handleDelete(d.id)} disabled={saving} style={delConfirmBtn}>{saving ? '...' : 'Yes'}</button>
                         <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '4px 8px', fontSize: 11 }}>No</button>
                       </div>
                     ) : (
@@ -254,7 +254,7 @@ function LevelsTab() {
             <button onClick={() => { setCreating(false); setForm(blankL); }} style={btnSecondary}>Cancel</button>
             <button onClick={handleCreate} disabled={saving || !form.level_name.trim() || !form.short_code.trim()}
               style={{ padding: '7px 16px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: (!form.level_name.trim() || !form.short_code.trim()) ? 0.6 : 1 }}>
-              {saving ? 'Savingâ€¦' : 'Create'}
+              {saving ? 'Saving...' : 'Create'}
             </button>
           </div>
         </div>
@@ -277,7 +277,7 @@ function LevelsTab() {
                   <td style={td}><input type="number" value={editForm.level_number} onChange={e => setEditForm(f => ({ ...f, level_number: e.target.value }))} style={{ ...inp, width: 70 }} /></td>
                   <td style={td}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => handleUpdate(l.id)} disabled={saving} style={saveBtn}>{saving ? 'â€¦' : 'Save'}</button>
+                      <button onClick={() => handleUpdate(l.id)} disabled={saving} style={saveBtn}>{saving ? '...' : 'Save'}</button>
                       <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
                     </div>
                   </td>
@@ -287,12 +287,12 @@ function LevelsTab() {
                 <tr key={l.id}>
                   <td style={{ ...td, color: '#111', fontWeight: 500 }}>{l.level_name}</td>
                   <td style={td}><span style={{ padding: '1px 7px', borderRadius: 8, background: '#F0ECFF', color: '#6644BB', border: '1px solid #C5B8F0', fontSize: 11, fontWeight: 600 }}>{l.short_code}</span></td>
-                  <td style={td}>{l.level_number ?? 'â€”'}</td>
+                  <td style={td}>{l.level_number ?? '-'}</td>
                   <td style={td}>
                     {deletingId === l.id ? (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <span style={{ fontSize: 12, color: '#AD050C' }}>Delete?</span>
-                        <button onClick={() => handleDelete(l.id)} disabled={saving} style={delConfirmBtn}>{saving ? 'â€¦' : 'Yes'}</button>
+                        <button onClick={() => handleDelete(l.id)} disabled={saving} style={delConfirmBtn}>{saving ? '...' : 'Yes'}</button>
                         <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '4px 8px', fontSize: 11 }}>No</button>
                       </div>
                     ) : (
@@ -409,7 +409,7 @@ function ContractTypesTab() {
             <button onClick={() => { setCreating(false); setForm(blankCT); }} style={btnSecondary}>Cancel</button>
             <button onClick={handleCreate} disabled={saving || !form.code.trim() || !form.description.trim()}
               style={{ padding: '7px 16px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: (!form.code.trim() || !form.description.trim()) ? 0.6 : 1 }}>
-              {saving ? 'Savingâ€¦' : 'Create'}
+              {saving ? 'Saving...' : 'Create'}
             </button>
           </div>
         </div>
@@ -437,7 +437,7 @@ function ContractTypesTab() {
                   <td style={td}><ColourInput value={editForm.colour_hex} onChange={v => setEditForm(f => ({ ...f, colour_hex: v }))} /></td>
                   <td style={td}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => handleUpdate(c.id)} disabled={saving} style={saveBtn}>{saving ? 'â€¦' : 'Save'}</button>
+                      <button onClick={() => handleUpdate(c.id)} disabled={saving} style={saveBtn}>{saving ? '...' : 'Save'}</button>
                       <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
                     </div>
                   </td>
@@ -448,20 +448,20 @@ function ContractTypesTab() {
                 <tr key={c.id}>
                   <td style={{ ...td, color: '#111', fontWeight: 600 }}>{c.code}</td>
                   <td style={td}>{c.description}</td>
-                  <td style={td}>{c.category ?? 'â€”'}</td>
+                  <td style={td}>{c.category ?? '-'}</td>
                   <td style={td}>
                     {hex
                       ? <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ width: 14, height: 14, borderRadius: 3, background: `#${hex}`, border: '1px solid #E0E0E0' }} />
                           <span style={{ fontSize: 11, color: '#666', fontFamily: 'monospace' }}>{hex}</span>
                         </div>
-                      : <span style={{ color: '#AAA' }}>â€”</span>}
+                      : <span style={{ color: '#AAA' }}>-</span>}
                   </td>
                   <td style={td}>
                     {deletingId === c.id ? (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <span style={{ fontSize: 12, color: '#AD050C' }}>Delete?</span>
-                        <button onClick={() => handleDelete(c.id)} disabled={saving} style={delConfirmBtn}>{saving ? 'â€¦' : 'Yes'}</button>
+                        <button onClick={() => handleDelete(c.id)} disabled={saving} style={delConfirmBtn}>{saving ? '...' : 'Yes'}</button>
                         <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '4px 8px', fontSize: 11 }}>No</button>
                       </div>
                     ) : (
@@ -557,7 +557,7 @@ function RegionsTab() {
             <button onClick={() => { setCreating(false); setForm(blankR); }} style={btnSecondary}>Cancel</button>
             <button onClick={handleCreate} disabled={saving || !form.name.trim() || !form.code.trim()}
               style={{ padding: '7px 16px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: (!form.name.trim() || !form.code.trim()) ? 0.6 : 1 }}>
-              {saving ? 'Savingâ€¦' : 'Create'}
+              {saving ? 'Saving...' : 'Create'}
             </button>
           </div>
         </div>
@@ -580,7 +580,7 @@ function RegionsTab() {
                   <td style={td}><input type="number" value={editForm.sort_order} onChange={e => setEditForm(f => ({ ...f, sort_order: e.target.value }))} style={{ ...inp, width: 60 }} /></td>
                   <td style={td}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => handleUpdate(r.id)} disabled={saving} style={saveBtn}>{saving ? 'â€¦' : 'Save'}</button>
+                      <button onClick={() => handleUpdate(r.id)} disabled={saving} style={saveBtn}>{saving ? '...' : 'Save'}</button>
                       <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
                     </div>
                   </td>
@@ -595,7 +595,7 @@ function RegionsTab() {
                     {deletingId === r.id ? (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <span style={{ fontSize: 12, color: '#AD050C' }}>Delete?</span>
-                        <button onClick={() => handleDelete(r.id)} disabled={saving} style={delConfirmBtn}>{saving ? 'â€¦' : 'Yes'}</button>
+                        <button onClick={() => handleDelete(r.id)} disabled={saving} style={delConfirmBtn}>{saving ? '...' : 'Yes'}</button>
                         <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '4px 8px', fontSize: 11 }}>No</button>
                       </div>
                     ) : (
@@ -857,7 +857,7 @@ const TIER_DEFS = [
   { tier: 'Administrator', colour: '#92400E', bg: '#FEF3C7', border: '#FDE68A', description: 'Bypasses all profile-based restrictions. Full access to every function in the system. Assign with care.' },
 ];
 
-// â”€â”€ Permission matrix data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Permission matrix data â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 const PERM_PROFILES = [
   { name: 'Senior PMO',         short: 'Sr PMO',     colour: '#E91C24', desc: 'Highest-level PMO role with full control across all planning, approvals, and system administration.' },
@@ -911,7 +911,7 @@ const SECTION_ROWS: Array<{ key: string; label: string; group: boolean }> = [
 type PermLevel = 'none' | 'view' | 'edit' | 'full';
 const LEVEL_CYCLE: PermLevel[] = ['none', 'view', 'edit', 'full'];
 const LEVEL_CFG: Record<PermLevel, { label: string; bg: string; color: string; border: string }> = {
-  none: { label: 'â€”',    bg: '#F9FAFB', color: '#9CA3AF', border: '#E5E7EB' },
+  none: { label: '-',    bg: '#F9FAFB', color: '#9CA3AF', border: '#E5E7EB' },
   view: { label: 'View', bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
   edit: { label: 'Edit', bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
   full: { label: 'Full', bg: '#FFF1F2', color: '#E91C24', border: '#FECDD3' },
@@ -1010,7 +1010,7 @@ function UserAccessTab() {
       {/* Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: '#666' }}>
-          Click any cell to cycle: <strong style={{ color: '#9CA3AF' }}>â€”</strong> â†’ <strong style={{ color: '#1D4ED8' }}>View</strong> â†’ <strong style={{ color: '#15803D' }}>Edit</strong> â†’ <strong style={{ color: '#E91C24' }}>Full</strong>
+          Click any cell to cycle: <strong style={{ color: '#9CA3AF' }}>-</strong> {'->'} <strong style={{ color: '#1D4ED8' }}>View</strong> {'->'} <strong style={{ color: '#15803D' }}>Edit</strong> {'->'} <strong style={{ color: '#E91C24' }}>Full</strong>
         </span>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {unsaved > 0 && (
@@ -1019,11 +1019,11 @@ function UserAccessTab() {
             </span>
           )}
           {savedFlash && (
-            <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 5, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' }}>Saved âœ“</span>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 5, background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0' }}>Saved</span>
           )}
           <button onClick={handleSave} disabled={saving || unsaved === 0}
             style={{ padding: '7px 18px', background: unsaved > 0 ? '#E91C24' : '#D5D5D5', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: unsaved > 0 ? 'pointer' : 'default', transition: 'background 0.15s' }}>
-            {saving ? 'Savingâ€¦' : 'Save Changes'}
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -1066,7 +1066,7 @@ function UserAccessTab() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={PERM_PROFILES.length + 1} style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: '#888' }}>Loading permissionsâ€¦</td></tr>
+              <tr><td colSpan={PERM_PROFILES.length + 1} style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: '#888' }}>Loading permissions...</td></tr>
             ) : SECTION_ROWS.map((row, idx) => {
               if (row.group) {
                 return (
@@ -1091,7 +1091,7 @@ function UserAccessTab() {
                     return (
                       <td key={p.name} style={{ padding: '4px 3px', textAlign: 'center', borderLeft: '1px solid #F0F0F0', borderBottom: '1px solid #F0F0F0' }}>
                         <button onClick={() => cycleCell(row.key, p.name)}
-                          title={`${p.name} â€” ${level} â€” click to change`}
+                          title={`${p.name} - ${level} - click to change`}
                           style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 4, cursor: 'pointer', minWidth: 40, outline: isDirty ? '2px solid #F59E0B' : 'none', outlineOffset: 1 }}>
                           {cfg.label}
                         </button>
@@ -1241,14 +1241,14 @@ function PlanningCyclesTab() {
 
   function fmtPeriod(c: PlanningCycle) {
     const fmt = (d: string) => new Date(d.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    return `${fmt(c.start_date)} â€“ ${fmt(c.end_date)}`;
+    return `${fmt(c.start_date)} - ${fmt(c.end_date)}`;
   }
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
         <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-          Manage planning cycles and their workflow stages. Use the Stage column to advance a cycle â€” editing access updates automatically based on the stage.
+          Manage planning cycles and their workflow stages. Use the Stage column to advance a cycle - editing access updates automatically based on the stage.
         </p>
         <button
           onClick={() => { setCreating(true); setEditingId(null); }}
@@ -1275,7 +1275,7 @@ function PlanningCyclesTab() {
             <div>
               <label style={lbl}>Copy From</label>
               <select value={form.copy_from_cycle_id} onChange={e => setForm(f => ({ ...f, copy_from_cycle_id: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
-                <option value="">â€” Start blank â€”</option>
+                <option value="">-- Start blank --</option>
                 {cycles.filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
@@ -1285,7 +1285,7 @@ function PlanningCyclesTab() {
             <button
               onClick={handleCreate} disabled={saving || !form.name || !form.start_date || !form.end_date}
               style={{ padding: '7px 16px', background: '#E91C24', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: (!form.name || !form.start_date || !form.end_date) ? 0.6 : 1 }}
-            >{saving ? 'Creatingâ€¦' : form.copy_from_cycle_id ? 'Create & Copy' : 'Create'}</button>
+            >{saving ? 'Creating...' : form.copy_from_cycle_id ? 'Create & Copy' : 'Create'}</button>
           </div>
         </div>
       )}
@@ -1328,7 +1328,7 @@ function PlanningCyclesTab() {
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button onClick={() => handleUpdate(cycle.id)} disabled={saving}
                               style={{ padding: '5px 12px', background: '#E91C24', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                              {saving ? 'â€¦' : 'Save'}
+                              {saving ? '...' : 'Save'}
                             </button>
                             <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
                           </div>
@@ -1358,7 +1358,7 @@ function PlanningCyclesTab() {
                               <option key={v} value={v}>{label}</option>
                             ))}
                           </select>
-                          {isSavingStage && <span style={{ fontSize: 11, color: '#9CA3AF' }}>Savingâ€¦</span>}
+                          {isSavingStage && <span style={{ fontSize: 11, color: '#9CA3AF' }}>Saving...</span>}
                         </div>
                       </td>
                       <td style={td}>
@@ -1388,7 +1388,7 @@ function PlanningCyclesTab() {
                               <button onClick={() => handleAddApprover(cycle.id)} disabled={!newApproverName.trim()}
                                 style={{ padding: '3px 10px', background: '#059669', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Add</button>
                               <button onClick={() => { setAddingApproverFor(null); setNewApproverName(''); setNewApproverEmail(''); }}
-                                style={{ padding: '3px 8px', background: 'none', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 11, cursor: 'pointer', color: '#666' }}>âœ•</button>
+                                style={{ padding: '3px 8px', background: 'none', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 11, cursor: 'pointer', color: '#666' }}>x</button>
                             </div>
                           ) : (
                             <button onClick={() => { setAddingApproverFor(cycle.id); setNewApproverName(''); setNewApproverEmail(''); }}
@@ -1485,7 +1485,7 @@ function GearingRatiosTab() {
               <label style={lbl}>Discipline *</label>
               <select value={newForm.discipline_id} onChange={e => setNewForm(f => ({ ...f, discipline_id: e.target.value }))}
                 style={{ ...inp }}>
-                <option value="">Select disciplineâ€¦</option>
+                <option value="">Select discipline...</option>
                 {disciplines.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
@@ -1508,7 +1508,7 @@ function GearingRatiosTab() {
               style={btnSecondary}>Cancel</button>
             <button onClick={handleCreate} disabled={saving}
               style={{ padding: '7px 16px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
-              {saving ? 'Savingâ€¦' : 'Create'}
+              {saving ? 'Saving...' : 'Create'}
             </button>
           </div>
         </div>
@@ -1544,7 +1544,7 @@ function GearingRatiosTab() {
                   <td style={td} />
                   <td style={td}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => handleUpdate(g.id)} disabled={saving} style={saveBtn}>{saving ? 'â€¦' : 'Save'}</button>
+                      <button onClick={() => handleUpdate(g.id)} disabled={saving} style={saveBtn}>{saving ? '...' : 'Save'}</button>
                       <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
                     </div>
                   </td>
@@ -1558,7 +1558,7 @@ function GearingRatiosTab() {
                   <td style={{ ...td, fontWeight: 600 }}>{divisorVal}</td>
                   <td style={{ ...td, color: '#555', fontSize: 12 }}>1 : {divisorVal}</td>
                   <td style={{ ...td, fontSize: 12, color: '#888' }}>
-                    {g.updated_by_name ? `${g.updated_by_name} Â· ${fmtDate(g.updated_at)}` : fmtDate(g.updated_at)}
+                    {g.updated_by_name ? `${g.updated_by_name} · ${fmtDate(g.updated_at)}` : fmtDate(g.updated_at)}
                   </td>
                   <td style={td}>
                     <button onClick={() => { setEditingId(g.id); setEditDiv(String(divisorVal)); }}
@@ -1727,7 +1727,7 @@ function AlertsTab() {
                   </span>
                 </td>
                 <td style={{ ...td, fontSize: 12, color: '#666' }}>
-                  {a.last_triggered ? new Date(a.last_triggered).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'â€”'}
+                  {a.last_triggered ? new Date(a.last_triggered).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                 </td>
                 <td style={td}>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -1741,7 +1741,7 @@ function AlertsTab() {
                       <>
                         <button onClick={() => handleEvaluate(a.id)} disabled={evaluating === a.id}
                           style={{ padding: '4px 10px', background: '#1565C0', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: evaluating === a.id ? 'wait' : 'pointer' }}>
-                          {evaluating === a.id ? 'Checkingâ€¦' : 'Evaluate'}
+                          {evaluating === a.id ? 'Checking...' : 'Evaluate'}
                         </button>
                         <button onClick={() => setDeletingId(a.id)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 12, color: '#AD050C', borderColor: '#FFCDD2' }}>Delete</button>
                       </>
@@ -1752,8 +1752,8 @@ function AlertsTab() {
                       background: evalResult.triggered ? '#FFF8E1' : '#F1F8E9',
                       color: evalResult.triggered ? '#E65100' : '#33691E', border: `1px solid ${evalResult.triggered ? '#FFCC02' : '#AED581'}` }}>
                       {evalResult.triggered
-                        ? `âš  Triggered â€” ${evalResult.count} record(s)${evalResult.email_sent ? ' Â· Email sent' : ' Â· No email (check SENDGRID_API_KEY)'}`
-                        : 'âœ“ No trigger â€” conditions not met'}
+                        ? `Triggered - ${evalResult.count} record(s)${evalResult.email_sent ? ' - Email sent' : ' - No email (check SENDGRID_API_KEY)'}`
+                        : 'No trigger - conditions not met'}
                     </div>
                   )}
                 </td>
@@ -1781,7 +1781,7 @@ function AlertsTab() {
                   <tr key={l.id}>
                     <td style={{ ...td, fontWeight: 600 }}>{l.alert_name}</td>
                     <td style={{ ...td, fontSize: 12 }}>{new Date(l.triggered_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td style={{ ...td, fontSize: 12 }}>{l.trigger_data?.count ?? 'â€”'}</td>
+                    <td style={{ ...td, fontSize: 12 }}>{l.trigger_data?.count ?? '-'}</td>
                     <td style={td}>
                       <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4,
                         background: l.email_sent ? '#E8F5E9' : '#F5F5F5', color: l.email_sent ? '#2E7D32' : '#999' }}>
@@ -1789,7 +1789,7 @@ function AlertsTab() {
                       </span>
                     </td>
                     <td style={{ ...td, fontSize: 12, color: '#666' }}>
-                      {(l.recipients_notified as any[])?.map((r: any) => r.name).join(', ') || 'â€”'}
+                      {(l.recipients_notified as any[])?.map((r: any) => r.name).join(', ') || '-'}
                     </td>
                   </tr>
                 ))}
@@ -1809,7 +1809,7 @@ function AlertsTab() {
             <div style={{ marginBottom: 14 }}>
               <label style={lbl}>Alert Name *</label>
               <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Overdue roles â€” APAC" style={{ ...inp, width: '100%', boxSizing: 'border-box' }} />
+                placeholder="e.g. Overdue roles - APAC" style={{ ...inp, width: '100%', boxSizing: 'border-box' }} />
             </div>
 
             {/* Trigger type + threshold */}
@@ -1837,7 +1837,7 @@ function AlertsTab() {
               <label style={lbl}>Message Template</label>
               <textarea value={form.message_template}
                 onChange={e => setForm(f => ({ ...f, message_template: e.target.value }))}
-                rows={3} placeholder="Optional message included in the email notificationâ€¦"
+                rows={3} placeholder="Optional message included in the email notification..."
                 style={{ ...inp, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
             </div>
 
@@ -1879,7 +1879,7 @@ function AlertsTab() {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setModal(null)} style={btnSecondary}>Cancel</button>
               <button onClick={handleSave} disabled={saving || !form.name.trim()} style={{ ...saveBtn, opacity: !form.name.trim() ? 0.5 : 1 }}>
-                {saving ? 'Savingâ€¦' : 'Save Alert'}
+                {saving ? 'Saving...' : 'Save Alert'}
               </button>
             </div>
           </div>
