@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useState, useMemo, useCallback } from 'react';
+﻿import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { flagUrl, countryCode, COUNTRY_ORDER } from '../data/countryData';
 import { useBlocker } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -44,52 +45,6 @@ const STATUS_COLOURS: Record<string, string> = {
   'Approved': '#E91C24', 'Seeded': '#7739D9', 'Proposed': '#086AE3',
 };
 
-const COUNTRY_FLAGS: Record<string, string> = {
-  'Australia': 'au', 'Austria': 'at', 'Bahrain': 'bh', 'Belgium': 'be',
-  'Brazil': 'br', 'Canada': 'ca', 'Chile': 'cl', 'China': 'cn',
-  'Colombia': 'co', 'Czech Republic': 'cz', 'Denmark': 'dk', 'Egypt': 'eg',
-  'Finland': 'fi', 'France': 'fr', 'Germany': 'de', 'Greece': 'gr',
-  'Hong Kong': 'hk', 'Hungary': 'hu', 'India': 'in', 'Indonesia': 'id',
-  'Ireland': 'ie', 'Israel': 'il', 'Italy': 'it', 'Japan': 'jp',
-  'Jordan': 'jo', 'Kenya': 'ke', 'Kuwait': 'kw', 'Luxembourg': 'lu',
-  'Malaysia': 'my', 'Mexico': 'mx', 'Morocco': 'ma', 'Netherlands': 'nl',
-  'New Zealand': 'nz', 'Nigeria': 'ng', 'Norway': 'no', 'Oman': 'om',
-  'Panama': 'pa', 'Peru': 'pe', 'Philippines': 'ph', 'Poland': 'pl',
-  'Portugal': 'pt', 'Qatar': 'qa', 'Romania': 'ro', 'Saudi Arabia': 'sa',
-  'Singapore': 'sg', 'Slovakia': 'sk', 'South Africa': 'za', 'South Korea': 'kr',
-  'Spain': 'es', 'Sweden': 'se', 'Switzerland': 'ch', 'Taiwan': 'tw',
-  'Thailand': 'th', 'Turkey': 'tr', 'United Arab Emirates': 'ae',
-  'United Kingdom': 'gb', 'United States': 'us', 'Vietnam': 'vn',
-  'UK': 'gb', 'USA': 'us', 'UAE': 'ae', 'Korea': 'kr', 'Serbia': 'rs',
-};
-
-function flagUrl(country: string): string | null {
-  const code = COUNTRY_FLAGS[country];
-  return code ? `https://flagcdn.com/w20/${code}.png` : null;
-}
-
-const COUNTRY_CODES: Record<string, string> = {
-  'Australia': 'AUS', 'Austria': 'AUT', 'Bahrain': 'BHR', 'Belgium': 'BEL',
-  'Brazil': 'BRA', 'Canada': 'CAN', 'Chile': 'CHL', 'China': 'CHN',
-  'Colombia': 'COL', 'Czech Republic': 'CZE', 'Denmark': 'DNK', 'Egypt': 'EGY',
-  'Finland': 'FIN', 'France': 'FRA', 'Germany': 'DEU', 'Greece': 'GRC',
-  'Hong Kong': 'HKG', 'Hungary': 'HUN', 'India': 'IND', 'Indonesia': 'IDN',
-  'Ireland': 'IRL', 'Israel': 'ISR', 'Italy': 'ITA', 'Japan': 'JPN',
-  'Jordan': 'JOR', 'Kenya': 'KEN', 'Kuwait': 'KWT', 'Luxembourg': 'LUX',
-  'Malaysia': 'MYS', 'Mexico': 'MEX', 'Morocco': 'MAR', 'Netherlands': 'NLD',
-  'New Zealand': 'NZL', 'Nigeria': 'NGA', 'Norway': 'NOR', 'Oman': 'OMN',
-  'Panama': 'PAN', 'Peru': 'PER', 'Philippines': 'PHL', 'Poland': 'POL',
-  'Portugal': 'PRT', 'Qatar': 'QAT', 'Romania': 'ROU', 'Saudi Arabia': 'SAU',
-  'Serbia': 'SRB', 'Singapore': 'SGP', 'Slovakia': 'SVK', 'South Africa': 'ZAF',
-  'South Korea': 'KOR', 'Spain': 'ESP', 'Sweden': 'SWE', 'Switzerland': 'CHE',
-  'Taiwan': 'TWN', 'Thailand': 'THA', 'Turkey': 'TUR',
-  'United Arab Emirates': 'ARE', 'United Kingdom': 'GBR', 'United States': 'USA',
-  'Vietnam': 'VNM', 'UK': 'GBR', 'USA': 'USA', 'UAE': 'ARE', 'Korea': 'KOR',
-};
-
-function countryCode(name: string): string {
-  return COUNTRY_CODES[name] ?? name.slice(0, 3).toUpperCase();
-}
 
 type ContractGroup = 'employee' | 'contingent' | 'approved' | 'request';
 
@@ -128,7 +83,6 @@ function isReplacement(p: Person): boolean {
 
 const COL_W   = 100;
 const LABEL_W = 90;
-const COUNTRY_ORDER = ['Japan','Australia','Singapore','Indonesia','Malaysia','China','South Korea','India','Philippines','Thailand'];
 
 function DeltaBadge({ a, b, size = 10, isFloat = false }: { a: number; b: number; size?: number; isFloat?: boolean }) {
   const d = b - a;
@@ -175,6 +129,7 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   const [lockedPerson, setLockedPerson]     = useState<Person | null>(null);
   const [hoveredPill, setHoveredPill]       = useState<{ personId: number; x: number; y: number } | null>(null);
   const [commentCache, setCommentCache]     = useState<Record<number, string>>({});
+  const fetchingRef = useRef<Set<number>>(new Set());
 
   const [compCycleId,       setCompCycleId]       = useState<number | null>(null);
   const [compCountryAllocs, setCompCountryAllocs] = useState<CountryAllocation[]>([]);
@@ -237,9 +192,9 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
     setLoading(true); setBackendError(false);
     try {
       const [ppl, projs, allocs, gc] = await Promise.all([
-        peopleApi.list({ is_active: 'true', limit: 500,
+        peopleApi.list({ is_active: 'true', limit: 2000,
           ...(selectedRegionId ? { region_id: selectedRegionId } : {}) }).catch(() => [] as Person[]),
-        projectsApi.list({ is_active: 'true', limit: 500,
+        projectsApi.list({ is_active: 'true', limit: 2000,
           ...(selectedCycleId ? { planning_cycle_id: selectedCycleId } : {}) }).catch(() => [] as Project[]),
         countryAllocationsApi.list({
           ...(selectedCycleId  ? { planning_cycle_id: selectedCycleId }  : {}),
@@ -251,6 +206,8 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
       setProjects(projs);
       setCountryAllocs(allocs);
       setGearingConstants(gc);
+      if (ppl.length >= 2000)   toast('⚠ People list may be truncated — contact PMO to investigate', { icon: '⚠️' });
+      if (projs.length >= 2000) toast('⚠ Projects list may be truncated — contact PMO to investigate', { icon: '⚠️' });
     } catch { setBackendError(true); }
     finally   { setLoading(false); }
   }, [selectedCycleId, selectedRegionId]);
@@ -318,12 +275,17 @@ useEffect(() => {
   );
 
   const allocatedPeople = useMemo(
-    () => allPeople.filter(p =>
-      allocatedPersonIds.has(p.id) ||
-      contractGroup(p) === 'approved' ||
-      contractGroup(p) === 'request'
-    ),
-    [allPeople, allocatedPersonIds]
+    () => allPeople.filter(p => {
+      if (allocatedPersonIds.has(p.id)) return true;
+      const grp = contractGroup(p);
+      if (grp === 'approved' || grp === 'request') {
+        // Only show headcount requests/approved entries that belong to the selected cycle
+        // (or those with no cycle link, which are cycle-agnostic legacy entries)
+        return p.planning_cycle_id == null || p.planning_cycle_id === selectedCycleId;
+      }
+      return false;
+    }),
+    [allPeople, allocatedPersonIds, selectedCycleId]
   );
 
   // ── Derived: hierarchy ────────────────────────────────────────────────────
@@ -389,14 +351,17 @@ useEffect(() => {
 
   // ── Banner metrics ────────────────────────────────────────────────────────
   const bannerMetrics = useMemo(() => {
+    const discByPersonId = new Map(allPeople.map(p => [p.id, p.discipline_name]));
     const totalAvailable = allPeople.reduce((s, p) => s + (parseFloat(String(p.contracted_fte ?? 1)) || 1), 0);
     const totalAllocated = countryAllocs.reduce((s, a) => s + Number(a.fte_value), 0);
-    const byDisc = DISCIPLINES.map(d => ({
-      discipline: d,
-      allocated: countryAllocs
-        .filter(a => allPeople.find(p => p.id === a.person_id)?.discipline_name === d)
-        .reduce((s, a) => s + Number(a.fte_value), 0),
-    })).filter(d => d.allocated > 0);
+    const discAllocated: Record<string, number> = {};
+    for (const a of countryAllocs) {
+      const d = discByPersonId.get(a.person_id);
+      if (d) discAllocated[d] = (discAllocated[d] ?? 0) + Number(a.fte_value);
+    }
+    const byDisc = DISCIPLINES
+      .filter(d => (discAllocated[d] ?? 0) > 0)
+      .map(d => ({ discipline: d, allocated: discAllocated[d] ?? 0 }));
     return { totalAvailable, totalAllocated, byDisc };
   }, [allPeople, countryAllocs]);
 
@@ -406,13 +371,14 @@ useEffect(() => {
   );
 
   const compBannerMetrics = useMemo(() => {
+    const discByPersonId = new Map(allPeople.map(p => [p.id, p.discipline_name]));
     const totalAllocated = compCountryAllocs.reduce((s, a) => s + Number(a.fte_value), 0);
-    const byDisc = DISCIPLINES.map(d => ({
-      discipline: d,
-      allocated: compCountryAllocs
-        .filter(a => allPeople.find(p => p.id === a.person_id)?.discipline_name === d)
-        .reduce((s, a) => s + Number(a.fte_value), 0),
-    }));
+    const discAllocated: Record<string, number> = {};
+    for (const a of compCountryAllocs) {
+      const d = discByPersonId.get(a.person_id);
+      if (d) discAllocated[d] = (discAllocated[d] ?? 0) + Number(a.fte_value);
+    }
+    const byDisc = DISCIPLINES.map(d => ({ discipline: d, allocated: discAllocated[d] ?? 0 }));
     return { totalAllocated, byDisc };
   }, [allPeople, compCountryAllocs]);
 
@@ -473,6 +439,8 @@ useEffect(() => {
   // ── Lazy comment fetch for pill tooltip ──────────────────────────────────
   const fetchLatestComment = useCallback(async (personId: number) => {
     if (commentCache[personId] !== undefined) return;
+    if (fetchingRef.current.has(personId)) return;
+    fetchingRef.current.add(personId);
     setCommentCache(prev => ({ ...prev, [personId]: '…' }));
     try {
       const comments = await personCommentsApi.list(personId);
@@ -480,6 +448,8 @@ useEffect(() => {
       setCommentCache(prev => ({ ...prev, [personId]: latest?.body ?? '' }));
     } catch {
       setCommentCache(prev => ({ ...prev, [personId]: '' }));
+    } finally {
+      fetchingRef.current.delete(personId);
     }
   }, [commentCache]);
 
@@ -534,8 +504,15 @@ useEffect(() => {
     let allocs: { country_id: number; fte_value: number }[];
     if (allocMode === 'equal') {
       if (equalCountries.size === 0) { toast.error('Select at least one country'); return; }
-      const fte = parseFloat((1.0 / equalCountries.size).toFixed(4));
-      allocs = Array.from(equalCountries).map(cid => ({ country_id: cid, fte_value: fte }));
+      const perFte = parseFloat((1.0 / equalCountries.size).toFixed(4));
+      const ids = Array.from(equalCountries);
+      // Last country absorbs floating-point remainder so the sum is exactly 1.0
+      allocs = ids.map((cid, i) => ({
+        country_id: cid,
+        fte_value: i === ids.length - 1
+          ? parseFloat((1.0 - perFte * (ids.length - 1)).toFixed(4))
+          : perFte,
+      }));
     } else {
       allocs = countryGroups
         .map(g => ({ country_id: g.countryId, fte_value: parseFloat(modalAllocs[g.countryId] ?? '0') || 0 }))
@@ -765,7 +742,7 @@ useEffect(() => {
             </span>
           )}
           <div style={{ display: 'flex', gap: 2 }}>
-            <button onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last allocation save"
+            <button onClick={handleUndo} disabled={undoStack.length === 0} title="Undo last allocation save (session only — cleared on page refresh)"
               style={{ padding: '4px 7px', background: undoStack.length > 0 ? '#F3F4F6' : '#FAFAFA', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 12, color: undoStack.length > 0 ? '#374151' : '#C0C0C0', cursor: undoStack.length > 0 ? 'pointer' : 'default', lineHeight: 1 }}>
               ↩
             </button>
