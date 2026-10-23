@@ -113,6 +113,27 @@ export const cycleApproversApi = {
     client.delete(`/planning-cycles/${cycleId}/approvers/${approverId}`),
 };
 
+// ---------------------------------------------------------------------------
+// Cycle Stage Access
+// ---------------------------------------------------------------------------
+
+export interface CycleStageAccess {
+  stage_key: string;
+  stage_label: string;
+  stage_order: number;
+  edit_roles: string[];
+  review_roles: string[];
+  approval_roles: string[];
+}
+
+export const cycleStageAccessApi = {
+  list: () =>
+    client.get<ListResponse<CycleStageAccess>>('/admin/cycle-stage-access').then(r => r.data.data),
+
+  update: (stageKey: string, body: { edit_roles: string[]; review_roles: string[]; approval_roles: string[] }) =>
+    client.put<ItemResponse<CycleStageAccess>>(`/admin/cycle-stage-access/${stageKey}`, body).then(r => r.data.data),
+};
+
 // Roles/profiles permitted to edit in each cycle stage (mirrors backend cycleAccess.js)
 // Both legacy role names and new profile names are listed for backward compatibility.
 export const STAGE_EDIT_ROLES: Record<string, string[]> = {

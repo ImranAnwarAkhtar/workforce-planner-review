@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { refDataApi, planningCyclesApi, cycleApproversApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type PlanningCycle, type CycleApprover, type GearingConstant, type AlertConfig, type AlertLog, type Person } from '../services/api';
+import { refDataApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type PlanningCycle, type CycleApprover, type CycleStageAccess, type GearingConstant, type AlertConfig, type AlertLog, type Person } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import axios from 'axios';
 
@@ -946,6 +946,17 @@ function PlanningCyclesTab() {
   const [addingApproverFor, setAddingApproverFor] = useState<number | null>(null);
   const [newApproverName, setNewApproverName]     = useState('');
   const [newApproverEmail, setNewApproverEmail]   = useState('');
+  const [liveStageAccess, setLiveStageAccess] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    cycleStageAccessApi.list()
+      .then(rows => {
+        const map: Record<string, string[]> = {};
+        rows.forEach(r => { map[r.stage_key] = r.edit_roles; });
+        setLiveStageAccess(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const [form, setForm]         = useState({ name: '', start_date: '', end_date: '', copy_from_cycle_id: '' });
   const [editForm, setEditForm] = useState({ name: '', start_date: '', end_date: '' });
@@ -1141,22 +1152,7 @@ function PlanningCyclesTab() {
                         </div>
                       </td>
                       <td style={td}>
-                        {(STAGE_ACCESS[cycle.status]?.length ?? 0) > 0 ? (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                            {STAGE_ACCESS[cycle.status].map(r => {
-                              const chip = ROLE_CHIP[r] ?? { bg: '#F3F4F6', color: '#374151', border: '#D1D5DB' };
-                              return (
-                                <span key={r} style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 10, background: chip.bg, color: chip.color, border: `1px solid ${chip.border}` }}>
-                                  {r}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 11, color: '#9CA3AF' }}>
-                            {cycle.status === 'closed' ? 'ðŸ”’ Fully locked' : 'ðŸ”’ Locked for editing'}
-                          </span>
-                        )}
+                        <RoleChips roles={liveStageAccess[cycle.status] ?? STAGE_ACCESS[cycle.status] ?? []} />
                       </td>
                       <td style={td}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
@@ -1684,11 +1680,231 @@ function AlertsTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Cycle Stages tab
+// ---------------------------------------------------------------------------
+
+const ALL_STAGE_ROLES = [
+  'Senior PMO', 'PMO Team', 'Workforce Planning', 'Administration',
+  'Department Head', 'Hub Lead', 'Senior TA', 'Talent Acquisition',
+  'Finance', 'EVP',
+];
+
+const STAGE_ROLE_CHIP: Record<string, { bg: string; color: string; border: string }> = {
+  'Senior PMO':         { bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
+  'PMO Team':           { bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
+  'PMO':                { bg: '#FEE2E2', color: '#991B1B', border: '#FECACA' },
+  'Workforce Planning': { bg: '#EFF6FF', color: '#1E40AF', border: '#BFDBFE' },
+  'Administration':     { bg: '#F0F9FF', color: '#0369A1', border: '#BAE6FD' },
+  'Department Head':    { bg: '#F5F3FF', color: '#5B21B6', border: '#DDD6FE' },
+  'Hub Lead':           { bg: '#FDF4FF', color: '#7E22CE', border: '#E9D5FF' },
+  'Dept Lead':          { bg: '#F5F3FF', color: '#5B21B6', border: '#DDD6FE' },
+  'Function Lead':      { bg: '#F5F3FF', color: '#5B21B6', border: '#DDD6FE' },
+  'Head of Dept':       { bg: '#FFF7ED', color: '#C2410C', border: '#FED7AA' },
+  'Head of Commercial': { bg: '#F0FDF4', color: '#166534', border: '#BBF7D0' },
+  'Senior TA':          { bg: '#ECFDF5', color: '#065F46', border: '#6EE7B7' },
+  'Talent Acquisition': { bg: '#ECFDF5', color: '#065F46', border: '#6EE7B7' },
+  'Finance':            { bg: '#FEFCE8', color: '#854D0E', border: '#FEF08A' },
+  'EVP':                { bg: '#F8FAFC', color: '#334155', border: '#CBD5E1' },
+};
+
+function RoleChips({ roles }: { roles: string[] }) {
+  if (!roles.length) return <span style={{ fontSize: 11, color: '#9CA3AF' }}>— None —</span>;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+      {roles.map(r => {
+        const chip = STAGE_ROLE_CHIP[r] ?? { bg: '#F3F4F6', color: '#374151', border: '#D1D5DB' };
+        return (
+          <span key={r} style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 10, background: chip.bg, color: chip.color, border: `1px solid ${chip.border}`, whiteSpace: 'nowrap' }}>
+            {r}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function RoleCheckboxGroup({
+  label, roles, selected, onChange,
+}: { label: string; roles: string[]; selected: string[]; onChange: (next: string[]) => void }) {
+  const toggle = (r: string) =>
+    onChange(selected.includes(r) ? selected.filter(x => x !== r) : [...selected, r]);
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {roles.map(r => {
+          const checked = selected.includes(r);
+          const chip = STAGE_ROLE_CHIP[r] ?? { bg: '#F3F4F6', color: '#374151', border: '#D1D5DB' };
+          return (
+            <label key={r} style={{
+              display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+              padding: '4px 9px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+              background: checked ? chip.bg : '#F9FAFB',
+              color: checked ? chip.color : '#9CA3AF',
+              border: `1px solid ${checked ? chip.border : '#E5E7EB'}`,
+              transition: 'all 0.1s',
+              userSelect: 'none',
+            }}>
+              <input type="checkbox" checked={checked} onChange={() => toggle(r)}
+                style={{ width: 12, height: 12, accentColor: chip.color, cursor: 'pointer' }} />
+              {r}
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CycleStagesTab() {
+  const [stages, setStages] = useState<CycleStageAccess[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<{ edit_roles: string[]; review_roles: string[]; approval_roles: string[] }>({
+    edit_roles: [], review_roles: [], approval_roles: [],
+  });
+
+  function load() {
+    setLoading(true);
+    cycleStageAccessApi.list().then(setStages).catch(() => {}).finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function startEdit(s: CycleStageAccess) {
+    setEditingKey(s.stage_key);
+    setDraft({ edit_roles: [...s.edit_roles], review_roles: [...s.review_roles], approval_roles: [...s.approval_roles] });
+  }
+
+  async function handleSave(stageKey: string) {
+    setSaving(true);
+    try {
+      await cycleStageAccessApi.update(stageKey, draft);
+      toast.success('Stage access updated');
+      setEditingKey(null);
+      load();
+    } catch (e: unknown) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+          Configure which role groups have edit, review, and approval access at each planning cycle stage.
+          Changes take effect for all planning cycles.
+        </p>
+      </div>
+
+      {loading ? (
+        <div style={{ ...card, padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Loading…</div>
+      ) : stages.length === 0 ? (
+        <div style={{ ...card, padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No stage data — check backend connection.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {stages.map(s => {
+            const isEditing = editingKey === s.stage_key;
+            const isClosed  = s.stage_key === 'closed';
+            return (
+              <div key={s.stage_key} style={{ ...card, padding: 0, overflow: 'visible' }}>
+                {/* Stage header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 16px', background: '#F9FAFB',
+                  borderBottom: '1px solid #E5E7EB', borderRadius: '8px 8px 0 0',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{s.stage_label}</div>
+                  {!isEditing && (
+                    <button
+                      onClick={() => startEdit(s)}
+                      style={{ padding: '5px 12px', background: '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 5, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
+                    >
+                      Edit Access
+                    </button>
+                  )}
+                </div>
+
+                {/* View mode */}
+                {!isEditing && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
+                    {[
+                      { label: 'Edit Access',     roles: s.edit_roles },
+                      { label: 'Review Access',   roles: s.review_roles },
+                      { label: 'Approval Access', roles: s.approval_roles },
+                    ].map(({ label, roles }, i) => (
+                      <div key={label} style={{
+                        padding: '12px 16px',
+                        borderRight: i < 2 ? '1px solid #F0F0F0' : 'none',
+                      }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                          {label}
+                          {isClosed && <span style={{ marginLeft: 6, fontSize: 10 }}>🔒</span>}
+                        </div>
+                        <RoleChips roles={roles} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Edit mode */}
+                {isEditing && (
+                  <div style={{ padding: 16 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      <RoleCheckboxGroup
+                        label="Edit Access — who can edit data during this stage"
+                        roles={ALL_STAGE_ROLES}
+                        selected={draft.edit_roles}
+                        onChange={next => setDraft(d => ({ ...d, edit_roles: next }))}
+                      />
+                      <div style={{ borderTop: '1px solid #F0F0F0', paddingTop: 16 }}>
+                        <RoleCheckboxGroup
+                          label="Review Access — who can review (read) data during this stage"
+                          roles={ALL_STAGE_ROLES}
+                          selected={draft.review_roles}
+                          onChange={next => setDraft(d => ({ ...d, review_roles: next }))}
+                        />
+                      </div>
+                      <div style={{ borderTop: '1px solid #F0F0F0', paddingTop: 16 }}>
+                        <RoleCheckboxGroup
+                          label="Approval Access — who can approve actions during this stage"
+                          roles={ALL_STAGE_ROLES}
+                          selected={draft.approval_roles}
+                          onChange={next => setDraft(d => ({ ...d, approval_roles: next }))}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16, paddingTop: 14, borderTop: '1px solid #F0F0F0' }}>
+                      <button
+                        onClick={() => setEditingKey(null)}
+                        style={{ ...btnSecondary, fontSize: 13 }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSave(s.stage_key)}
+                        disabled={saving}
+                        style={{ padding: '7px 18px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
+                      >
+                        {saving ? 'Saving…' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Admin page
 // ---------------------------------------------------------------------------
 
 
-const TABS = ['Planning Cycles', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'User Access', 'Gearing Ratios', 'Alerts'] as const;
+const TABS = ['Planning Cycles', 'Cycle Stages', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'User Access', 'Gearing Ratios', 'Alerts'] as const;
 type Tab = typeof TABS[number];
 
 export default function Admin() {
@@ -1715,6 +1931,7 @@ export default function Admin() {
 
       {/* Tab content */}
       {activeTab === 'Planning Cycles' && <PlanningCyclesTab />}
+      {activeTab === 'Cycle Stages'   && <CycleStagesTab />}
       {activeTab === 'Disciplines'    && <DisciplinesTab />}
       {activeTab === 'Levels'         && <LevelsTab />}
       {activeTab === 'Contract Types' && <ContractTypesTab />}

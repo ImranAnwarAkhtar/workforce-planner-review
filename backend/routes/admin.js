@@ -445,4 +445,31 @@ router.put('/profile-permissions/save', requireAuth, requireRole(ROLES.PMO, PROF
   }
 });
 
+// ── Cycle Stage Access ────────────────────────────────────────────────────────
+
+router.get('/cycle-stage-access', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT * FROM cycle_stage_access ORDER BY stage_order ASC'
+  );
+  res.json({ data: rows });
+});
+
+router.put('/cycle-stage-access/:stageKey', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
+  const { stageKey } = req.params;
+  const { edit_roles, review_roles, approval_roles } = req.body;
+  if (!Array.isArray(edit_roles) || !Array.isArray(review_roles) || !Array.isArray(approval_roles)) {
+    return res.status(400).json({ error: 'edit_roles, review_roles and approval_roles must be arrays' });
+  }
+  const { rows } = await pool.query(
+    `UPDATE cycle_stage_access
+        SET edit_roles = $1, review_roles = $2, approval_roles = $3
+      WHERE stage_key = $4
+      RETURNING *`,
+    [edit_roles, review_roles, approval_roles, stageKey]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Stage not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'cycle_stage_access', recordId: stageKey, newValues: rows[0], ipAddress: req.ip });
+  res.json({ data: rows[0] });
+});
+
 module.exports = router;

@@ -170,6 +170,39 @@ pool.query(`
 `).catch(err => logger.error('People dept_head/hiring_manager migration failed', { error: err.message }));
 
 pool.query(`
+  CREATE TABLE IF NOT EXISTS cycle_stage_access (
+    stage_key      VARCHAR(50)  PRIMARY KEY,
+    stage_label    VARCHAR(100) NOT NULL,
+    stage_order    INTEGER      NOT NULL DEFAULT 0,
+    edit_roles     TEXT[]       NOT NULL DEFAULT '{}',
+    review_roles   TEXT[]       NOT NULL DEFAULT '{}',
+    approval_roles TEXT[]       NOT NULL DEFAULT '{}'
+  );
+  INSERT INTO cycle_stage_access (stage_key, stage_label, stage_order, edit_roles, review_roles, approval_roles) VALUES
+    ('draft',        'Stage 1: Admin Setup',    1,
+      ARRAY['Senior PMO','PMO Team'],
+      ARRAY[]::TEXT[],
+      ARRAY['Senior PMO','PMO Team']),
+    ('active',       'Stage 2: Planning',        2,
+      ARRAY['Senior PMO','PMO Team','Workforce Planning','Administration','Department Head','Hub Lead'],
+      ARRAY['Senior PMO','PMO Team','Workforce Planning'],
+      ARRAY['Senior PMO','PMO Team']),
+    ('under_review', 'Stage 3: Regional Review', 3,
+      ARRAY['Senior PMO','PMO Team','Workforce Planning','Administration','Department Head','Hub Lead'],
+      ARRAY['Senior PMO','PMO Team','Workforce Planning','Department Head','Hub Lead'],
+      ARRAY['Senior PMO','PMO Team','Department Head','Hub Lead']),
+    ('approved',     'Stage 4: Global Approval', 4,
+      ARRAY[]::TEXT[],
+      ARRAY['Senior PMO','PMO Team'],
+      ARRAY['Senior PMO','EVP']),
+    ('closed',       'Closed',                   5,
+      ARRAY[]::TEXT[],
+      ARRAY[]::TEXT[],
+      ARRAY[]::TEXT[])
+  ON CONFLICT (stage_key) DO NOTHING;
+`).catch(err => logger.error('Cycle stage access migration failed', { error: err.message }));
+
+pool.query(`
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '14 days'
     WHERE req_status = 'Filled' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL;
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '21 days'
