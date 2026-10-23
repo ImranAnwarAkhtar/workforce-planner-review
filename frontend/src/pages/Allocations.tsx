@@ -583,9 +583,12 @@ useEffect(() => {
     ? equalCountries.size > 0 ? 1.0 : 0
     : countryGroups.reduce((s, g) => s + (parseFloat(modalAllocs[g.countryId] ?? '0') || 0), 0);
 
-  // People available in the add modal (filtered by region, optionally by discipline)
+  // People available in the add modal — real people only (employees + contingent), not TBH requests
   const modalPeople = useMemo(() => {
-    let ppl = allPeople;
+    let ppl = allPeople.filter(p => {
+      const grp = contractGroup(p);
+      return grp === 'employee' || grp === 'contingent';
+    });
     if (addModal?.preDisciplineId) ppl = ppl.filter(p => p.discipline_id === addModal.preDisciplineId);
     return ppl.sort((a, b) => a.name.localeCompare(b.name));
   }, [allPeople, addModal]);
