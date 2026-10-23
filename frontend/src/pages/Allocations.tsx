@@ -1549,11 +1549,21 @@ useEffect(() => {
                     style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
                   >
                     <option value="">— Select type —</option>
-                    {(['R FTE', 'R CON', 'R CON FTE'] as const).map(code => {
-                      const ct = refContractTypes.find(c => c.code === code);
-                      if (!ct) return null;
-                      return <option key={ct.id} value={ct.id}>{ct.code}{ct.description ? ` — ${ct.description}` : ''}</option>;
-                    })}
+                    {/* Show all base requested types; exclude year-specific variants like "R FTE 26" */}
+                    {refContractTypes
+                      .filter(ct => ct.category === 'requested' && !/\d/.test(ct.code))
+                      .sort((a, b) => {
+                        const ORDER = ['R FTE', 'R CON'];
+                        const ai = ORDER.indexOf(a.code);
+                        const bi = ORDER.indexOf(b.code);
+                        if (ai !== -1 && bi !== -1) return ai - bi;
+                        if (ai !== -1) return -1;
+                        if (bi !== -1) return 1;
+                        return a.code.localeCompare(b.code);
+                      })
+                      .map(ct => (
+                        <option key={ct.id} value={ct.id}>{ct.code}{ct.description ? ` — ${ct.description}` : ''}</option>
+                      ))}
                   </select>
                 </div>
 
