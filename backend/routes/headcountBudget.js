@@ -7,16 +7,19 @@ const router = Router();
 // ---------------------------------------------------------------------------
 // Shared data fetch for budget summary
 // ---------------------------------------------------------------------------
-function safeQuery(q) {
-  return pool.query(q).catch(() => ({ rows: [] }));
+function safeQuery(q, params = []) {
+  return pool.query(q, params).catch(() => ({ rows: [] }));
 }
 
 async function fetchBudgetData(cycleId = null) {
   // When a specific cycle is selected, filter requested headcount to that cycle only.
   // Existing and approved headcount is always included (cycle-agnostic).
-  const cycleFilter = cycleId != null
-    ? `AND (ct.category IN ('existing', 'approved') OR pe.planning_cycle_id = ${parseInt(cycleId, 10)})`
+  const safeId = cycleId != null ? parseInt(cycleId, 10) : null;
+  const cycleFilter = safeId != null
+    ? 'AND (ct.category IN (\'existing\', \'approved\') OR pe.planning_cycle_id = $1)'
     : '';
+  const cycleParams = safeId != null ? [safeId] : [];
+  const cycleDetailFilter = safeId != null ? 'AND pe.planning_cycle_id = $1' : '';
 
   const [kpiRes, byDiscRegionRes, byRegionTypeRes, gearingRes, pipelineRes, disciplinesRes, regionsRes, cyclesRes, requestsDetailRes] = await Promise.all([
     // KPIs: headcount breakdown by category
@@ -33,7 +36,7 @@ async function fetchBudgetData(cycleId = null) {
       FROM people pe
       JOIN contract_types ct ON pe.contract_type_id = ct.id
       WHERE pe.is_active = TRUE ${cycleFilter}
-    `),
+    `, cycleParams),
     // Headcount by discipline × region × contract category
     safeQuery(`
       SELECT d.name AS discipline, r.name AS region, r.sort_order,
@@ -47,7 +50,7 @@ async function fetchBudgetData(cycleId = null) {
       WHERE pe.is_active = TRUE ${cycleFilter}
       GROUP BY d.name, r.name, r.sort_order, ct.code, ct.category
       ORDER BY d.name, r.sort_order
-    `),
+    `, cycleParams),
     // Headcount by region × contract type (for head-type table)
     safeQuery(`
       SELECT r.name AS region, r.sort_order,
@@ -60,7 +63,7 @@ async function fetchBudgetData(cycleId = null) {
       WHERE pe.is_active = TRUE ${cycleFilter}
       GROUP BY r.name, r.sort_order, ct.code, ct.category
       ORDER BY r.sort_order
-    `),
+    `, cycleParams),
     // Gearing constants
     safeQuery(`
       SELECT d.name AS discipline_name, gc.project_type,
@@ -97,9 +100,9 @@ async function fetchBudgetData(cycleId = null) {
       LEFT JOIN regions r      ON r.id                = pr.region_id
       LEFT JOIN planning_cycles pc ON pe.planning_cycle_id = pc.id
       WHERE pe.is_active = TRUE AND ct.category = 'requested'
-        ${cycleId != null ? `AND pe.planning_cycle_id = ${parseInt(cycleId, 10)}` : ''}
+        ${cycleDetailFilter}
       ORDER BY d.name NULLS LAST, r.name NULLS LAST, pe.name
-    `),
+    `, cycleParams),
   ]);
 
   const kpi = kpiRes.rows[0] || {};
