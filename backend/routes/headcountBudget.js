@@ -261,6 +261,51 @@ router.get('/data', requireAuth, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Gradient PNG generator — pure Node.js built-ins, cached after first call
+// Produces a 160×90 diagonal gradient (dark purple → dark navy) that scales
+// to fill any 16:9 slide. Colors: #1A0040 (bottom-left) → #000828 (top-right)
+// ---------------------------------------------------------------------------
+let _gradB64 = null;
+function getGradientB64() {
+  if (_gradB64) return _gradB64;
+  const zlib = require('zlib');
+  const W = 160, H = 90;
+  const rows = [];
+  for (let y = 0; y < H; y++) {
+    const row = [0]; // PNG filter: None
+    for (let x = 0; x < W; x++) {
+      // 300°: t=0 at bottom-left (dark purple), t=1 at top-right (dark navy)
+      const t = Math.max(0, Math.min(1, (x / (W - 1) + (H - 1 - y) / (H - 1)) / 2));
+      row.push(
+        Math.round(0x1A * (1 - t)),                     // R: 26 → 0
+        Math.round(0x00 + 0x08 * t),                    // G: 0 → 8
+        Math.round(0x40 * (1 - t) + 0x28 * t),          // B: 64 → 40
+        255
+      );
+    }
+    rows.push(Buffer.from(row));
+  }
+  const raw = Buffer.concat(rows);
+  const idat = zlib.deflateSync(raw, { level: 9 });
+  const tbl = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c; }
+    return t;
+  })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (const v of b) c = tbl[(c ^ v) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const chunk = (tp, d) => { const l = Buffer.alloc(4), cv = Buffer.alloc(4), tb = Buffer.from(tp); l.writeUInt32BE(d.length); cv.writeUInt32BE(crc32(Buffer.concat([tb, d]))); return Buffer.concat([l, tb, d, cv]); };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr[8] = 8; ihdr[9] = 6; // bit depth 8, RGBA
+  _gradB64 = Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', idat),
+    chunk('IEND', Buffer.alloc(0)),
+  ]).toString('base64');
+  return _gradB64;
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/headcount-budget/report  → streams a .pptx file
 // ---------------------------------------------------------------------------
 router.get('/report', requireAuth, async (req, res) => {
@@ -279,285 +324,266 @@ router.get('/report', requireAuth, async (req, res) => {
   const cycleLabel = cycle ? cycle.name : new Date().getFullYear().toString();
 
   const pres = new pptxgen();
-  pres.layout = 'LAYOUT_WIDE';
+  pres.layout = 'LAYOUT_WIDE'; // 13.33" × 7.5" — coordinates throughout this handler use this canvas
 
-  // Equinix brand palette (from Equinix 16:9 Widescreen 2026 theme)
-  const RED    = 'E91C24';  // accent1 — Equinix Red
-  const DARK   = '1A1A2E';  // near-black for dark slide backgrounds
-  const HDRFIL = '000000';  // pure black for content slide header bar
-  const WHITE  = 'FFFFFF';
-  const LGRAY  = 'F2F3F5';  // lt2 — Equinix light background
-  const MGRAY  = '5A657B';  // dk2 — Equinix cool grey
-  const DGRAY  = '374151';
-  const GREEN  = '33A85C';
-  const AMBER  = 'FDB90D';  // accent5 — Equinix Gold
-  const VIOLET = '411980';  // Dark Violet
-  const BLUE   = '086AE3';  // accent4 — Equinix Blue
-  const FONT   = 'Arial';
+  // ── Equinix brand palette ─────────────────────────────────────────────────
+  const RED      = 'E91C24';  // Equinix Red
+  const D_VIOLET = '411980';  // Deep Violet (table sub-headers)
+  const M_PURPLE = '3D1077';  // Mid-purple (table total rows)
+  const YELLOW   = 'FDB90D';  // Equinix Gold (positive indicators)
+  const WHITE    = 'FFFFFF';
+  const OFF_W    = 'D0D0E8';  // white at ~80% on dark bg (muted labels)
+  const BLACK    = '000000';
+  const LGRAY    = 'F2F3F5';  // alternating table row fill
+  const BGRAY    = '5A657B';  // table border / muted text
+  const FONT     = 'Arial';
+  const GRAD     = `image/png;base64,${getGradientB64()}`;
 
-  function addSectionDivider(title, subtitle) {
-    const sl = pres.addSlide();
-    sl.background = { color: DARK };
-    // Red accent bar on left
-    sl.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: 5.63, fill: { color: RED } });
-    sl.addText(title, { x: 0.5, y: 1.85, w: 12.3, h: 0.85, fontSize: 40, bold: true, color: WHITE, fontFace: FONT, isTextBox: true });
-    if (subtitle) sl.addText(subtitle, { x: 0.5, y: 2.78, w: 12.3, h: 0.5, fontSize: 18, color: MGRAY, fontFace: FONT, isTextBox: true });
-    sl.addText('© 2026 Equinix, Inc.', { x: 0.5, y: 5.3, w: 6, h: 0.22, fontSize: 8, color: MGRAY, fontFace: FONT, isTextBox: true });
+  let slideNum = 1;
+
+  // Set gradient background (call FIRST on every non-title slide)
+  function setBg(sl) {
+    sl.background = { color: BLACK };
+    sl.addImage({ data: GRAD, x: 0, y: 0, w: 13.33, h: 7.5 });
   }
 
-  function addContentSlide(title) {
+  // Footer: © line bottom-left + slide number bottom-right
+  function addFooter(sl) {
+    sl.addText('© 2026 Equinix, Inc.', { x: 0.60, y: 7.25, w: 5, h: 0.20, fontSize: 8, color: WHITE, fontFace: FONT, isTextBox: true, margin: 0 });
+    sl.addText(String(slideNum), { x: 12.60, y: 7.25, w: 0.60, h: 0.20, fontSize: 8, color: WHITE, fontFace: FONT, isTextBox: true, align: 'right', margin: 0 });
+    slideNum++;
+  }
+
+  // TYPE 3 — Section divider
+  function addSectionDivider(title, subtitle) {
     const sl = pres.addSlide();
-    sl.background = { color: WHITE };
-    sl.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.6, fill: { color: HDRFIL } });
-    sl.addText(title, { x: 0.3, y: 0.1, w: 11.8, h: 0.42, fontSize: 16, bold: true, color: WHITE, fontFace: FONT, isTextBox: true, margin: 0 });
-    sl.addShape(pres.ShapeType.rect, { x: 0, y: 5.38, w: 13.33, h: 0.25, fill: { color: LGRAY } });
-    sl.addText('© 2026 Equinix, Inc.', { x: 0.3, y: 5.4, w: 4, h: 0.18, fontSize: 8, color: MGRAY, fontFace: FONT, isTextBox: true, margin: 0 });
-    sl.addText(`GDC Headcount Budget · ${cycleLabel}`, { x: 8, y: 5.4, w: 5, h: 0.18, fontSize: 8, color: MGRAY, fontFace: FONT, isTextBox: true, align: 'right', margin: 0 });
+    setBg(sl);
+    sl.addText(title, { x: 0.60, y: 2.70, w: 12.13, h: 1.00, fontSize: 44, bold: true, color: WHITE, fontFace: FONT, isTextBox: true });
+    if (subtitle) sl.addText(subtitle, { x: 0.60, y: 3.80, w: 12.13, h: 0.55, fontSize: 20, color: OFF_W, fontFace: FONT, isTextBox: true });
+    addFooter(sl);
+  }
+
+  // TYPE 2 — Content slide (title + optional subtitle on gradient bg)
+  function addContentSlide(title, subtitle) {
+    const sl = pres.addSlide();
+    setBg(sl);
+    sl.addText(title, { x: 0.60, y: 0.50, w: 12.13, h: 0.60, fontSize: 20, bold: true, color: WHITE, fontFace: FONT, isTextBox: true, margin: 0 });
+    if (subtitle) sl.addText(subtitle, { x: 0.60, y: 1.15, w: 12.13, h: 0.38, fontSize: 12, color: OFF_W, fontFace: FONT, isTextBox: true, margin: 0 });
+    addFooter(sl);
     return sl;
   }
 
-  // ─── Slide 1: Title ───────────────────────────────────────────────────────
+  // ── Table cell helpers ────────────────────────────────────────────────────
+  // pptxgenjs mutates options objects — always build fresh with spread
+  const hdrCell  = (t, o = {}) => ({ text: t, options: { bold: true, color: WHITE, fill: RED,      fontSize: 10, fontFace: FONT, valign: 'middle', ...o } });
+  const subHdr   = (t, o = {}) => ({ text: t, options: { bold: true, color: WHITE, fill: D_VIOLET, fontSize: 10, fontFace: FONT, valign: 'middle', ...o } });
+  const totCell  = (t, o = {}) => ({ text: t, options: { bold: true, color: WHITE, fill: M_PURPLE, fontSize: 10, fontFace: FONT, valign: 'middle', ...o } });
+  const dataCell = (t, row, o = {}) => ({ text: t, options: { color: BLACK, fill: row % 2 === 0 ? WHITE : LGRAY, fontSize: 9, fontFace: FONT, valign: 'middle', ...o } });
+
+  const TBL = { border: { type: 'solid', color: BGRAY, size: 1 }, rowH: 0.30 };
+
+  // ─── Slide 1: TYPE 1 — Cover (solid black, no gradient) ──────────────────
   const titleSlide = pres.addSlide();
-  titleSlide.background = { color: DARK };
-  titleSlide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: 5.63, fill: { color: RED } });
-  titleSlide.addText('GDC Headcount Budget', { x: 0.5, y: 1.4, w: 11.5, h: 1.0, fontSize: 44, bold: true, color: WHITE, fontFace: FONT, isTextBox: true });
-  titleSlide.addText(`Planning Cycle: ${cycleLabel}`, { x: 0.5, y: 2.55, w: 11.5, h: 0.55, fontSize: 22, color: MGRAY, fontFace: FONT, isTextBox: true });
-  titleSlide.addText(`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, { x: 0.5, y: 3.2, w: 8, h: 0.35, fontSize: 14, color: MGRAY, fontFace: FONT, isTextBox: true });
-  titleSlide.addText('© 2026 Equinix, Inc.', { x: 0.5, y: 5.28, w: 6, h: 0.24, fontSize: 8, color: MGRAY, fontFace: FONT, isTextBox: true });
+  titleSlide.background = { color: BLACK };
+  titleSlide.addText('GDC Headcount Budget', { x: 0.60, y: 1.60, w: 7.50, h: 2.39, fontSize: 44, bold: true, color: WHITE, fontFace: FONT, isTextBox: true, valign: 'top' });
+  titleSlide.addText(`Planning Cycle: ${cycleLabel}`, { x: 0.60, y: 4.15, w: 7.50, h: 1.00, fontSize: 20, color: WHITE, fontFace: FONT, isTextBox: true });
+  titleSlide.addText(`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, { x: 0.60, y: 5.40, w: 6.06, h: 0.40, fontSize: 14, color: OFF_W, fontFace: FONT, isTextBox: true });
+  titleSlide.addText('© 2026 Equinix, Inc.', { x: 0.60, y: 7.25, w: 5, h: 0.20, fontSize: 8, color: WHITE, fontFace: FONT, isTextBox: true, margin: 0 });
+  slideNum++;
 
   // ─── Slide 2: Executive Summary KPIs ─────────────────────────────────────
-  const execSlide = addContentSlide('Executive Summary');
+  const execSlide = addContentSlide('Executive Summary', `Planning Cycle: ${cycleLabel}`);
   const kpis = [
-    { label: 'Total Workforce', value: d.kpis.total_existing.toString(), sub: 'Current headcount', color: HDRFIL },
-    { label: 'FTE Requests', value: d.kpis.req_fte.toString(), sub: 'New FTE positions', color: RED },
-    { label: 'Contingent Requests', value: d.kpis.req_con.toString(), sub: 'Contingent workers', color: VIOLET },
-    { label: 'Contingent Workforce', value: `${d.kpis.contingent_pct}%`, sub: 'Of existing headcount', color: BLUE },
+    { label: 'Total Workforce',     value: d.kpis.total_existing.toString(), sub: 'Current headcount' },
+    { label: 'FTE Requests',        value: d.kpis.req_fte.toString(),        sub: 'New FTE positions' },
+    { label: 'Contingent Requests', value: d.kpis.req_con.toString(),        sub: 'Contingent workers' },
+    { label: 'Contingent %',        value: `${d.kpis.contingent_pct}%`,      sub: 'Of existing headcount' },
   ];
   kpis.forEach((k, i) => {
-    const x = 0.4 + i * 3.15;
-    execSlide.addShape(pres.ShapeType.rect, { x, y: 0.85, w: 2.9, h: 1.5, fill: { color: LGRAY }, line: { color: 'E0E3E8', width: 1 } });
-    execSlide.addText(k.value, { x: x + 0.15, y: 0.95, w: 2.6, h: 0.8, fontSize: 40, bold: true, color: k.color, fontFace: FONT, isTextBox: true });
-    execSlide.addText(k.label, { x: x + 0.15, y: 1.65, w: 2.6, h: 0.3, fontSize: 12, bold: true, color: DGRAY, fontFace: FONT, isTextBox: true });
-    execSlide.addText(k.sub, { x: x + 0.15, y: 1.95, w: 2.6, h: 0.25, fontSize: 10, color: MGRAY, fontFace: FONT, isTextBox: true });
+    const x = 0.40 + i * 3.20;
+    execSlide.addText(k.value, { x, y: 1.75, w: 2.90, h: 1.00, fontSize: 48, bold: true, color: WHITE, fontFace: FONT, isTextBox: true, align: 'center', margin: 0 });
+    execSlide.addShape(pres.ShapeType.line, { x: x + 0.10, y: 2.80, w: 2.70, h: 0, line: { color: WHITE, width: 0.75 } });
+    execSlide.addText(k.label, { x, y: 2.85, w: 2.90, h: 0.35, fontSize: 12, bold: true, color: WHITE, fontFace: FONT, isTextBox: true, align: 'center', margin: 0 });
+    execSlide.addText(k.sub,   { x, y: 3.22, w: 2.90, h: 0.30, fontSize: 10, color: OFF_W, fontFace: FONT, isTextBox: true, align: 'center', margin: 0 });
   });
-
-  // Summary text
-  execSlide.addText(
-    `The current workforce stands at ${d.kpis.total_existing} headcount. ` +
-    `This planning cycle includes ${d.kpis.req_fte} new FTE requests and ${d.kpis.req_con} contingent requests. ` +
-    `${d.kpis.contingent_pct}% of the existing workforce is contingent.`,
-    { x: 0.4, y: 2.55, w: 12.4, h: 0.8, fontSize: 12, color: DGRAY, fontFace: FONT, isTextBox: true, wrap: true }
-  );
 
   // ─── Slide 3: Divider – Headcount Summary ────────────────────────────────
   addSectionDivider('Headcount Summary', 'By function and head type');
 
   // ─── Slide 4: Headcount by Function ──────────────────────────────────────
-  const fnSlide = addContentSlide('Headcount Summary — By Function');
-  const fnDiscs = d.headcount_by_function.disciplines;
+  const fnSlide = addContentSlide('Headcount Summary — By Function', `Planning Cycle: ${cycleLabel}`);
+  const fnDiscs   = d.headcount_by_function.disciplines;
   const fnRegions = d.headcount_by_function.regions;
-  const fnMatrix = d.headcount_by_function.matrix;
-  const fnCols = [['Discipline', 1.4], ...fnRegions.map(r => [r.length > 8 ? r.slice(0, 8) : r, 0.85])];
-  const fnHeaders = fnCols.map(([h]) => ({ text: h, options: { bold: true, color: WHITE, fill: DARK, fontSize: 9, align: 'center' } }));
-  const fnRows = [fnHeaders];
-  for (const disc of fnDiscs) {
-    const row = [{ text: disc, options: { bold: true, color: DGRAY, fontSize: 9 } }];
+  const fnMatrix  = d.headcount_by_function.matrix;
+  const fnRegW    = fnRegions.length > 0 ? parseFloat(((12.50 - 1.4) / fnRegions.length).toFixed(2)) : 1.85;
+  const fnHeaderRow = [hdrCell('Discipline'), ...fnRegions.map(r => hdrCell(r.length > 8 ? r.slice(0, 8) : r, { align: 'center' }))];
+  const fnRows = [fnHeaderRow];
+  fnDiscs.forEach((disc, di) => {
+    const row = [dataCell(disc, di, { bold: true })];
     for (const reg of fnRegions) {
       const cell = fnMatrix[disc]?.[reg] || { existing: 0, requested: 0 };
-      const total = cell.existing + cell.requested;
-      row.push({ text: total > 0 ? total.toString() : '—', options: { color: total > 0 ? DGRAY : MGRAY, fontSize: 9, align: 'center' } });
+      const tot = cell.existing + cell.requested;
+      row.push(dataCell(tot > 0 ? tot.toString() : '—', di, { align: 'center' }));
     }
     fnRows.push(row);
-  }
-  // Total row
-  const totalRow = [{ text: 'TOTAL', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } }];
+  });
+  const fnTotalRow = [totCell('TOTAL')];
   for (const reg of fnRegions) {
     let t = 0;
     for (const disc of fnDiscs) t += (fnMatrix[disc]?.[reg]?.existing || 0) + (fnMatrix[disc]?.[reg]?.requested || 0);
-    totalRow.push({ text: t > 0 ? t.toString() : '—', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } });
+    fnTotalRow.push(totCell(t > 0 ? t.toString() : '—', { align: 'center' }));
   }
-  fnRows.push(totalRow);
-  fnSlide.addTable(fnRows, {
-    x: 0.3, y: 0.75, w: 12.7,
-    colW: fnCols.map(([, w]) => w),
-    border: { type: 'solid', color: 'E0E3E8', size: 1 },
-    rowH: 0.32,
-    fontFace: FONT,
-  });
+  fnRows.push(fnTotalRow);
+  fnSlide.addTable(fnRows, { x: 0.40, y: 1.65, w: 12.50, colW: [1.4, ...fnRegions.map(() => fnRegW)], ...TBL, fontFace: FONT });
 
   // ─── Slide 5: Headcount by Head Type ─────────────────────────────────────
-  const htSlide = addContentSlide('Headcount Summary — By Head Type');
-  const htHeaders = [
-    { text: 'Region',        options: { bold: true, color: WHITE, fill: DARK, fontSize: 9 } },
-    { text: 'Senior Staff',  options: { bold: true, color: WHITE, fill: DARK, fontSize: 9, align: 'center' } },
-    { text: 'FTE',           options: { bold: true, color: WHITE, fill: DARK, fontSize: 9, align: 'center' } },
-    { text: 'Contingent',    options: { bold: true, color: WHITE, fill: DARK, fontSize: 9, align: 'center' } },
-    { text: 'Approved FTE',  options: { bold: true, color: WHITE, fill: DARK, fontSize: 9, align: 'center' } },
-    { text: 'Req FTE',       options: { bold: true, color: WHITE, fill: DARK, fontSize: 9, align: 'center' } },
-    { text: 'Req Cont',      options: { bold: true, color: WHITE, fill: DARK, fontSize: 9, align: 'center' } },
-    { text: 'Total',         options: { bold: true, color: WHITE, fill: DARK, fontSize: 9, align: 'center' } },
+  const htSlide = addContentSlide('Headcount Summary — By Head Type', `Planning Cycle: ${cycleLabel}`);
+  const htHeaderRow = [
+    hdrCell('Region'),
+    hdrCell('Senior Staff', { align: 'center' }),
+    hdrCell('FTE',          { align: 'center' }),
+    hdrCell('Contingent',   { align: 'center' }),
+    hdrCell('Approved FTE', { align: 'center' }),
+    hdrCell('Req FTE',      { align: 'center' }),
+    hdrCell('Req Cont',     { align: 'center' }),
+    hdrCell('Total',        { align: 'center' }),
   ];
-  const htRows = [htHeaders];
+  const htRows = [htHeaderRow];
   let htTotals = { snr: 0, fte: 0, con: 0, appr_fte: 0, req_fte: 0, req_con: 0, total: 0 };
-  for (const r of d.headcount_by_type) {
-    const total = r.snr + r.fte + r.con + r.appr_fte + r.req_fte + r.req_con + r.req_con_fte;
+  d.headcount_by_type.forEach((r, ri) => {
+    const total = r.snr + r.fte + r.con + r.appr_fte + r.req_fte + r.req_con + (r.req_con_fte || 0);
     htTotals.snr += r.snr; htTotals.fte += r.fte; htTotals.con += r.con;
     htTotals.appr_fte += r.appr_fte; htTotals.req_fte += r.req_fte; htTotals.req_con += r.req_con; htTotals.total += total;
     htRows.push([
-      { text: r.region, options: { bold: false, color: DGRAY, fontSize: 9 } },
-      { text: r.snr > 0 ? r.snr.toString() : '—', options: { color: DGRAY, fontSize: 9, align: 'center' } },
-      { text: r.fte > 0 ? r.fte.toString() : '—', options: { color: DGRAY, fontSize: 9, align: 'center' } },
-      { text: r.con > 0 ? r.con.toString() : '—', options: { color: DGRAY, fontSize: 9, align: 'center' } },
-      { text: r.appr_fte > 0 ? r.appr_fte.toString() : '—', options: { color: DGRAY, fontSize: 9, align: 'center' } },
-      { text: r.req_fte > 0 ? r.req_fte.toString() : '—', options: { color: RED, bold: r.req_fte > 0, fontSize: 9, align: 'center' } },
-      { text: r.req_con > 0 ? r.req_con.toString() : '—', options: { color: VIOLET, bold: r.req_con > 0, fontSize: 9, align: 'center' } },
-      { text: total > 0 ? total.toString() : '—', options: { bold: true, color: DGRAY, fontSize: 9, align: 'center' } },
+      dataCell(r.region, ri),
+      dataCell(r.snr      > 0 ? r.snr.toString()      : '—', ri, { align: 'center' }),
+      dataCell(r.fte      > 0 ? r.fte.toString()      : '—', ri, { align: 'center' }),
+      dataCell(r.con      > 0 ? r.con.toString()      : '—', ri, { align: 'center' }),
+      dataCell(r.appr_fte > 0 ? r.appr_fte.toString() : '—', ri, { align: 'center' }),
+      dataCell(r.req_fte  > 0 ? r.req_fte.toString()  : '—', ri, { align: 'center', bold: r.req_fte > 0, color: r.req_fte > 0 ? RED : BLACK }),
+      dataCell(r.req_con  > 0 ? r.req_con.toString()  : '—', ri, { align: 'center', bold: r.req_con > 0, color: r.req_con > 0 ? D_VIOLET : BLACK }),
+      dataCell(total      > 0 ? total.toString()       : '—', ri, { align: 'center', bold: true }),
     ]);
-  }
-  htRows.push([
-    { text: 'TOTAL', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
-    { text: htTotals.snr.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
-    { text: htTotals.fte.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
-    { text: htTotals.con.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
-    { text: htTotals.appr_fte.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
-    { text: htTotals.req_fte.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
-    { text: htTotals.req_con.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
-    { text: htTotals.total.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
-  ]);
-  htSlide.addTable(htRows, {
-    x: 0.3, y: 0.75, w: 12.7,
-    colW: [2.2, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.4],
-    border: { type: 'solid', color: 'E0E3E8', size: 1 },
-    rowH: 0.35,
-    fontFace: FONT,
   });
+  htRows.push([
+    totCell('TOTAL'),
+    totCell(htTotals.snr.toString(),      { align: 'center' }),
+    totCell(htTotals.fte.toString(),      { align: 'center' }),
+    totCell(htTotals.con.toString(),      { align: 'center' }),
+    totCell(htTotals.appr_fte.toString(), { align: 'center' }),
+    totCell(htTotals.req_fte.toString(),  { align: 'center' }),
+    totCell(htTotals.req_con.toString(),  { align: 'center' }),
+    totCell(htTotals.total.toString(),    { align: 'center' }),
+  ]);
+  htSlide.addTable(htRows, { x: 0.40, y: 1.65, w: 12.50, colW: [2.2, 1.3, 1.0, 1.3, 1.6, 1.2, 1.2, 1.7], ...TBL, fontFace: FONT });
 
   // ─── Slide 6: Divider – Gearing Ratios ───────────────────────────────────
   addSectionDivider('Gearing Ratios', 'Proposed headcount vs project-driven requirements');
 
-  // ─── Slides 7-10: Gearing per discipline ─────────────────────────────────
+  // ─── Gearing slides — one per discipline ─────────────────────────────────
   for (const gd of d.gearing) {
-    const gs = addContentSlide(`Gearing Ratio — ${gd.discipline}`);
-    const grHeaders = [
-      { text: 'Region',   options: { bold: true, color: WHITE, fill: DARK, fontSize: 10 } },
-      { text: 'Min',      options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-      { text: 'Max',      options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-      { text: 'Proposed', options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-      { text: 'Optimal',  options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-      { text: 'Variance', options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-      { text: 'Var %',    options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
+    const gs = addContentSlide(`Gearing Ratio — ${gd.discipline}`, `Planning Cycle: ${cycleLabel}`);
+    const grHeaderRow = [
+      hdrCell('Region'),
+      hdrCell('Min',      { align: 'center' }),
+      hdrCell('Max',      { align: 'center' }),
+      hdrCell('Proposed', { align: 'center' }),
+      hdrCell('Optimal',  { align: 'center' }),
+      hdrCell('Variance', { align: 'center' }),
+      hdrCell('Var %',    { align: 'center' }),
     ];
-    const grRows = [grHeaders];
-    for (const r of gd.regions) {
-      if (r.min === 0 && r.max === 0 && r.proposed === 0) continue;
-      const varColor = r.variance > 0 ? AMBER : r.variance < 0 ? RED : GREEN;
+    const grRows = [grHeaderRow];
+    const visRows = gd.regions.filter(r => !(r.min === 0 && r.max === 0 && r.proposed === 0));
+    visRows.forEach((r, ri) => {
+      const varColor = r.variance < 0 ? RED : BLACK;
       grRows.push([
-        { text: r.region, options: { color: DGRAY, fontSize: 10 } },
-        { text: r.min.toString(), options: { color: MGRAY, fontSize: 10, align: 'center' } },
-        { text: r.max.toString(), options: { color: MGRAY, fontSize: 10, align: 'center' } },
-        { text: r.proposed.toString(), options: { bold: true, color: DGRAY, fontSize: 10, align: 'center' } },
-        { text: r.optimal.toString(), options: { color: DGRAY, fontSize: 10, align: 'center' } },
-        { text: (r.variance > 0 ? '+' : '') + r.variance.toString(), options: { bold: true, color: varColor, fontSize: 10, align: 'center' } },
-        { text: (r.variance_pct > 0 ? '+' : '') + r.variance_pct + '%', options: { bold: true, color: varColor, fontSize: 10, align: 'center' } },
+        dataCell(r.region, ri),
+        dataCell(r.min.toString(),      ri, { align: 'center' }),
+        dataCell(r.max.toString(),      ri, { align: 'center' }),
+        dataCell(r.proposed.toString(), ri, { align: 'center', bold: true }),
+        dataCell(r.optimal.toString(),  ri, { align: 'center' }),
+        dataCell((r.variance > 0 ? '+' : '') + r.variance.toString(),     ri, { align: 'center', bold: true, color: varColor }),
+        dataCell((r.variance_pct > 0 ? '+' : '') + r.variance_pct + '%',  ri, { align: 'center', bold: true, color: varColor }),
       ]);
-    }
-    // Grand total row
-    const t = gd.totals;
-    const tVarColor = t.variance > 0 ? AMBER : t.variance < 0 ? RED : GREEN;
-    grRows.push([
-      { text: 'Grand Total', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10 } },
-      { text: t.min.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
-      { text: t.max.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
-      { text: t.proposed.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
-      { text: t.optimal.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
-      { text: (t.variance > 0 ? '+' : '') + t.variance.toString(), options: { bold: true, color: tVarColor, fill: HDRFIL, fontSize: 10, align: 'center' } },
-      { text: (t.variance_pct > 0 ? '+' : '') + t.variance_pct + '%', options: { bold: true, color: tVarColor, fill: HDRFIL, fontSize: 10, align: 'center' } },
-    ]);
-    gs.addTable(grRows, {
-      x: 0.5, y: 0.75, w: 12.3,
-      colW: [2.5, 1.3, 1.3, 1.6, 1.6, 1.6, 1.4],
-      border: { type: 'solid', color: 'E0E3E8', size: 1 },
-      rowH: 0.42,
-      fontFace: FONT,
     });
-  }
-
-  // ─── Slide 11: Project Pipeline ───────────────────────────────────────────
-  addSectionDivider('Project Pipeline', 'By region and status');
-  const ppSlide = addContentSlide('Project Pipeline — By Region');
-  const ppHeaders = [
-    { text: 'Region',   options: { bold: true, color: WHITE, fill: DARK, fontSize: 10 } },
-    { text: 'Approved', options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-    { text: 'Seeded',   options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-    { text: 'Proposed', options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-    { text: 'Total',    options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-    { text: 'Adj Weight', options: { bold: true, color: WHITE, fill: DARK, fontSize: 10, align: 'center' } },
-  ];
-  const ppRows = [ppHeaders];
-  let ppTot = { Approved: 0, Seeded: 0, Proposed: 0, total: 0, weight: 0 };
-  for (const r of d.pipeline) {
-    ppTot.Approved += r.Approved || 0; ppTot.Seeded += r.Seeded || 0;
-    ppTot.Proposed += r.Proposed || 0; ppTot.total += r.total || 0;
-    ppTot.weight += r.retail_weight + r.xscale_weight;
-    const adjWeight = r.retail_weight + r.xscale_weight;
-    ppRows.push([
-      { text: r.region, options: { color: DGRAY, fontSize: 10 } },
-      { text: r.Approved?.toString() || '0', options: { color: DGRAY, fontSize: 10, align: 'center' } },
-      { text: r.Seeded?.toString() || '0', options: { color: DGRAY, fontSize: 10, align: 'center' } },
-      { text: r.Proposed?.toString() || '0', options: { color: DGRAY, fontSize: 10, align: 'center' } },
-      { text: r.total?.toString() || '0', options: { bold: true, color: DGRAY, fontSize: 10, align: 'center' } },
-      { text: adjWeight.toFixed(1), options: { color: MGRAY, fontSize: 10, align: 'center' } },
+    const gt = gd.totals;
+    const gtVarColor = gt.variance < 0 ? RED : YELLOW;
+    grRows.push([
+      totCell('Grand Total'),
+      totCell(gt.min.toString(),      { align: 'center' }),
+      totCell(gt.max.toString(),      { align: 'center' }),
+      totCell(gt.proposed.toString(), { align: 'center' }),
+      totCell(gt.optimal.toString(),  { align: 'center' }),
+      totCell((gt.variance > 0 ? '+' : '') + gt.variance.toString(),    { align: 'center', color: gtVarColor }),
+      totCell((gt.variance_pct > 0 ? '+' : '') + gt.variance_pct + '%', { align: 'center', color: gtVarColor }),
     ]);
+    gs.addTable(grRows, { x: 0.40, y: 1.65, w: 12.50, colW: [2.5, 1.3, 1.3, 1.7, 1.7, 2.0, 2.0], ...TBL, fontFace: FONT });
   }
-  ppRows.push([
-    { text: 'TOTAL', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10 } },
-    { text: ppTot.Approved.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
-    { text: ppTot.Seeded.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
-    { text: ppTot.Proposed.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
-    { text: ppTot.total.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
-    { text: ppTot.weight.toFixed(1), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
-  ]);
-  ppSlide.addTable(ppRows, {
-    x: 0.5, y: 0.75, w: 12.3,
-    colW: [3.0, 1.8, 1.8, 1.8, 1.8, 2.1],
-    border: { type: 'solid', color: 'E0E3E8', size: 1 },
-    rowH: 0.42,
-    fontFace: FONT,
-  });
 
-  // ─── Headcount Requests Appendix ─────────────────────────────────────────
+  // ─── Project Pipeline ─────────────────────────────────────────────────────
+  addSectionDivider('Project Pipeline', 'By region and status');
+  const ppSlide = addContentSlide('Project Pipeline — By Region', `Planning Cycle: ${cycleLabel}`);
+  const ppHeaderRow = [
+    hdrCell('Region'),
+    hdrCell('Approved',   { align: 'center' }),
+    hdrCell('Seeded',     { align: 'center' }),
+    hdrCell('Proposed',   { align: 'center' }),
+    hdrCell('Total',      { align: 'center' }),
+    hdrCell('Adj Weight', { align: 'center' }),
+  ];
+  const ppRows = [ppHeaderRow];
+  let ppTot = { Approved: 0, Seeded: 0, Proposed: 0, total: 0, weight: 0 };
+  d.pipeline.forEach((r, ri) => {
+    ppTot.Approved += r.Approved || 0; ppTot.Seeded += r.Seeded || 0;
+    ppTot.Proposed += r.Proposed || 0; ppTot.total   += r.total  || 0;
+    const adjWeight = r.retail_weight + r.xscale_weight;
+    ppTot.weight += adjWeight;
+    ppRows.push([
+      dataCell(r.region,                  ri),
+      dataCell(r.Approved?.toString() || '0', ri, { align: 'center' }),
+      dataCell(r.Seeded?.toString()   || '0', ri, { align: 'center' }),
+      dataCell(r.Proposed?.toString() || '0', ri, { align: 'center' }),
+      dataCell(r.total?.toString()    || '0', ri, { align: 'center', bold: true }),
+      dataCell(adjWeight.toFixed(1),       ri, { align: 'center' }),
+    ]);
+  });
+  ppRows.push([
+    totCell('TOTAL'),
+    totCell(ppTot.Approved.toString(), { align: 'center' }),
+    totCell(ppTot.Seeded.toString(),   { align: 'center' }),
+    totCell(ppTot.Proposed.toString(), { align: 'center' }),
+    totCell(ppTot.total.toString(),    { align: 'center' }),
+    totCell(ppTot.weight.toFixed(1),   { align: 'center' }),
+  ]);
+  ppSlide.addTable(ppRows, { x: 0.40, y: 1.65, w: 12.50, colW: [3.0, 1.8, 1.8, 1.8, 1.8, 2.3], ...TBL, fontFace: FONT });
+
+  // ─── Appendix: Headcount Requests Detail ─────────────────────────────────
   if (d.requests_detail.length > 0) {
     addSectionDivider('Appendix', 'Headcount requests — detail');
-    const reqSlide = addContentSlide('Headcount Requests — Detail');
-    const reqHeaders = [
-      { text: 'Name',            options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
-      { text: 'Discipline',      options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
-      { text: 'Region',          options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
-      { text: 'Level',           options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
-      { text: 'Type',            options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
-      { text: 'Hiring Manager',  options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
-      { text: 'Planning Cycle',  options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
+    const reqSlide = addContentSlide('Headcount Requests — Detail', `Planning Cycle: ${cycleLabel}`);
+    const reqHeaderRow = [
+      hdrCell('Name'),
+      hdrCell('Discipline'),
+      hdrCell('Region'),
+      hdrCell('Level',          { align: 'center' }),
+      hdrCell('Type',           { align: 'center' }),
+      hdrCell('Hiring Manager'),
+      hdrCell('Planning Cycle'),
     ];
-    const reqRows = [reqHeaders];
-    for (const r of d.requests_detail) {
-      const typeColor = r.contract_code && r.contract_code.startsWith('R FTE') ? RED : VIOLET;
+    const reqRows = [reqHeaderRow];
+    d.requests_detail.forEach((r, ri) => {
+      const typeColor = r.contract_code && r.contract_code.startsWith('R FTE') ? RED : D_VIOLET;
       reqRows.push([
-        { text: r.name || '—', options: { color: DGRAY, fontSize: 8 } },
-        { text: r.discipline || '—', options: { color: MGRAY, fontSize: 8 } },
-        { text: r.region || '—', options: { color: MGRAY, fontSize: 8 } },
-        { text: r.level || '—', options: { color: DGRAY, fontSize: 8, align: 'center' } },
-        { text: r.contract_code || '—', options: { color: typeColor, bold: true, fontSize: 8, align: 'center' } },
-        { text: r.hiring_manager || '—', options: { color: MGRAY, fontSize: 8 } },
-        { text: r.planning_cycle || '—', options: { color: MGRAY, fontSize: 8 } },
+        dataCell(r.name            || '—', ri, { fontSize: 8 }),
+        dataCell(r.discipline      || '—', ri, { fontSize: 8 }),
+        dataCell(r.region          || '—', ri, { fontSize: 8 }),
+        dataCell(r.level           || '—', ri, { fontSize: 8, align: 'center' }),
+        dataCell(r.contract_code   || '—', ri, { fontSize: 8, align: 'center', bold: true, color: typeColor }),
+        dataCell(r.hiring_manager  || '—', ri, { fontSize: 8 }),
+        dataCell(r.planning_cycle  || '—', ri, { fontSize: 8 }),
       ]);
-    }
-    reqSlide.addTable(reqRows, {
-      x: 0.3, y: 0.7, w: 12.7,
-      colW: [2.4, 1.8, 1.4, 0.8, 0.9, 2.4, 3.0],
-      border: { type: 'solid', color: 'E0E3E8', size: 1 },
-      rowH: 0.3,
-      fontFace: FONT,
     });
+    reqSlide.addTable(reqRows, { x: 0.40, y: 1.65, w: 12.50, colW: [2.4, 1.8, 1.4, 0.8, 0.9, 2.4, 2.8], ...TBL, fontFace: FONT });
   }
 
   // ─── Stream the file ──────────────────────────────────────────────────────
