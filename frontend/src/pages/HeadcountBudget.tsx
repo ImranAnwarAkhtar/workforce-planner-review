@@ -42,7 +42,7 @@ interface PipelineRow { region: string; sort_order: number; Approved: number; Se
 
 interface RequestDetail { name: string; discipline: string; region: string; level: string; contract_code: string; dept_head: string; hiring_manager: string; planning_cycle: string; }
 
-interface PlanningCycle { name: string; status: string; }
+interface PlanningCycle { id: number; name: string; status: string; }
 
 interface BudgetData {
   kpis: KPIs;
@@ -89,8 +89,9 @@ const S = {
   altRow: { background: '#FAFAFA' },
   wrap:   { overflowX: 'auto' as const, border: '1px solid #E0E3E8', borderRadius: 6, marginBottom: 20 },
   badge:  (c: string) => ({ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: c + '20', color: c }),
-  btn:    { padding: '10px 22px', background: '#E91C24', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
-  btnSec: { padding: '10px 22px', background: '#F5F6F8', color: '#374151', border: '1px solid #E0E3E8', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  btn:      { padding: '10px 22px', background: '#E91C24', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  btnSec:   { padding: '10px 22px', background: '#F5F6F8', color: '#374151', border: '1px solid #E0E3E8', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  exportBtn: { padding: '5px 12px', background: '#F5F6F8', color: '#374151', border: '1px solid #E0E3E8', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' as const, flexShrink: 0, marginTop: 2 },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -98,6 +99,21 @@ const S = {
 function fmt(n: number): string { return n > 0 ? n.toString() : '—'; }
 function pct(n: number): string { return n > 0 ? `+${n}%` : n < 0 ? `${n}%` : '0%'; }
 function varColor(v: number): string { return v > 0 ? '#FDB90D' : v < 0 ? '#E91C24' : '#33A85C'; }
+
+function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]) {
+  const csv = [headers, ...rows]
+    .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -158,7 +174,22 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
 
       {/* ── KPIs ── */}
       <div style={S.section}>
-        <SectionHeader title="Executive Summary" desc="High-level headcount overview for this planning cycle." />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <SectionHeader title="Executive Summary" desc="High-level headcount overview for this planning cycle." />
+          <button style={S.exportBtn} onClick={() => downloadCSV('executive_summary.csv',
+            ['Metric', 'Value'],
+            [
+              ['Total Workforce', kpis.total_existing],
+              ['Existing FTE', kpis.exist_fte],
+              ['Existing Contingent', kpis.exist_con],
+              ['Approved TBH', kpis.appr_fte],
+              ['FTE Requests', kpis.req_fte],
+              ['Contingent Requests', kpis.req_con],
+              ['Con→FTE Conversions', kpis.req_con_fte],
+              ['Contingent %', kpis.contingent_pct + '%'],
+            ]
+          )}>↓ Export CSV</button>
+        </div>
         <div style={S.kpiRow}>
           <KpiTile value={kpis.total_existing.toString()} label="Total Workforce" sub="Current active headcount" color="#1A1A2E" />
           <KpiTile value={kpis.req_fte.toString()} label="FTE Requests" sub="New FTE positions requested" color="#E91C24" />
@@ -175,7 +206,20 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
 
       {/* ── Headcount by Function ── */}
       <div style={S.section}>
-        <SectionHeader title="Headcount Summary — By Function" desc="Headcount breakdown across disciplines and regions. Totals include existing, approved, and requested positions." />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <SectionHeader title="Headcount Summary — By Function" desc="Headcount breakdown across disciplines and regions. Totals include existing, approved, and requested positions." />
+          <button style={S.exportBtn} onClick={() => {
+            const headers = ['Discipline', ...hbf.regions];
+            const rows = hbf.disciplines.map(disc => [
+              disc,
+              ...hbf.regions.map(reg => {
+                const c = hbf.matrix[disc]?.[reg] || { existing: 0, approved: 0, requested: 0 };
+                return c.existing + c.approved + c.requested;
+              }),
+            ]);
+            downloadCSV('headcount_by_function.csv', headers, rows);
+          }}>↓ Export CSV</button>
+        </div>
         <div style={S.wrap}>
           <table style={S.table}>
             <thead>
@@ -234,7 +278,13 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
 
       {/* ── Headcount by Head Type ── */}
       <div style={S.section}>
-        <SectionHeader title="Headcount Summary — By Head Type" desc="Regional breakdown by employment category." />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <SectionHeader title="Headcount Summary — By Head Type" desc="Regional breakdown by employment category." />
+          <button style={S.exportBtn} onClick={() => downloadCSV('headcount_by_type.csv',
+            ['Region', 'Senior Staff', 'FTE', 'Contingent', 'Approved TBH', 'Req FTE', 'Req Contingent', 'Con→FTE', 'Total'],
+            hbt.map(r => [r.region, r.snr, r.fte, r.con, r.appr_fte, r.req_fte, r.req_con, r.req_con_fte, r.snr + r.fte + r.con + r.appr_fte + r.req_fte + r.req_con + r.req_con_fte])
+          )}>↓ Export CSV</button>
+        </div>
         <div style={S.wrap}>
           <table style={S.table}>
             <thead>
@@ -288,7 +338,22 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
 
       {/* ── Gearing Ratios ── */}
       <div style={S.section}>
-        <SectionHeader title="Gearing Ratios" desc="Proposed headcount vs project-driven optimal requirements by region." />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <SectionHeader title="Gearing Ratios" desc="Proposed headcount vs project-driven optimal requirements by region." />
+          <button style={S.exportBtn} onClick={() => {
+            const rows: (string | number)[][] = [];
+            for (const gd of data.gearing) {
+              rows.push([gd.discipline, '', '', '', '', '', '']);
+              for (const r of gd.regions) {
+                if (r.min > 0 || r.max > 0 || r.proposed > 0) {
+                  rows.push([r.region, r.min, r.max, r.proposed, r.optimal, r.variance, r.variance_pct + '%']);
+                }
+              }
+              rows.push(['Total', gd.totals.min, gd.totals.max, gd.totals.proposed, gd.totals.optimal, gd.totals.variance, gd.totals.variance_pct + '%']);
+            }
+            downloadCSV('gearing_ratios.csv', ['Region / Discipline', 'Min', 'Max', 'Proposed', 'Optimal', 'Variance', 'Var %'], rows);
+          }}>↓ Export CSV</button>
+        </div>
         {/* Discipline selector */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           {data.gearing.map(g => (
@@ -357,7 +422,13 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
 
       {/* ── Project Pipeline ── */}
       <div style={S.section}>
-        <SectionHeader title="Project Pipeline" desc="Live project pipeline by region and delivery status." />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <SectionHeader title="Project Pipeline" desc="Live project pipeline by region and delivery status." />
+          <button style={S.exportBtn} onClick={() => downloadCSV('project_pipeline.csv',
+            ['Region', 'Approved', 'Seeded', 'Proposed', 'Total Projects', 'Retail Weight', 'xScale Weight', 'Adj Weight'],
+            pipeline.map(r => [r.region, r.Approved || 0, r.Seeded || 0, r.Proposed || 0, r.total || 0, r.retail_weight.toFixed(1), r.xscale_weight.toFixed(1), (r.retail_weight + r.xscale_weight).toFixed(1)])
+          )}>↓ Export CSV</button>
+        </div>
         <div style={S.wrap}>
           <table style={S.table}>
             <thead>
@@ -400,7 +471,13 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
       {/* ── Headcount Requests Detail ── */}
       {data.requests_detail.length > 0 && (
         <div style={S.section}>
-          <SectionHeader title="Headcount Requests — Detail" desc={`${data.requests_detail.length} requested positions for this planning cycle.`} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <SectionHeader title="Headcount Requests — Detail" desc={`${data.requests_detail.length} requested positions for this planning cycle.`} />
+            <button style={S.exportBtn} onClick={() => downloadCSV('headcount_requests.csv',
+              ['Name', 'Discipline', 'Region', 'Level', 'Type', 'Hiring Manager', 'Planning Cycle'],
+              data.requests_detail.map(r => [r.name || '', r.discipline || '', r.region || '', r.level || '', r.contract_code || '', r.hiring_manager || '', r.planning_cycle || ''])
+            )}>↓ Export CSV</button>
+          </div>
           <div style={S.wrap}>
             <table style={S.table}>
               <thead>
@@ -441,17 +518,20 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
 
 // ── Budget Report Tab ─────────────────────────────────────────────────────────
 
-function BudgetReportTab({ data }: { data: BudgetData }) {
+function BudgetReportTab({ data, selectedCycleId }: { data: BudgetData; selectedCycleId: number | null }) {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
 
-  const activeCycle = data.planning_cycles.find(c => c.status === 'active') || data.planning_cycles[0];
+  const activeCycle = (selectedCycleId != null ? data.planning_cycles.find(c => c.id === selectedCycleId) : null)
+    || data.planning_cycles.find(c => c.status === 'active')
+    || data.planning_cycles[0];
 
   async function handleGenerate() {
     setGenerating(true);
     setError('');
     try {
-      const resp = await fetch(`${API_BASE}/headcount-budget/report`);
+      const qs = selectedCycleId != null ? `?cycle_id=${selectedCycleId}` : '';
+      const resp = await fetch(`${API_BASE}/headcount-budget/report${qs}`);
       if (!resp.ok) {
         const j = await resp.json().catch(() => ({}));
         throw new Error(j.error || `Server error ${resp.status}`);
@@ -559,12 +639,14 @@ export default function HeadcountBudget() {
   const [data, setData] = useState<BudgetData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedCycleId, setSelectedCycleId] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (cycleId: number | null = null) => {
     setLoading(true);
     setError('');
     try {
-      const resp = await fetch(`${API_BASE}/headcount-budget/data`);
+      const qs = cycleId != null ? `?cycle_id=${cycleId}` : '';
+      const resp = await fetch(`${API_BASE}/headcount-budget/data${qs}`);
       if (!resp.ok) throw new Error(`Server error ${resp.status}`);
       const j = await resp.json();
       setData(j.data);
@@ -575,12 +657,45 @@ export default function HeadcountBudget() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(selectedCycleId); }, [load, selectedCycleId]);
 
   return (
     <div style={S.page}>
       <h1 style={S.title}>Headcount Budget</h1>
       <div style={S.bar} />
+
+      {/* Planning cycle selector */}
+      {data && data.planning_cycles.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' as const }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#5A657B', whiteSpace: 'nowrap' as const }}>Planning Cycle:</span>
+          <button
+            onClick={() => setSelectedCycleId(null)}
+            style={{
+              padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              border: `1px solid ${selectedCycleId === null ? '#1A1A2E' : '#E0E3E8'}`,
+              background: selectedCycleId === null ? '#1A1A2E' : '#F5F6F8',
+              color: selectedCycleId === null ? '#FFFFFF' : '#374151',
+            }}
+          >All</button>
+          {data.planning_cycles.map(c => (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCycleId(c.id)}
+              style={{
+                padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                border: `1px solid ${selectedCycleId === c.id ? '#E91C24' : '#E0E3E8'}`,
+                background: selectedCycleId === c.id ? '#E91C24' : '#F5F6F8',
+                color: selectedCycleId === c.id ? '#FFFFFF' : '#374151',
+              }}
+            >
+              {c.name}
+              {c.status === 'active' && (
+                <span style={{ marginLeft: 5, padding: '1px 5px', background: 'rgba(255,255,255,0.25)', borderRadius: 10, fontSize: 10 }}>active</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={S.tabs}>
         <button style={S.tab(activeTab === 'data')}   onClick={() => setActiveTab('data')}>Budget Data</button>
@@ -594,14 +709,14 @@ export default function HeadcountBudget() {
       {!loading && error && (
         <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '12px 16px', color: '#B91C1C', fontSize: 13 }}>
           {error}
-          <button onClick={load} style={{ marginLeft: 12, fontSize: 12, color: '#E91C24', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Retry</button>
+          <button onClick={() => load(selectedCycleId)} style={{ marginLeft: 12, fontSize: 12, color: '#E91C24', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Retry</button>
         </div>
       )}
 
       {!loading && !error && data && (
         <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           {activeTab === 'data'   && <BudgetDataTab   data={data} />}
-          {activeTab === 'report' && <BudgetReportTab data={data} />}
+          {activeTab === 'report' && <BudgetReportTab data={data} selectedCycleId={selectedCycleId} />}
         </div>
       )}
     </div>

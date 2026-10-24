@@ -11,7 +11,13 @@ function safeQuery(q) {
   return pool.query(q).catch(() => ({ rows: [] }));
 }
 
-async function fetchBudgetData() {
+async function fetchBudgetData(cycleId = null) {
+  // When a specific cycle is selected, filter requested headcount to that cycle only.
+  // Existing and approved headcount is always included (cycle-agnostic).
+  const cycleFilter = cycleId != null
+    ? `AND (ct.category IN ('existing', 'approved') OR pe.planning_cycle_id = ${parseInt(cycleId, 10)})`
+    : '';
+
   const [kpiRes, byDiscRegionRes, byRegionTypeRes, gearingRes, pipelineRes, disciplinesRes, regionsRes, cyclesRes, requestsDetailRes] = await Promise.all([
     // KPIs: headcount breakdown by category
     safeQuery(`
@@ -26,7 +32,7 @@ async function fetchBudgetData() {
         COUNT(*) FILTER (WHERE ct.code = 'R CON>FTE')::int     AS req_con_fte
       FROM people pe
       JOIN contract_types ct ON pe.contract_type_id = ct.id
-      WHERE pe.is_active = TRUE
+      WHERE pe.is_active = TRUE ${cycleFilter}
     `),
     // Headcount by discipline × region × contract category
     safeQuery(`
@@ -38,7 +44,7 @@ async function fetchBudgetData() {
       JOIN person_regions pr   ON pr.person_id        = pe.id
       JOIN regions r           ON r.id                = pr.region_id
       JOIN contract_types ct   ON pe.contract_type_id = ct.id
-      WHERE pe.is_active = TRUE
+      WHERE pe.is_active = TRUE ${cycleFilter}
       GROUP BY d.name, r.name, r.sort_order, ct.code, ct.category
       ORDER BY d.name, r.sort_order
     `),
@@ -51,7 +57,7 @@ async function fetchBudgetData() {
       JOIN person_regions pr ON pr.person_id = pe.id
       JOIN regions r         ON r.id         = pr.region_id
       JOIN contract_types ct ON pe.contract_type_id = ct.id
-      WHERE pe.is_active = TRUE
+      WHERE pe.is_active = TRUE ${cycleFilter}
       GROUP BY r.name, r.sort_order, ct.code, ct.category
       ORDER BY r.sort_order
     `),
@@ -76,7 +82,7 @@ async function fetchBudgetData() {
     `),
     safeQuery(`SELECT id, name FROM disciplines ORDER BY name`),
     safeQuery(`SELECT name, sort_order FROM regions WHERE name != 'Global' ORDER BY sort_order`),
-    safeQuery(`SELECT name, status FROM planning_cycles ORDER BY created_at DESC LIMIT 5`),
+    safeQuery(`SELECT id, name, status FROM planning_cycles ORDER BY created_at DESC LIMIT 10`),
     // Requested headcount detail (for appendix-style breakdown)
     safeQuery(`
       SELECT pe.name, d.name AS discipline, r.name AS region,
@@ -91,6 +97,7 @@ async function fetchBudgetData() {
       LEFT JOIN regions r      ON r.id                = pr.region_id
       LEFT JOIN planning_cycles pc ON pe.planning_cycle_id = pc.id
       WHERE pe.is_active = TRUE AND ct.category = 'requested'
+        ${cycleId != null ? `AND pe.planning_cycle_id = ${parseInt(cycleId, 10)}` : ''}
       ORDER BY d.name NULLS LAST, r.name NULLS LAST, pe.name
     `),
   ]);
@@ -242,7 +249,8 @@ router.get('/', requireAuth, (_req, res) => res.json({ ok: true }));
 // ---------------------------------------------------------------------------
 router.get('/data', requireAuth, async (req, res) => {
   try {
-    const data = await fetchBudgetData();
+    const cycleId = req.query.cycle_id ? parseInt(req.query.cycle_id, 10) : null;
+    const data = await fetchBudgetData(cycleId);
     res.json({ data });
   } catch (err) {
     res.status(500).json({ error: 'Failed to load budget data', detail: err.message });
@@ -260,8 +268,11 @@ router.get('/report', requireAuth, async (req, res) => {
     return res.status(503).json({ error: 'PPTX generation library not available. Please ensure pptxgenjs is installed.' });
   }
 
-  const d = await fetchBudgetData();
-  const cycle = d.planning_cycles.find(c => c.status === 'active') || d.planning_cycles[0];
+  const cycleId = req.query.cycle_id ? parseInt(req.query.cycle_id, 10) : null;
+  const d = await fetchBudgetData(cycleId);
+  const cycle = (cycleId != null ? d.planning_cycles.find(c => c.id === cycleId) : null)
+    || d.planning_cycles.find(c => c.status === 'active')
+    || d.planning_cycles[0];
   const cycleLabel = cycle ? cycle.name : new Date().getFullYear().toString();
 
   const pres = new pptxgen();
