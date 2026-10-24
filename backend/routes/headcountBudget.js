@@ -281,57 +281,64 @@ router.get('/report', requireAuth, async (req, res) => {
   const pres = new pptxgen();
   pres.layout = 'LAYOUT_WIDE';
 
-  // Theme colours
-  const RED    = 'E91C24';
-  const DARK   = '1A1A2E';
+  // Equinix brand palette (from Equinix 16:9 Widescreen 2026 theme)
+  const RED    = 'E91C24';  // accent1 — Equinix Red
+  const DARK   = '1A1A2E';  // near-black for dark slide backgrounds
+  const HDRFIL = '000000';  // pure black for content slide header bar
   const WHITE  = 'FFFFFF';
-  const LGRAY  = 'F5F6F8';
-  const MGRAY  = '8B93A3';
+  const LGRAY  = 'F2F3F5';  // lt2 — Equinix light background
+  const MGRAY  = '5A657B';  // dk2 — Equinix cool grey
   const DGRAY  = '374151';
   const GREEN  = '33A85C';
-  const AMBER  = 'FDB90D';
+  const AMBER  = 'FDB90D';  // accent5 — Equinix Gold
+  const VIOLET = '411980';  // Dark Violet
+  const BLUE   = '086AE3';  // accent4 — Equinix Blue
+  const FONT   = 'Arial';
 
   function addSectionDivider(title, subtitle) {
     const sl = pres.addSlide();
     sl.background = { color: DARK };
-    sl.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.25, h: 5.63, fill: { color: RED } });
-    sl.addText(title, { x: 0.6, y: 1.8, w: 12, h: 0.8, fontSize: 36, bold: true, color: WHITE, fontFace: 'Calibri', isTextBox: true });
-    if (subtitle) sl.addText(subtitle, { x: 0.6, y: 2.7, w: 12, h: 0.5, fontSize: 18, color: MGRAY, fontFace: 'Calibri', isTextBox: true });
+    // Red accent bar on left
+    sl.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: 5.63, fill: { color: RED } });
+    sl.addText(title, { x: 0.5, y: 1.85, w: 12.3, h: 0.85, fontSize: 40, bold: true, color: WHITE, fontFace: FONT, isTextBox: true });
+    if (subtitle) sl.addText(subtitle, { x: 0.5, y: 2.78, w: 12.3, h: 0.5, fontSize: 18, color: MGRAY, fontFace: FONT, isTextBox: true });
+    sl.addText('© 2026 Equinix, Inc.', { x: 0.5, y: 5.3, w: 6, h: 0.22, fontSize: 8, color: MGRAY, fontFace: FONT, isTextBox: true });
   }
 
   function addContentSlide(title) {
     const sl = pres.addSlide();
     sl.background = { color: WHITE };
-    sl.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.65, fill: { color: DARK } });
-    sl.addText(title, { x: 0.3, y: 0.1, w: 12, h: 0.45, fontSize: 16, bold: true, color: WHITE, fontFace: 'Calibri', isTextBox: true });
-    sl.addShape(pres.ShapeType.rect, { x: 0, y: 5.35, w: 13.33, h: 0.28, fill: { color: LGRAY } });
-    sl.addText(`GDC Headcount Budget · Planning Cycle ${cycleLabel}`, { x: 0.3, y: 5.37, w: 12, h: 0.2, fontSize: 9, color: MGRAY, fontFace: 'Calibri', isTextBox: true });
+    sl.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.6, fill: { color: HDRFIL } });
+    sl.addText(title, { x: 0.3, y: 0.1, w: 11.8, h: 0.42, fontSize: 16, bold: true, color: WHITE, fontFace: FONT, isTextBox: true, margin: 0 });
+    sl.addShape(pres.ShapeType.rect, { x: 0, y: 5.38, w: 13.33, h: 0.25, fill: { color: LGRAY } });
+    sl.addText('© 2026 Equinix, Inc.', { x: 0.3, y: 5.4, w: 4, h: 0.18, fontSize: 8, color: MGRAY, fontFace: FONT, isTextBox: true, margin: 0 });
+    sl.addText(`GDC Headcount Budget · ${cycleLabel}`, { x: 8, y: 5.4, w: 5, h: 0.18, fontSize: 8, color: MGRAY, fontFace: FONT, isTextBox: true, align: 'right', margin: 0 });
     return sl;
   }
 
   // ─── Slide 1: Title ───────────────────────────────────────────────────────
   const titleSlide = pres.addSlide();
   titleSlide.background = { color: DARK };
-  titleSlide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 5.63, fill: { color: DARK } });
-  titleSlide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.35, h: 5.63, fill: { color: RED } });
-  titleSlide.addText('GDC Headcount Budget', { x: 0.7, y: 1.4, w: 11, h: 0.9, fontSize: 40, bold: true, color: WHITE, fontFace: 'Calibri', isTextBox: true });
-  titleSlide.addText(`Planning Cycle ${cycleLabel}`, { x: 0.7, y: 2.4, w: 11, h: 0.5, fontSize: 22, color: MGRAY, fontFace: 'Calibri', isTextBox: true });
-  titleSlide.addText(`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, { x: 0.7, y: 4.9, w: 8, h: 0.3, fontSize: 12, color: MGRAY, fontFace: 'Calibri', isTextBox: true });
+  titleSlide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: 5.63, fill: { color: RED } });
+  titleSlide.addText('GDC Headcount Budget', { x: 0.5, y: 1.4, w: 11.5, h: 1.0, fontSize: 44, bold: true, color: WHITE, fontFace: FONT, isTextBox: true });
+  titleSlide.addText(`Planning Cycle: ${cycleLabel}`, { x: 0.5, y: 2.55, w: 11.5, h: 0.55, fontSize: 22, color: MGRAY, fontFace: FONT, isTextBox: true });
+  titleSlide.addText(`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, { x: 0.5, y: 3.2, w: 8, h: 0.35, fontSize: 14, color: MGRAY, fontFace: FONT, isTextBox: true });
+  titleSlide.addText('© 2026 Equinix, Inc.', { x: 0.5, y: 5.28, w: 6, h: 0.24, fontSize: 8, color: MGRAY, fontFace: FONT, isTextBox: true });
 
   // ─── Slide 2: Executive Summary KPIs ─────────────────────────────────────
   const execSlide = addContentSlide('Executive Summary');
   const kpis = [
-    { label: 'Total Workforce', value: d.kpis.total_existing.toString(), sub: 'Current headcount', color: DARK },
+    { label: 'Total Workforce', value: d.kpis.total_existing.toString(), sub: 'Current headcount', color: HDRFIL },
     { label: 'FTE Requests', value: d.kpis.req_fte.toString(), sub: 'New FTE positions', color: RED },
-    { label: 'Contingent Requests', value: d.kpis.req_con.toString(), sub: 'Contingent workers', color: '411980' },
-    { label: 'Contingent Workforce', value: `${d.kpis.contingent_pct}%`, sub: 'Of existing headcount', color: '00737A' },
+    { label: 'Contingent Requests', value: d.kpis.req_con.toString(), sub: 'Contingent workers', color: VIOLET },
+    { label: 'Contingent Workforce', value: `${d.kpis.contingent_pct}%`, sub: 'Of existing headcount', color: BLUE },
   ];
   kpis.forEach((k, i) => {
     const x = 0.4 + i * 3.15;
     execSlide.addShape(pres.ShapeType.rect, { x, y: 0.85, w: 2.9, h: 1.5, fill: { color: LGRAY }, line: { color: 'E0E3E8', width: 1 } });
-    execSlide.addText(k.value, { x: x + 0.15, y: 0.95, w: 2.6, h: 0.8, fontSize: 40, bold: true, color: k.color, fontFace: 'Calibri', isTextBox: true });
-    execSlide.addText(k.label, { x: x + 0.15, y: 1.65, w: 2.6, h: 0.3, fontSize: 12, bold: true, color: DGRAY, fontFace: 'Calibri', isTextBox: true });
-    execSlide.addText(k.sub, { x: x + 0.15, y: 1.95, w: 2.6, h: 0.25, fontSize: 10, color: MGRAY, fontFace: 'Calibri', isTextBox: true });
+    execSlide.addText(k.value, { x: x + 0.15, y: 0.95, w: 2.6, h: 0.8, fontSize: 40, bold: true, color: k.color, fontFace: FONT, isTextBox: true });
+    execSlide.addText(k.label, { x: x + 0.15, y: 1.65, w: 2.6, h: 0.3, fontSize: 12, bold: true, color: DGRAY, fontFace: FONT, isTextBox: true });
+    execSlide.addText(k.sub, { x: x + 0.15, y: 1.95, w: 2.6, h: 0.25, fontSize: 10, color: MGRAY, fontFace: FONT, isTextBox: true });
   });
 
   // Summary text
@@ -339,7 +346,7 @@ router.get('/report', requireAuth, async (req, res) => {
     `The current workforce stands at ${d.kpis.total_existing} headcount. ` +
     `This planning cycle includes ${d.kpis.req_fte} new FTE requests and ${d.kpis.req_con} contingent requests. ` +
     `${d.kpis.contingent_pct}% of the existing workforce is contingent.`,
-    { x: 0.4, y: 2.55, w: 12.4, h: 0.8, fontSize: 12, color: DGRAY, fontFace: 'Calibri', isTextBox: true, wrap: true }
+    { x: 0.4, y: 2.55, w: 12.4, h: 0.8, fontSize: 12, color: DGRAY, fontFace: FONT, isTextBox: true, wrap: true }
   );
 
   // ─── Slide 3: Divider – Headcount Summary ────────────────────────────────
@@ -363,11 +370,11 @@ router.get('/report', requireAuth, async (req, res) => {
     fnRows.push(row);
   }
   // Total row
-  const totalRow = [{ text: 'TOTAL', options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9 } }];
+  const totalRow = [{ text: 'TOTAL', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } }];
   for (const reg of fnRegions) {
     let t = 0;
     for (const disc of fnDiscs) t += (fnMatrix[disc]?.[reg]?.existing || 0) + (fnMatrix[disc]?.[reg]?.requested || 0);
-    totalRow.push({ text: t > 0 ? t.toString() : '—', options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9, align: 'center' } });
+    totalRow.push({ text: t > 0 ? t.toString() : '—', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } });
   }
   fnRows.push(totalRow);
   fnSlide.addTable(fnRows, {
@@ -375,7 +382,7 @@ router.get('/report', requireAuth, async (req, res) => {
     colW: fnCols.map(([, w]) => w),
     border: { type: 'solid', color: 'E0E3E8', size: 1 },
     rowH: 0.32,
-    fontFace: 'Calibri',
+    fontFace: FONT,
   });
 
   // ─── Slide 5: Headcount by Head Type ─────────────────────────────────────
@@ -403,26 +410,26 @@ router.get('/report', requireAuth, async (req, res) => {
       { text: r.con > 0 ? r.con.toString() : '—', options: { color: DGRAY, fontSize: 9, align: 'center' } },
       { text: r.appr_fte > 0 ? r.appr_fte.toString() : '—', options: { color: DGRAY, fontSize: 9, align: 'center' } },
       { text: r.req_fte > 0 ? r.req_fte.toString() : '—', options: { color: RED, bold: r.req_fte > 0, fontSize: 9, align: 'center' } },
-      { text: r.req_con > 0 ? r.req_con.toString() : '—', options: { color: '411980', bold: r.req_con > 0, fontSize: 9, align: 'center' } },
+      { text: r.req_con > 0 ? r.req_con.toString() : '—', options: { color: VIOLET, bold: r.req_con > 0, fontSize: 9, align: 'center' } },
       { text: total > 0 ? total.toString() : '—', options: { bold: true, color: DGRAY, fontSize: 9, align: 'center' } },
     ]);
   }
   htRows.push([
-    { text: 'TOTAL', options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9 } },
-    { text: htTotals.snr.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9, align: 'center' } },
-    { text: htTotals.fte.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9, align: 'center' } },
-    { text: htTotals.con.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9, align: 'center' } },
-    { text: htTotals.appr_fte.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9, align: 'center' } },
-    { text: htTotals.req_fte.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9, align: 'center' } },
-    { text: htTotals.req_con.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9, align: 'center' } },
-    { text: htTotals.total.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 9, align: 'center' } },
+    { text: 'TOTAL', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
+    { text: htTotals.snr.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
+    { text: htTotals.fte.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
+    { text: htTotals.con.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
+    { text: htTotals.appr_fte.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
+    { text: htTotals.req_fte.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
+    { text: htTotals.req_con.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
+    { text: htTotals.total.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
   ]);
   htSlide.addTable(htRows, {
     x: 0.3, y: 0.75, w: 12.7,
     colW: [2.2, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.4],
     border: { type: 'solid', color: 'E0E3E8', size: 1 },
     rowH: 0.35,
-    fontFace: 'Calibri',
+    fontFace: FONT,
   });
 
   // ─── Slide 6: Divider – Gearing Ratios ───────────────────────────────────
@@ -458,20 +465,20 @@ router.get('/report', requireAuth, async (req, res) => {
     const t = gd.totals;
     const tVarColor = t.variance > 0 ? AMBER : t.variance < 0 ? RED : GREEN;
     grRows.push([
-      { text: 'Grand Total', options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10 } },
-      { text: t.min.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10, align: 'center' } },
-      { text: t.max.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10, align: 'center' } },
-      { text: t.proposed.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10, align: 'center' } },
-      { text: t.optimal.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10, align: 'center' } },
-      { text: (t.variance > 0 ? '+' : '') + t.variance.toString(), options: { bold: true, color: tVarColor, fill: '2D2D2D', fontSize: 10, align: 'center' } },
-      { text: (t.variance_pct > 0 ? '+' : '') + t.variance_pct + '%', options: { bold: true, color: tVarColor, fill: '2D2D2D', fontSize: 10, align: 'center' } },
+      { text: 'Grand Total', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10 } },
+      { text: t.min.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
+      { text: t.max.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
+      { text: t.proposed.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
+      { text: t.optimal.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
+      { text: (t.variance > 0 ? '+' : '') + t.variance.toString(), options: { bold: true, color: tVarColor, fill: HDRFIL, fontSize: 10, align: 'center' } },
+      { text: (t.variance_pct > 0 ? '+' : '') + t.variance_pct + '%', options: { bold: true, color: tVarColor, fill: HDRFIL, fontSize: 10, align: 'center' } },
     ]);
     gs.addTable(grRows, {
       x: 0.5, y: 0.75, w: 12.3,
       colW: [2.5, 1.3, 1.3, 1.6, 1.6, 1.6, 1.4],
       border: { type: 'solid', color: 'E0E3E8', size: 1 },
       rowH: 0.42,
-      fontFace: 'Calibri',
+      fontFace: FONT,
     });
   }
 
@@ -503,20 +510,55 @@ router.get('/report', requireAuth, async (req, res) => {
     ]);
   }
   ppRows.push([
-    { text: 'TOTAL', options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10 } },
-    { text: ppTot.Approved.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10, align: 'center' } },
-    { text: ppTot.Seeded.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10, align: 'center' } },
-    { text: ppTot.Proposed.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10, align: 'center' } },
-    { text: ppTot.total.toString(), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10, align: 'center' } },
-    { text: ppTot.weight.toFixed(1), options: { bold: true, color: WHITE, fill: '2D2D2D', fontSize: 10, align: 'center' } },
+    { text: 'TOTAL', options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10 } },
+    { text: ppTot.Approved.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
+    { text: ppTot.Seeded.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
+    { text: ppTot.Proposed.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
+    { text: ppTot.total.toString(), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
+    { text: ppTot.weight.toFixed(1), options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 10, align: 'center' } },
   ]);
   ppSlide.addTable(ppRows, {
     x: 0.5, y: 0.75, w: 12.3,
     colW: [3.0, 1.8, 1.8, 1.8, 1.8, 2.1],
     border: { type: 'solid', color: 'E0E3E8', size: 1 },
     rowH: 0.42,
-    fontFace: 'Calibri',
+    fontFace: FONT,
   });
+
+  // ─── Headcount Requests Appendix ─────────────────────────────────────────
+  if (d.requests_detail.length > 0) {
+    addSectionDivider('Appendix', 'Headcount requests — detail');
+    const reqSlide = addContentSlide('Headcount Requests — Detail');
+    const reqHeaders = [
+      { text: 'Name',            options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
+      { text: 'Discipline',      options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
+      { text: 'Region',          options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
+      { text: 'Level',           options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
+      { text: 'Type',            options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9, align: 'center' } },
+      { text: 'Hiring Manager',  options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
+      { text: 'Planning Cycle',  options: { bold: true, color: WHITE, fill: HDRFIL, fontSize: 9 } },
+    ];
+    const reqRows = [reqHeaders];
+    for (const r of d.requests_detail) {
+      const typeColor = r.contract_code && r.contract_code.startsWith('R FTE') ? RED : VIOLET;
+      reqRows.push([
+        { text: r.name || '—', options: { color: DGRAY, fontSize: 8 } },
+        { text: r.discipline || '—', options: { color: MGRAY, fontSize: 8 } },
+        { text: r.region || '—', options: { color: MGRAY, fontSize: 8 } },
+        { text: r.level || '—', options: { color: DGRAY, fontSize: 8, align: 'center' } },
+        { text: r.contract_code || '—', options: { color: typeColor, bold: true, fontSize: 8, align: 'center' } },
+        { text: r.hiring_manager || '—', options: { color: MGRAY, fontSize: 8 } },
+        { text: r.planning_cycle || '—', options: { color: MGRAY, fontSize: 8 } },
+      ]);
+    }
+    reqSlide.addTable(reqRows, {
+      x: 0.3, y: 0.7, w: 12.7,
+      colW: [2.4, 1.8, 1.4, 0.8, 0.9, 2.4, 3.0],
+      border: { type: 'solid', color: 'E0E3E8', size: 1 },
+      rowH: 0.3,
+      fontFace: FONT,
+    });
+  }
 
   // ─── Stream the file ──────────────────────────────────────────────────────
   const fileName = `GDC_Headcount_Budget_${cycleLabel}_${new Date().toISOString().slice(0,10)}.pptx`;

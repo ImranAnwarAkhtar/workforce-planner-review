@@ -666,34 +666,18 @@ export default function HeadcountBudget() {
 
       {/* Planning cycle selector */}
       {data && data.planning_cycles.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' as const }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#5A657B', whiteSpace: 'nowrap' as const }}>Planning Cycle:</span>
-          <button
-            onClick={() => setSelectedCycleId(null)}
-            style={{
-              padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              border: `1px solid ${selectedCycleId === null ? '#1A1A2E' : '#E0E3E8'}`,
-              background: selectedCycleId === null ? '#1A1A2E' : '#F5F6F8',
-              color: selectedCycleId === null ? '#FFFFFF' : '#374151',
-            }}
-          >All</button>
-          {data.planning_cycles.map(c => (
-            <button
-              key={c.id}
-              onClick={() => setSelectedCycleId(c.id)}
-              style={{
-                padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                border: `1px solid ${selectedCycleId === c.id ? '#E91C24' : '#E0E3E8'}`,
-                background: selectedCycleId === c.id ? '#E91C24' : '#F5F6F8',
-                color: selectedCycleId === c.id ? '#FFFFFF' : '#374151',
-              }}
-            >
-              {c.name}
-              {c.status === 'active' && (
-                <span style={{ marginLeft: 5, padding: '1px 5px', background: 'rgba(255,255,255,0.25)', borderRadius: 10, fontSize: 10 }}>active</span>
-              )}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#5A657B', whiteSpace: 'nowrap' as const }}>Planning Cycle:</label>
+          <select
+            value={selectedCycleId ?? ''}
+            onChange={e => setSelectedCycleId(e.target.value ? parseInt(e.target.value, 10) : null)}
+            style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #E0E3E8', fontSize: 12, fontWeight: 600, color: '#374151', background: '#F5F6F8', cursor: 'pointer' }}
+          >
+            <option value="">All Cycles</option>
+            {data.planning_cycles.map(c => (
+              <option key={c.id} value={c.id}>{c.name}{c.status === 'active' ? ' (active)' : ''}</option>
+            ))}
+          </select>
         </div>
       )}
 
