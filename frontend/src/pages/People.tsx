@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   peopleApi, refDataApi,
   type Person, type Discipline, type Level, type ContractType,
@@ -40,7 +40,6 @@ const S = {
     cursor: 'pointer', whiteSpace: 'nowrap' as const,
   } as React.CSSProperties,
   card: { background: '#FFFFFF', borderRadius: 8, border: '1px solid #E5E5E5', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' } as React.CSSProperties,
-  tableScroll: { overflowX: 'auto' as const, WebkitOverflowScrolling: 'touch' as any },
   table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 12 },
   th: {
     padding: '8px 12px', textAlign: 'left' as const, fontSize: 10,
@@ -717,7 +716,7 @@ export default function People() {
             {search && <span style={{ fontSize: 12, color: '#666' }}>Try clearing the search filter</span>}
           </div>
         ) : (
-          <div style={S.tableScroll}>
+          <StickyScrollWrapper>
           <table style={{ ...S.table, minWidth: 1100 }}>
             <thead>
               <tr>
@@ -755,7 +754,7 @@ export default function People() {
               ))}
             </tbody>
           </table>
-          </div>
+          </StickyScrollWrapper>
         )}
       </div>
 
@@ -1165,6 +1164,71 @@ export default function People() {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sticky horizontal scrollbar wrapper
+// ---------------------------------------------------------------------------
+
+function StickyScrollWrapper({ children }: { children: React.ReactNode }) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const mirrorRef = useRef<HTMLDivElement>(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const [innerWidth, setInnerWidth] = useState(0);
+  const syncing = useRef(false);
+
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    function update() {
+      setHasOverflow(el!.scrollWidth > el!.clientWidth + 2);
+      setInnerWidth(el!.scrollWidth);
+    }
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    function onScroll() {
+      if (syncing.current || !mirrorRef.current) return;
+      syncing.current = true;
+      mirrorRef.current.scrollLeft = el!.scrollLeft;
+      syncing.current = false;
+    }
+    el.addEventListener('scroll', onScroll);
+    return () => { ro.disconnect(); el.removeEventListener('scroll', onScroll); };
+  }, []);
+
+  function onMirrorScroll() {
+    if (syncing.current || !outerRef.current || !mirrorRef.current) return;
+    syncing.current = true;
+    outerRef.current.scrollLeft = mirrorRef.current.scrollLeft;
+    syncing.current = false;
+  }
+
+  return (
+    <>
+      <div ref={outerRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
+        {children}
+      </div>
+      {hasOverflow && (
+        <div
+          ref={mirrorRef}
+          onScroll={onMirrorScroll}
+          style={{
+            position: 'sticky',
+            bottom: 0,
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            height: 14,
+            background: '#F0F1F3',
+            borderTop: '1px solid #E0E3E8',
+            zIndex: 5,
+          }}
+        >
+          <div style={{ width: innerWidth, height: 1 }} />
+        </div>
+      )}
+    </>
   );
 }
 
