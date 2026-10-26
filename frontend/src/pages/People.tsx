@@ -1168,34 +1168,74 @@ export default function People() {
 }
 
 // ---------------------------------------------------------------------------
-// Sticky horizontal scrollbar wrapper
+// Fixed horizontal scrollbar — always pinned to the viewport bottom
 // ---------------------------------------------------------------------------
 
 function StickyScrollWrapper({ children }: { children: React.ReactNode }) {
-  const outerRef = useRef<HTMLDivElement>(null);
+  const outerRef  = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
-  const [hasOverflow, setHasOverflow] = useState(false);
-  const [innerWidth, setInnerWidth] = useState(0);
+  const styleRef  = useRef<HTMLStyleElement | null>(null);
+  const [bar, setBar] = useState({ left: 0, width: 0, scrollWidth: 0, show: false });
   const syncing = useRef(false);
 
   useEffect(() => {
     const el = outerRef.current;
     if (!el) return;
-    function update() {
-      setHasOverflow(el!.scrollWidth > el!.clientWidth + 2);
-      setInnerWidth(el!.scrollWidth);
+
+    // Inject CSS to hide the native scrollbar on this element only
+    const uid = 'ppl-scroll-' + Math.random().toString(36).slice(2, 8);
+    el.setAttribute('data-scrollhide', uid);
+    const style = document.createElement('style');
+    style.textContent =
+      `[data-scrollhide="${uid}"]::-webkit-scrollbar{display:none}` +
+      `[data-scrollhide="${uid}"]{scrollbar-width:none;-ms-overflow-style:none}`;
+    document.head.appendChild(style);
+    styleRef.current = style;
+
+    // Find the nearest scrollable ancestor (the Layout tab pane)
+    function getScrollParent(node: Element): Element {
+      let cur: Element | null = node.parentElement;
+      while (cur) {
+        const s = getComputedStyle(cur);
+        if (/auto|scroll/.test(s.overflow + s.overflowX + s.overflowY)) return cur;
+        cur = cur.parentElement;
+      }
+      return document.documentElement;
     }
+
+    function update() {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setBar({
+        left: r.left,
+        width: r.width,
+        scrollWidth: el.scrollWidth,
+        show: el.scrollWidth > el.clientWidth + 2,
+      });
+    }
+
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    function onScroll() {
-      if (syncing.current || !mirrorRef.current) return;
+    window.addEventListener('resize', update);
+    const sp = getScrollParent(el);
+    sp.addEventListener('scroll', update);
+
+    function onTableScroll() {
+      if (syncing.current || !mirrorRef.current || !el) return;
       syncing.current = true;
-      mirrorRef.current.scrollLeft = el!.scrollLeft;
+      mirrorRef.current.scrollLeft = el.scrollLeft;
       syncing.current = false;
     }
-    el.addEventListener('scroll', onScroll);
-    return () => { ro.disconnect(); el.removeEventListener('scroll', onScroll); };
+    el.addEventListener('scroll', onTableScroll);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+      sp.removeEventListener('scroll', update);
+      el.removeEventListener('scroll', onTableScroll);
+      if (styleRef.current) document.head.removeChild(styleRef.current);
+    };
   }, []);
 
   function onMirrorScroll() {
@@ -1207,25 +1247,28 @@ function StickyScrollWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <div ref={outerRef} style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
+      <div ref={outerRef} style={{ overflowX: 'auto' }}>
         {children}
       </div>
-      {hasOverflow && (
+      {bar.show && (
         <div
           ref={mirrorRef}
           onScroll={onMirrorScroll}
           style={{
-            position: 'sticky',
+            position: 'fixed',
             bottom: 0,
+            left: bar.left,
+            width: bar.width,
             overflowX: 'auto',
             overflowY: 'hidden',
             height: 14,
-            background: '#F0F1F3',
-            borderTop: '1px solid #E0E3E8',
-            zIndex: 5,
+            background: '#EAECEF',
+            borderTop: '1px solid #CDD0D6',
+            zIndex: 9999,
+            boxSizing: 'border-box',
           }}
         >
-          <div style={{ width: innerWidth, height: 1 }} />
+          <div style={{ width: bar.scrollWidth, height: 1 }} />
         </div>
       )}
     </>
