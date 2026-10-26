@@ -5,6 +5,93 @@ import { useColFilter, type ColDef } from '../hooks/useColFilter';
 import toast from 'react-hot-toast';
 
 // ---------------------------------------------------------------------------
+// Sticky horizontal scrollbar (fixed, always visible)
+// ---------------------------------------------------------------------------
+
+function StickyScrollWrapper({ children }: { children: React.ReactNode }) {
+  const outerRef  = useRef<HTMLDivElement>(null);
+  const mirrorRef = useRef<HTMLDivElement>(null);
+  const styleRef  = useRef<HTMLStyleElement | null>(null);
+  const [bar, setBar] = useState({ left: 0, width: 0, scrollWidth: 0, show: false });
+  const syncing = useRef(false);
+
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const uid = 'proj-scroll-' + Math.random().toString(36).slice(2, 8);
+    el.setAttribute('data-scrollhide', uid);
+    const style = document.createElement('style');
+    style.textContent =
+      `[data-scrollhide="${uid}"]::-webkit-scrollbar{display:none}` +
+      `[data-scrollhide="${uid}"]{scrollbar-width:none;-ms-overflow-style:none}`;
+    document.head.appendChild(style);
+    styleRef.current = style;
+
+    function getScrollParent(node: Element): Element {
+      let cur: Element | null = node.parentElement;
+      while (cur) {
+        const s = getComputedStyle(cur);
+        if (/auto|scroll/.test(s.overflow + s.overflowX + s.overflowY)) return cur;
+        cur = cur.parentElement;
+      }
+      return document.documentElement;
+    }
+
+    function update() {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setBar({ left: r.left, width: r.width, scrollWidth: el.scrollWidth, show: el.scrollWidth > el.clientWidth + 2 });
+    }
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    const sp = getScrollParent(el);
+    sp.addEventListener('scroll', update);
+
+    function onTableScroll() {
+      if (syncing.current || !mirrorRef.current || !el) return;
+      syncing.current = true;
+      mirrorRef.current.scrollLeft = el.scrollLeft;
+      syncing.current = false;
+    }
+    el.addEventListener('scroll', onTableScroll);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+      sp.removeEventListener('scroll', update);
+      el.removeEventListener('scroll', onTableScroll);
+      if (styleRef.current) document.head.removeChild(styleRef.current);
+    };
+  }, []);
+
+  function onMirrorScroll() {
+    if (syncing.current || !outerRef.current || !mirrorRef.current) return;
+    syncing.current = true;
+    outerRef.current.scrollLeft = mirrorRef.current.scrollLeft;
+    syncing.current = false;
+  }
+
+  return (
+    <>
+      <div ref={outerRef} style={{ overflowX: 'auto' }}>
+        {children}
+      </div>
+      {bar.show && (
+        <div ref={mirrorRef} onScroll={onMirrorScroll}
+          style={{ position: 'fixed', bottom: 0, left: bar.left, width: bar.width,
+            overflowX: 'auto', overflowY: 'hidden', height: 14,
+            background: '#EAECEF', borderTop: '1px solid #CDD0D6', zIndex: 9999, boxSizing: 'border-box' }}>
+          <div style={{ width: bar.scrollWidth, height: 1 }} />
+        </div>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Constants & helpers
 // ---------------------------------------------------------------------------
 
@@ -404,76 +491,91 @@ export default function ProjectList() {
             <button style={S.btnSecondary} onClick={loadProjects}>Retry</button>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr>
-                {/* Checkbox */}
-                <th style={{ ...TH, width: 36, padding: '8px 6px 8px 10px', cursor: 'default' }}>
-                  <input type="checkbox" checked={allSelected}
-                    ref={el => { if (el) el.indeterminate = someSelected; }}
-                    onChange={toggleSelectAll}
-                    style={{ cursor: 'pointer', accentColor: '#E91C24', width: 13, height: 13 }} />
-                </th>
-                {/* Filterable columns */}
-                {COL_DEFS.map(col => (
-                  <th key={col.key} style={{ ...TH, textAlign: 'left',
-                    minWidth: col.key === 'name' ? 200 : col.key === 'region' || col.key === 'country' ? 100 : 70 }}>
-                    {colFilter.renderHeaderContent(col)}
+          <StickyScrollWrapper>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1400 }}>
+              <thead>
+                <tr>
+                  {/* Checkbox */}
+                  <th style={{ ...TH, width: 36, padding: '8px 6px 8px 10px', cursor: 'default' }}>
+                    <input type="checkbox" checked={allSelected}
+                      ref={el => { if (el) el.indeterminate = someSelected; }}
+                      onChange={toggleSelectAll}
+                      style={{ cursor: 'pointer', accentColor: '#E91C24', width: 13, height: 13 }} />
                   </th>
-                ))}
-                {/* Non-filterable numeric columns */}
-                <th style={{ ...TH, textAlign: 'right', minWidth: 70 }}>Weight</th>
-                <th style={{ ...TH, textAlign: 'right', minWidth: 90 }}>Power (kW)</th>
-                <th style={{ ...TH, textAlign: 'right', minWidth: 90 }}>Power (MW)</th>
-                <th style={{ ...TH, textAlign: 'center', minWidth: 52, cursor: 'default' }}>Edit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={11} style={{ ...TD, textAlign: 'center', color: '#999', padding: '40px 0' }}>No projects found</td></tr>
-              ) : filtered.map((p, i) => {
-                const isSelected = selectedIds.has(p.id);
-                return (
-                  <tr
-                    key={p.id}
-                    style={{ background: isSelected ? '#FEF4F4' : i % 2 === 0 ? '#FFFFFF' : '#FAFAFA', cursor: 'default' }}
-                    onDoubleClick={() => openEdit(p)}
-                  >
-                    <td style={{ ...TD, padding: '7px 6px 7px 10px', width: 36 }} onDoubleClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.id)}
-                        style={{ cursor: 'pointer', accentColor: '#E91C24', width: 13, height: 13 }} />
-                    </td>
-                    <td style={{ ...TD, fontWeight: 600 }}>{p.name}</td>
-                    <td style={TD}>
-                      <span style={{ padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: TYPE_BG[p.type] ?? '#EEE', color: TYPE_COLOR[p.type] ?? '#555' }}>
-                        {p.type}
-                      </span>
-                    </td>
-                    <td style={TD}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLOR[p.status] ?? '#AAA', display: 'inline-block', flexShrink: 0 }} />
-                        {p.status}
-                      </span>
-                    </td>
-                    <td style={{ ...TD, color: '#5A657B' }}>{p.region_name ?? '—'}</td>
-                    <td style={{ ...TD, color: '#5A657B' }}>{p.country_name ?? '—'}</td>
-                    <td style={{ ...TD, color: '#5A657B' }}>{p.year ?? '—'}</td>
-                    <td style={{ ...TD, textAlign: 'right', fontWeight: 600 }}>{Number(p.weight).toFixed(1)}</td>
-                    <td style={{ ...TD, textAlign: 'right', color: p.power_kw ? '#00737A' : '#CCC', fontWeight: p.power_kw ? 600 : 400 }}>{fmtKw(p.power_kw)}</td>
-                    <td style={{ ...TD, textAlign: 'right', color: p.power_kw ? '#00737A' : '#CCC', fontWeight: p.power_kw ? 600 : 400 }}>{fmtMw(p.power_kw)}</td>
-                    <td style={{ ...TD, textAlign: 'center', padding: '4px 8px' }} onDoubleClick={e => e.stopPropagation()}>
-                      <button onClick={() => openEdit(p)} title="Edit project"
-                        style={{ background: 'none', border: '1px solid #D5D5D5', borderRadius: 5, padding: '3px 6px', cursor: 'pointer', color: '#5A657B', display: 'inline-flex', alignItems: 'center' }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  {/* Filterable columns */}
+                  {COL_DEFS.map(col => (
+                    <th key={col.key} style={{ ...TH, textAlign: 'left',
+                      minWidth: col.key === 'name' ? 200 : col.key === 'region' || col.key === 'country' ? 110 : 70 }}>
+                      {colFilter.renderHeaderContent(col)}
+                    </th>
+                  ))}
+                  {/* Non-filterable columns */}
+                  <th style={{ ...TH, textAlign: 'right', minWidth: 70 }}>Weight</th>
+                  <th style={{ ...TH, textAlign: 'right', minWidth: 90 }}>Power (kW)</th>
+                  <th style={{ ...TH, textAlign: 'right', minWidth: 90 }}>Power (MW)</th>
+                  <th style={{ ...TH, textAlign: 'left',  minWidth: 110 }}>Metro</th>
+                  <th style={{ ...TH, textAlign: 'left',  minWidth: 90  }}>Phase Code</th>
+                  <th style={{ ...TH, textAlign: 'center', minWidth: 72 }}>Active</th>
+                  <th style={{ ...TH, textAlign: 'center', minWidth: 52, cursor: 'default' }}>Edit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={14} style={{ ...TD, textAlign: 'center', color: '#999', padding: '40px 0' }}>No projects found</td></tr>
+                ) : filtered.map((p, i) => {
+                  const isSelected = selectedIds.has(p.id);
+                  return (
+                    <tr
+                      key={p.id}
+                      style={{ background: isSelected ? '#FEF4F4' : i % 2 === 0 ? '#FFFFFF' : '#FAFAFA', cursor: 'default' }}
+                      onDoubleClick={() => openEdit(p)}
+                    >
+                      <td style={{ ...TD, padding: '7px 6px 7px 10px', width: 36 }} onDoubleClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.id)}
+                          style={{ cursor: 'pointer', accentColor: '#E91C24', width: 13, height: 13 }} />
+                      </td>
+                      <td style={{ ...TD, fontWeight: 600 }}>{p.name}</td>
+                      <td style={TD}>
+                        <span style={{ padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: TYPE_BG[p.type] ?? '#EEE', color: TYPE_COLOR[p.type] ?? '#555' }}>
+                          {p.type}
+                        </span>
+                      </td>
+                      <td style={TD}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLOR[p.status] ?? '#AAA', display: 'inline-block', flexShrink: 0 }} />
+                          {p.status}
+                        </span>
+                      </td>
+                      <td style={{ ...TD, color: '#5A657B' }}>{p.region_name ?? '—'}</td>
+                      <td style={{ ...TD, color: '#5A657B' }}>{p.country_name ?? '—'}</td>
+                      <td style={{ ...TD, color: '#5A657B' }}>{p.year ?? '—'}</td>
+                      <td style={{ ...TD, textAlign: 'right', fontWeight: 600 }}>{Number(p.weight).toFixed(1)}</td>
+                      <td style={{ ...TD, textAlign: 'right', color: p.power_kw ? '#00737A' : '#CCC', fontWeight: p.power_kw ? 600 : 400 }}>{fmtKw(p.power_kw)}</td>
+                      <td style={{ ...TD, textAlign: 'right', color: p.power_kw ? '#00737A' : '#CCC', fontWeight: p.power_kw ? 600 : 400 }}>{fmtMw(p.power_kw)}</td>
+                      <td style={{ ...TD, color: '#5A657B' }}>{p.metro ?? '—'}</td>
+                      <td style={{ ...TD, color: '#5A657B' }}>{p.phase_code ?? '—'}</td>
+                      <td style={{ ...TD, textAlign: 'center' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 8,
+                          background: p.is_active ? '#F0FDF4' : '#F5F5F5',
+                          color: p.is_active ? '#15803D' : '#9CA3AF',
+                          border: `1px solid ${p.is_active ? '#86EFAC' : '#E0E0E0'}` }}>
+                          {p.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td style={{ ...TD, textAlign: 'center', padding: '4px 8px' }} onDoubleClick={e => e.stopPropagation()}>
+                        <button onClick={() => openEdit(p)} title="Edit project"
+                          style={{ background: 'none', border: '1px solid #D5D5D5', borderRadius: 5, padding: '3px 6px', cursor: 'pointer', color: '#5A657B', display: 'inline-flex', alignItems: 'center' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </StickyScrollWrapper>
         )}
       </div>
 
