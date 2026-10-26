@@ -277,9 +277,9 @@ function getGradientB64() {
       // 300°: t=0 at bottom-left (dark purple), t=1 at top-right (dark navy)
       const t = Math.max(0, Math.min(1, (x / (W - 1) + (H - 1 - y) / (H - 1)) / 2));
       row.push(
-        Math.round(0x1A * (1 - t)),                     // R: 26 → 0
-        Math.round(0x00 + 0x08 * t),                    // G: 0 → 8
-        Math.round(0x40 * (1 - t) + 0x28 * t),          // B: 64 → 40
+        Math.round(0x41 * (1 - t)),                     // R: 65 → 0  (#411980 bottom-left → #001042 top-right)
+        Math.round(0x19 * (1 - t) + 0x10 * t),          // G: 25 → 16
+        Math.round(0x80 * (1 - t) + 0x42 * t),          // B: 128 → 66
         255
       );
     }
@@ -303,6 +303,21 @@ function getGradientB64() {
     chunk('IEND', Buffer.alloc(0)),
   ]).toString('base64');
   return _gradB64;
+}
+
+// ---------------------------------------------------------------------------
+// Equinix logo — loads the white SVG from the bundled frontend build, cached.
+// Returns null gracefully if the file is missing (slides render without logo).
+// ---------------------------------------------------------------------------
+let _logoDataUri = undefined; // undefined = not yet attempted, null = not found
+function getLogoDataUri() {
+  if (_logoDataUri !== undefined) return _logoDataUri;
+  try {
+    const p = require('path'), fs = require('fs');
+    const fp = p.join(__dirname, '../public/static/media/equinix-fortress-white.bb7c94645cc65619617fd3cb92d1e4f6.svg');
+    _logoDataUri = `image/svg+xml;base64,${fs.readFileSync(fp).toString('base64')}`;
+  } catch { _logoDataUri = null; }
+  return _logoDataUri;
 }
 
 // ---------------------------------------------------------------------------
@@ -338,13 +353,16 @@ router.get('/report', requireAuth, async (req, res) => {
   const BGRAY    = '5A657B';  // table border / muted text
   const FONT     = 'Arial';
   const GRAD     = `image/png;base64,${getGradientB64()}`;
+  const LOGO     = getLogoDataUri(); // null if SVG not found; slides render fine without it
 
   let slideNum = 1;
 
-  // Set gradient background (call FIRST on every non-title slide)
+  // Set gradient background + Equinix logo (call FIRST on every non-title slide)
   function setBg(sl) {
     sl.background = { color: BLACK };
     sl.addImage({ data: GRAD, x: 0, y: 0, w: 13.33, h: 7.5 });
+    // Logo: 855×470 px SVG → 1.18"×0.65" at top-right (clear of title text)
+    if (LOGO) sl.addImage({ data: LOGO, x: 12.00, y: 0.10, w: 1.18, h: 0.65 });
   }
 
   // Footer: © line bottom-left + slide number bottom-right
@@ -358,17 +376,21 @@ router.get('/report', requireAuth, async (req, res) => {
   function addSectionDivider(title, subtitle) {
     const sl = pres.addSlide();
     setBg(sl);
+    // Title is vertically centred in slide body — logo (y=0.10–0.75) is well clear
     sl.addText(title, { x: 0.60, y: 2.70, w: 12.13, h: 1.00, fontSize: 44, bold: true, color: WHITE, fontFace: FONT, isTextBox: true });
     if (subtitle) sl.addText(subtitle, { x: 0.60, y: 3.80, w: 12.13, h: 0.55, fontSize: 20, color: OFF_W, fontFace: FONT, isTextBox: true });
+    sl.addShape(pres.ShapeType.line, { x: 0.60, y: 2.65, w: 1.20, h: 0, line: { color: RED, width: 3.0 } });
     addFooter(sl);
   }
 
   // TYPE 2 — Content slide (title + optional subtitle on gradient bg)
+  // Title width is capped at 11.15" to leave room for the logo at x=12.00
   function addContentSlide(title, subtitle) {
     const sl = pres.addSlide();
     setBg(sl);
-    sl.addText(title, { x: 0.60, y: 0.50, w: 12.13, h: 0.60, fontSize: 20, bold: true, color: WHITE, fontFace: FONT, isTextBox: true, margin: 0 });
-    if (subtitle) sl.addText(subtitle, { x: 0.60, y: 1.15, w: 12.13, h: 0.38, fontSize: 12, color: OFF_W, fontFace: FONT, isTextBox: true, margin: 0 });
+    sl.addText(title, { x: 0.60, y: 0.50, w: 11.15, h: 0.60, fontSize: 20, bold: true, color: WHITE, fontFace: FONT, isTextBox: true, margin: 0 });
+    sl.addShape(pres.ShapeType.line, { x: 0.60, y: 1.12, w: 12.13, h: 0, line: { color: RED, width: 1.0 } });
+    if (subtitle) sl.addText(subtitle, { x: 0.60, y: 1.18, w: 11.15, h: 0.35, fontSize: 11, color: OFF_W, fontFace: FONT, isTextBox: true, margin: 0 });
     addFooter(sl);
     return sl;
   }
@@ -385,10 +407,14 @@ router.get('/report', requireAuth, async (req, res) => {
   // ─── Slide 1: TYPE 1 — Cover (solid black, no gradient) ──────────────────
   const titleSlide = pres.addSlide();
   titleSlide.background = { color: BLACK };
+  // Thin red left accent bar — signature Equinix design element on cover
+  titleSlide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.10, h: 7.5, fill: { color: RED }, line: { color: RED, width: 0 } });
   titleSlide.addText('GDC Headcount Budget', { x: 0.60, y: 1.60, w: 7.50, h: 2.39, fontSize: 44, bold: true, color: WHITE, fontFace: FONT, isTextBox: true, valign: 'top' });
   titleSlide.addText(`Planning Cycle: ${cycleLabel}`, { x: 0.60, y: 4.15, w: 7.50, h: 1.00, fontSize: 20, color: WHITE, fontFace: FONT, isTextBox: true });
   titleSlide.addText(`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, { x: 0.60, y: 5.40, w: 6.06, h: 0.40, fontSize: 14, color: OFF_W, fontFace: FONT, isTextBox: true });
   titleSlide.addText('© 2026 Equinix, Inc.', { x: 0.60, y: 7.25, w: 5, h: 0.20, fontSize: 8, color: WHITE, fontFace: FONT, isTextBox: true, margin: 0 });
+  // Equinix logo — top right on cover
+  if (LOGO) titleSlide.addImage({ data: LOGO, x: 12.00, y: 0.10, w: 1.18, h: 0.65 });
   slideNum++;
 
   // ─── Slide 2: Executive Summary KPIs ─────────────────────────────────────
