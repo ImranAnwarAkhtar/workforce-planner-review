@@ -208,7 +208,7 @@ function TopBanner({ yearA, yearB, dataA, dataB }: { yearA: number; yearB: numbe
 // Tab bar
 // ---------------------------------------------------------------------------
 
-function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange, yearA, yearB, requestYear, onRequestYearChange, regionNamesAll, hireStatusRegions, onHireStatusRegionsChange, onboardingRegions, onOnboardingRegionsChange }: {
+function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange, yearA, yearB, requestYear, onRequestYearChange, regionNamesAll, hireStatusRegions, onHireStatusRegionsChange, onboardingRegions, onOnboardingRegionsChange, onboardingYearRange, onOnboardingYearRangeChange }: {
   active: Tab; onChange: (t: Tab) => void;
   availableYears: number[];
   yearRange: [number, number] | null;
@@ -221,8 +221,11 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
   onHireStatusRegionsChange: (r: string[]) => void;
   onboardingRegions: string[];
   onOnboardingRegionsChange: (r: string[]) => void;
+  onboardingYearRange: [number, number] | null;
+  onOnboardingYearRangeChange: (r: [number, number] | null) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const onbTrackRef = useRef<HTMLDivElement>(null);
   const [hireMenuOpen, setHireMenuOpen] = useState(false);
   const [onbMenuOpen,  setOnbMenuOpen]  = useState(false);
   const n = availableYears.length;
@@ -230,9 +233,20 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
   const endIdx   = yearRange ? Math.max(0, availableYears.indexOf(yearRange[1])) : Math.max(0, n - 1);
   const startPct = n > 1 ? (startIdx / (n - 1)) * 100 : 0;
   const endPct   = n > 1 ? (endIdx   / (n - 1)) * 100 : 100;
+  const onbStartIdx = onboardingYearRange ? Math.max(0, availableYears.indexOf(onboardingYearRange[0])) : 0;
+  const onbEndIdx   = onboardingYearRange ? Math.max(0, availableYears.indexOf(onboardingYearRange[1])) : Math.max(0, n - 1);
+  const onbStartPct = n > 1 ? (onbStartIdx / (n - 1)) * 100 : 0;
+  const onbEndPct   = n > 1 ? (onbEndIdx   / (n - 1)) * 100 : 100;
 
   function getIdx(clientX: number) {
     const track = trackRef.current;
+    if (!track) return 0;
+    const rect = track.getBoundingClientRect();
+    return Math.round(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * (n - 1));
+  }
+
+  function getOnbIdx(clientX: number) {
+    const track = onbTrackRef.current;
     if (!track) return 0;
     const rect = track.getBoundingClientRect();
     return Math.round(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * (n - 1));
@@ -251,6 +265,26 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
           ? [availableYears[Math.min(idx, endIdx)], availableYears[endIdx]]
           : [availableYears[startIdx], availableYears[Math.max(idx, startIdx)]];
         onYearRangeChange(newRange);
+      },
+      onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      },
+    };
+  }
+
+  function makeOnbHandle(type: 'start' | 'end') {
+    return {
+      onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+      },
+      onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+        const idx = getOnbIdx(e.clientX);
+        const newRange: [number, number] = type === 'start'
+          ? [availableYears[Math.min(idx, onbEndIdx)], availableYears[onbEndIdx]]
+          : [availableYears[onbStartIdx], availableYears[Math.max(idx, onbStartIdx)]];
+        onOnboardingYearRangeChange(newRange);
       },
       onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
         e.currentTarget.releasePointerCapture(e.pointerId);
@@ -352,31 +386,63 @@ function TabBar({ active, onChange, availableYears, yearRange, onYearRangeChange
           )}
         </div>
       )}
-      {active === 'Onboarding' && regionNamesAll.length > 0 && (
-        <div style={{ marginLeft: 'auto', position: 'relative', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 12, paddingRight: 12 }}>
-          <span style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Region</span>
-          <button onClick={() => setOnbMenuOpen(o => !o)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: `1px solid ${C.border}`, background: '#FFF', color: '#333', cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
-            {onboardingRegions.length === 0 ? 'All' : onboardingRegions.length === 1 ? onboardingRegions[0] : `${onboardingRegions.length} regions`}
-            <span style={{ fontSize: 9, color: C.muted }}>▾</span>
-          </button>
-          {onbMenuOpen && (
-            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#FFF', border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: 180, padding: '6px 0' }}
-              onMouseLeave={() => setOnbMenuOpen(false)}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', cursor: 'pointer', fontSize: 12, color: '#374151' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F6FA'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-                <input type="checkbox" checked={onboardingRegions.length === 0} onChange={() => onOnboardingRegionsChange([])} style={{ cursor: 'pointer' }} />
-                All regions
-              </label>
-              <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0' }} />
-              {regionNamesAll.map(r => (
-                <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', cursor: 'pointer', fontSize: 12, color: '#374151' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F6FA'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-                  <input type="checkbox" checked={onboardingRegions.includes(r)} onChange={() => onOnboardingRegionsChange(onboardingRegions.includes(r) ? onboardingRegions.filter(x => x !== r) : [...onboardingRegions, r])} style={{ cursor: 'pointer' }} />
-                  {r}
-                </label>
+      {active === 'Onboarding' && n > 0 && (
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 24, paddingLeft: 12, paddingRight: 0, paddingBottom: 6 }}>
+          <span style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase', paddingBottom: 3 }}>Select year</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: 320 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 6, paddingRight: 6 }}>
+              {availableYears.map((y) => (
+                <span key={y} style={{ fontSize: 9, color: C.muted, fontWeight: 500, lineHeight: 1 }}>
+                  {String(y).slice(2)}
+                </span>
               ))}
+            </div>
+            <div ref={onbTrackRef} style={{ position: 'relative', height: 16, display: 'flex', alignItems: 'center' }}>
+              <div style={{ position: 'absolute', left: 0, right: 0, height: 3, background: '#E0E3E8', borderRadius: 2 }} />
+              <div style={{
+                position: 'absolute',
+                left: `${onbStartPct}%`,
+                width: `${Math.max(0, onbEndPct - onbStartPct)}%`,
+                height: 3, background: C.accent, borderRadius: 2,
+              }} />
+              <div {...makeOnbHandle('start')} style={{ ...HANDLE, left: `${onbStartPct}%`, width: 12, height: 12 }} />
+              <div {...makeOnbHandle('end')}   style={{ ...HANDLE, left: `${onbEndPct}%`, width: 12, height: 12 }} />
+            </div>
+          </div>
+          <button onClick={() => onOnboardingYearRangeChange(null)} style={{
+            padding: '2px 9px', fontSize: 9, fontWeight: 700, flexShrink: 0, marginLeft: 6,
+            background: onboardingYearRange === null ? C.accent : '#F3F4F6',
+            color: onboardingYearRange === null ? '#FFF' : C.muted,
+            border: 'none', borderRadius: 3, cursor: 'pointer', whiteSpace: 'nowrap',
+            textTransform: 'uppercase', letterSpacing: '0.04em', paddingBottom: 3,
+          }}>All</button>
+          {regionNamesAll.length > 0 && (
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 16, borderLeft: `1px solid ${C.border}`, paddingBottom: 3 }}>
+              <span style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Region</span>
+              <button onClick={() => setOnbMenuOpen(o => !o)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, border: `1px solid ${C.border}`, background: '#FFF', color: '#333', cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {onboardingRegions.length === 0 ? 'All' : onboardingRegions.length === 1 ? onboardingRegions[0] : `${onboardingRegions.length} regions`}
+                <span style={{ fontSize: 9, color: C.muted }}>▾</span>
+              </button>
+              {onbMenuOpen && (
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#FFF', border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: 180, padding: '6px 0' }}
+                  onMouseLeave={() => setOnbMenuOpen(false)}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', cursor: 'pointer', fontSize: 12, color: '#374151' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F6FA'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                    <input type="checkbox" checked={onboardingRegions.length === 0} onChange={() => onOnboardingRegionsChange([])} style={{ cursor: 'pointer' }} />
+                    All regions
+                  </label>
+                  <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0' }} />
+                  {regionNamesAll.map(r => (
+                    <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', cursor: 'pointer', fontSize: 12, color: '#374151' }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F6FA'}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                      <input type="checkbox" checked={onboardingRegions.includes(r)} onChange={() => onOnboardingRegionsChange(onboardingRegions.includes(r) ? onboardingRegions.filter(x => x !== r) : [...onboardingRegions, r])} style={{ cursor: 'pointer' }} />
+                      {r}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2161,7 +2227,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 // ONBOARDING TAB
 // ---------------------------------------------------------------------------
 
-function OnboardingTab({ regionNamesAll = [], selectedRegions = [] }: { regionNamesAll?: string[]; selectedRegions?: string[] }) {
+function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = null }: { regionNamesAll?: string[]; selectedRegions?: string[]; yearRange?: [number, number] | null }) {
   const [rows, setRows] = useState<TbhCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [startersView, setStartersView] = useState<'month' | 'quarter'>('month');
@@ -2175,8 +2241,15 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [] }: { regionNa
 
   const addDays = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r.toISOString().slice(0, 10); };
 
-  // Only rows with a confirmed start date, filtered by region
-  const allStarters = rows.filter(r => r.confirmed_start_date);
+  // Only rows with a confirmed start date, filtered by year range and region
+  const allStarters = rows.filter(r => {
+    if (!r.confirmed_start_date) return false;
+    if (yearRange) {
+      const yr = parseInt(r.confirmed_start_date.slice(0, 4), 10);
+      return yr >= yearRange[0] && yr <= yearRange[1];
+    }
+    return true;
+  });
   const starters = selectedRegions.length === 0 ? allStarters : allStarters.filter(r => selectedRegions.includes(r.region_name ?? 'Unknown'));
 
   // KPIs
@@ -2397,6 +2470,7 @@ export default function Dashboard() {
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('Projects');
   const [hireYearRange, setHireYearRange] = useState<[number, number] | null>(null);
+  const [onboardingYearRange, setOnboardingYearRange] = useState<[number, number] | null>(null);
   const [requestYear, setRequestYear] = useState<number | null>(null);
   const [hireStatusRegions, setHireStatusRegions] = useState<string[]>([]);
   const [onboardingRegions, setOnboardingRegions] = useState<string[]>([]);
@@ -2468,7 +2542,7 @@ export default function Dashboard() {
       <PlanningCycleBanner />
 
       {/* Tab bar */}
-      <TabBar active={activeTab} onChange={setActiveTab} availableYears={Array.from(new Set([2022,2023,2024,2025,2026,2027,2028,...(hubData?.available_years??[])])).sort((a,b)=>a-b)} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} yearA={yearA} yearB={yearB} requestYear={requestYear ?? yearA} onRequestYearChange={setRequestYear} regionNamesAll={hubData?.region_names ?? []} hireStatusRegions={hireStatusRegions} onHireStatusRegionsChange={setHireStatusRegions} onboardingRegions={onboardingRegions} onOnboardingRegionsChange={setOnboardingRegions} />
+      <TabBar active={activeTab} onChange={setActiveTab} availableYears={Array.from(new Set([2022,2023,2024,2025,2026,2027,2028,...(hubData?.available_years??[])])).sort((a,b)=>a-b)} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} yearA={yearA} yearB={yearB} requestYear={requestYear ?? yearA} onRequestYearChange={setRequestYear} regionNamesAll={hubData?.region_names ?? []} hireStatusRegions={hireStatusRegions} onHireStatusRegionsChange={setHireStatusRegions} onboardingRegions={onboardingRegions} onOnboardingRegionsChange={setOnboardingRegions} onboardingYearRange={onboardingYearRange} onOnboardingYearRangeChange={setOnboardingYearRange} />
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
@@ -2490,7 +2564,7 @@ export default function Dashboard() {
             {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} activeYear={requestYear ?? yearA!} />}
             {activeTab === 'Gearing'     && <GearingTab     yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhQuarterlyAvgHireDays={hubData!.tbh_quarterly_hire_days ?? []} tbhMonthlyAvgHireDays={hubData!.tbh_monthly_hire_days ?? []} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} selectedRegions={hireStatusRegions} />}
-            {activeTab === 'Onboarding' && <OnboardingTab regionNamesAll={hubData?.region_names ?? []} selectedRegions={onboardingRegions} />}
+            {activeTab === 'Onboarding' && <OnboardingTab regionNamesAll={hubData?.region_names ?? []} selectedRegions={onboardingRegions} yearRange={onboardingYearRange} />}
           </>
         )}
       </div>
