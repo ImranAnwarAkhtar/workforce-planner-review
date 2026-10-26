@@ -170,3 +170,4 @@ router.post('/', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
 });
 
 module.exports = router;
+module.exports.ensureGearingSeeded = ensureGearingSeeded;

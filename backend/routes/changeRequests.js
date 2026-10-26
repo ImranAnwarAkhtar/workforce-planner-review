@@ -66,19 +66,6 @@ async function selectRows(selectCols, suffix, params) {
   }
 }
 
-// Quick diagnostic: returns row count + column presence without needing a full SELECT
-router.get('/debug', requireAuth, async (req, res) => {
-  const { rows: countRows } = await pool.query('SELECT COUNT(*) AS total FROM change_requests');
-  const { rows: colRows } = await pool.query(`
-    SELECT column_name FROM information_schema.columns
-    WHERE table_name = 'change_requests'
-    ORDER BY ordinal_position
-  `);
-  res.json({
-    row_count: parseInt(countRows[0].total, 10),
-    columns: colRows.map(r => r.column_name),
-  });
-});
 
 router.get('/', requireAuth, async (req, res) => {
   const { status, change_type, submitted_by, limit = 100, offset = 0 } = req.query;

@@ -47,17 +47,23 @@ router.get('/', requireAuth, async (req, res) => {
             d.name AS discipline_name, d.id AS discipline_id,
             t.tbh_id, pe.tbh_code_id,
             t.confirmed_start_date, t.cost_centre, t.job_profile AS tbh_job_profile,
-            COALESCE((SELECT STRING_AGG(r.name, ', ' ORDER BY r.name)
-                      FROM person_regions pr3 JOIN regions r ON pr3.region_id = r.id
-                      WHERE pr3.person_id = pe.id), '') AS region_names,
-            COALESCE((SELECT STRING_AGG(cou.name, ', ' ORDER BY cou.name)
-                      FROM person_countries pc2 JOIN countries cou ON pc2.country_id = cou.id
-                      WHERE pc2.person_id = pe.id), '') AS country_names
+            COALESCE(reg_agg.region_names, '') AS region_names,
+            COALESCE(cou_agg.country_names, '') AS country_names
      FROM people pe
      LEFT JOIN contract_types ct ON pe.contract_type_id = ct.id
      LEFT JOIN levels l ON pe.level_id = l.id
      LEFT JOIN disciplines d ON pe.discipline_id = d.id
      LEFT JOIN tbh_codes t ON pe.tbh_code_id = t.id
+     LEFT JOIN (
+       SELECT pr.person_id, STRING_AGG(r.name, ', ' ORDER BY r.name) AS region_names
+       FROM person_regions pr JOIN regions r ON pr.region_id = r.id
+       GROUP BY pr.person_id
+     ) reg_agg ON reg_agg.person_id = pe.id
+     LEFT JOIN (
+       SELECT pc.person_id, STRING_AGG(cou.name, ', ' ORDER BY cou.name) AS country_names
+       FROM person_countries pc JOIN countries cou ON pc.country_id = cou.id
+       GROUP BY pc.person_id
+     ) cou_agg ON cou_agg.person_id = pe.id
      ${where}
      ORDER BY pe.name ASC
      LIMIT $${i} OFFSET $${i + 1}`,

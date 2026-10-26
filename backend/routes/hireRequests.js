@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
-const { requireRole, ALL_ROLES, ROLES, SENIOR_ROLES } = require('../middleware/rbac');
+const { requireRole, ALL_ROLES, ROLES, SENIOR_ROLES, effectiveRole } = require('../middleware/rbac');
 const { writeAudit } = require('../db/auditLog');
 const { fireEventAlerts } = require('./alerts');
 
@@ -149,10 +149,10 @@ router.post('/:id/approve', requireAuth, async (req, res, next) => {
   const stageRoles = { 1: STAGE2_ROLES, 2: STAGE3_ROLES, 3: STAGE4_ROLES };
   const allowed = stageRoles[hr.stage];
   if (!allowed) return res.status(409).json({ error: 'Request is already fully approved' });
-  if (!allowed.includes(req.user.role)) return res.status(403).json({ error: 'Insufficient permissions for this stage' });
+  if (!allowed.includes(effectiveRole(req.user))) return res.status(403).json({ error: 'Insufficient permissions for this stage' });
 
   const nextStage = hr.stage + 1;
-  const isFullyApproved = nextStage > 4;
+  const isFullyApproved = nextStage > 3;
   const userCol = `stage${hr.stage + 1}_user_id`;
   const timeCol = `stage${hr.stage + 1}_approved_at`;
 

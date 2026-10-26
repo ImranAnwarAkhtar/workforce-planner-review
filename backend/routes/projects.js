@@ -10,6 +10,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 const router = Router();
 
+async function validateMetro(metro) {
+  if (!metro) return true;
+  const { rows } = await pool.query('SELECT 1 FROM metros WHERE name = $1', [metro]);
+  return rows.length > 0;
+}
+
 router.get('/', requireAuth, async (req, res) => {
   const { region_id, year, status, type, is_active = 'true', planning_cycle_id, limit = 100, offset = 0 } = req.query;
   const conditions = [];
@@ -152,6 +158,7 @@ router.post('/upload', requireAuth, requireRole(...WRITER_ROLES), upload.single(
 router.post('/', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => {
   const { name, type, status, weight = 1.0, power_kw, region_id, country_id, metro, phase_code, year, planning_cycle_id } = req.body;
   if (!name || !type || !status) return res.status(400).json({ error: 'name, type, and status are required' });
+  if (metro && !(await validateMetro(metro))) return res.status(400).json({ error: `Metro '${metro}' is not a recognised metro name` });
 
   if (!await guardCycleEdit(planning_cycle_id, req, res)) return;
 
@@ -166,6 +173,7 @@ router.post('/', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => 
 
 router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) => {
   const { name, type, status, weight, power_kw, region_id, country_id, metro, phase_code, year, is_active, planning_cycle_id } = req.body;
+  if (metro && !(await validateMetro(metro))) return res.status(400).json({ error: `Metro '${metro}' is not a recognised metro name` });
 
   const { rows: [existing] } = await pool.query(
     'SELECT planning_cycle_id FROM projects WHERE id = $1',

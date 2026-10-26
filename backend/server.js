@@ -17,6 +17,7 @@ const peopleRouter        = require('./routes/people');
 const allocationsRouter   = require('./routes/allocations');
 const tbhCodesRouter      = require('./routes/tbhCodes');
 const gearingRouter       = require('./routes/gearing');
+const { ensureGearingSeeded } = require('./routes/gearing');
 const hireRequestsRouter  = require('./routes/hireRequests');
 const changeRequestsRouter= require('./routes/changeRequests');
 const dashboardRouter     = require('./routes/dashboard');
@@ -83,7 +84,7 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   frameguard: { action: 'deny' },
 }));
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*', credentials: true }));
+app.use(cors({ origin: process.env.CORS_ORIGIN || false, credentials: true }));
 app.use(express.json({ limit: '5mb' }));
 /*
  * IT_HANDOVER: Token storage
@@ -105,7 +106,10 @@ app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().
 
 // Run idempotent startup migrations
 const pool = require('./db/pool');
-pool.query(`
+// Collect all fire-and-forget migration promises so the server can wait for them
+// before accepting traffic — prevents race conditions on first cold boot.
+const _startupMigs = [];
+_startupMigs.push(pool.query(`
   ALTER TABLE people ADD COLUMN IF NOT EXISTS notes TEXT;
   ALTER TABLE people ADD COLUMN IF NOT EXISTS planning_year INTEGER;
   ALTER TABLE people ADD COLUMN IF NOT EXISTS system_profile VARCHAR(50);
@@ -114,9 +118,9 @@ pool.query(`
   ALTER TABLE users  ADD COLUMN IF NOT EXISTS access_tier    VARCHAR(20) NOT NULL DEFAULT 'standard';
   ALTER TABLE users  ADD COLUMN IF NOT EXISTS password_hash  TEXT;
   UPDATE levels SET level_name = 'Contingent' WHERE short_code = 'Cons' AND level_name = 'Consultant';
-`).catch(err => logger.error('Startup migration failed', { error: err.message }));
+`).catch(err => logger.error('Startup migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   CREATE TABLE IF NOT EXISTS profile_permissions (
     profile     VARCHAR(50)  NOT NULL,
     section_key VARCHAR(100) NOT NULL,
@@ -124,56 +128,56 @@ pool.query(`
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     PRIMARY KEY (profile, section_key)
   );
-`).catch(err => logger.error('Profile permissions table migration failed', { error: err.message }));
+`).catch(err => logger.error('Profile permissions table migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   ALTER TABLE gearing_constants ADD COLUMN IF NOT EXISTS divisor DECIMAL(5,2);
   UPDATE gearing_constants SET divisor = min_divisor WHERE divisor IS NULL;
-`).catch(err => logger.error('Gearing divisor column migration failed', { error: err.message }));
+`).catch(err => logger.error('Gearing divisor column migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS in_summary           TEXT;
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS status_query         TEXT;
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS pmo_comments         TEXT;
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS wfp_comments         TEXT;
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS fp_and_a_approver_notes TEXT;
-`).catch(err => logger.error('TBH codes column migration failed', { error: err.message }));
+`).catch(err => logger.error('TBH codes column migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS confirmed_start_date DATE;
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS hire_source          VARCHAR(50);
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS hire_source_details  TEXT;
-`).catch(err => logger.error('TBH codes onboarding column migration failed', { error: err.message }));
+`).catch(err => logger.error('TBH codes onboarding column migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS pipeline_stage VARCHAR(50);
-`).catch(err => logger.error('TBH codes pipeline stage migration failed', { error: err.message }));
+`).catch(err => logger.error('TBH codes pipeline stage migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   ALTER TABLE people ADD COLUMN IF NOT EXISTS login_email VARCHAR(255);
   ALTER TABLE people ADD COLUMN IF NOT EXISTS app_role VARCHAR(100);
   ALTER TABLE people ADD COLUMN IF NOT EXISTS platform_access_enabled BOOLEAN DEFAULT FALSE;
   ALTER TABLE people ADD COLUMN IF NOT EXISTS last_login TIMESTAMPTZ;
-`).catch(err => logger.error('People platform access migration failed', { error: err.message }));
+`).catch(err => logger.error('People platform access migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   ALTER TABLE tbh_codes ADD COLUMN IF NOT EXISTS planning_cycle_id INTEGER REFERENCES planning_cycles(id) ON DELETE SET NULL;
-`).catch(err => logger.error('TBH codes planning_cycle_id migration failed', { error: err.message }));
+`).catch(err => logger.error('TBH codes planning_cycle_id migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   ALTER TABLE people ADD COLUMN IF NOT EXISTS planning_cycle_id INTEGER REFERENCES planning_cycles(id) ON DELETE SET NULL;
-`).catch(err => logger.error('People planning_cycle_id migration failed', { error: err.message }));
+`).catch(err => logger.error('People planning_cycle_id migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   ALTER TABLE people ADD COLUMN IF NOT EXISTS dept_head VARCHAR(255);
   ALTER TABLE people ADD COLUMN IF NOT EXISTS hiring_manager VARCHAR(255);
-`).catch(err => logger.error('People dept_head/hiring_manager migration failed', { error: err.message }));
+`).catch(err => logger.error('People dept_head/hiring_manager migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   ALTER TABLE people ADD COLUMN IF NOT EXISTS job_title VARCHAR(255);
-`).catch(err => logger.error('People job_title migration failed', { error: err.message }));
+`).catch(err => logger.error('People job_title migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   CREATE TABLE IF NOT EXISTS cycle_stage_access (
     stage_key      VARCHAR(50)  PRIMARY KEY,
     stage_label    VARCHAR(100) NOT NULL,
@@ -204,9 +208,9 @@ pool.query(`
       ARRAY[]::TEXT[],
       ARRAY[]::TEXT[])
   ON CONFLICT (stage_key) DO NOTHING;
-`).catch(err => logger.error('Cycle stage access migration failed', { error: err.message }));
+`).catch(err => logger.error('Cycle stage access migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   CREATE TABLE IF NOT EXISTS metros (
     id         SERIAL       PRIMARY KEY,
     name       VARCHAR(100) NOT NULL,
@@ -300,9 +304,9 @@ pool.query(`
   ) AS v(name, region_code, sub_region, sort_order)
   JOIN regions r ON r.code = v.region_code
   ON CONFLICT (name, region_id) DO NOTHING;
-`).catch(err => logger.error('Metros migration failed', { error: err.message }));
+`).catch(err => logger.error('Metros migration failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '14 days'
     WHERE req_status = 'Filled' AND estimated_hire_date IS NOT NULL AND confirmed_start_date IS NULL;
   UPDATE tbh_codes SET confirmed_start_date = estimated_hire_date + INTERVAL '21 days'
@@ -313,12 +317,12 @@ pool.query(`
     WHERE hire_type IN ('Net New', 'Uplift', 'Backfill') AND hire_source IS NULL;
   UPDATE tbh_codes SET hire_source = 'Internal'
     WHERE hire_type = 'Conversion' AND hire_source IS NULL;
-`).catch(err => logger.error('TBH codes onboarding sample data migration failed', { error: err.message }));
+`).catch(err => logger.error('TBH codes onboarding sample data migration failed', { error: err.message })));
 
 const { seedTbhCodes } = require('./db/seedTbh');
-seedTbhCodes().catch(err => logger.error('TBH seed failed', { error: err.message }));
+_startupMigs.push(seedTbhCodes().catch(err => logger.error('TBH seed failed', { error: err.message })));
 
-pool.query(`
+_startupMigs.push(pool.query(`
   CREATE TABLE IF NOT EXISTS alerts (
     id               SERIAL PRIMARY KEY,
     name             VARCHAR(255) NOT NULL,
@@ -343,10 +347,10 @@ pool.query(`
   ALTER TABLE alerts ADD COLUMN IF NOT EXISTS trigger_config       JSONB    NOT NULL DEFAULT '{}';
   ALTER TABLE alerts ADD COLUMN IF NOT EXISTS recipient_role_groups TEXT[]   NOT NULL DEFAULT '{}';
   ALTER TABLE alerts ADD COLUMN IF NOT EXISTS recipient_context     TEXT[]   NOT NULL DEFAULT '{}';
-`).catch(err => logger.error('Alerts table migration failed', { error: err.message }));
+`).catch(err => logger.error('Alerts table migration failed', { error: err.message })));
 
 // Merge VP + Sr Director levels and VP + Dr contract types into a single SNR (Senior Staff) entry
-(async () => {
+_startupMigs.push((async () => {
   try {
     // --- Contract types ---
     await pool.query(`
@@ -384,20 +388,19 @@ pool.query(`
   } catch (err) {
     logger.error('SNR merge migration failed', { error: err.message });
   }
-})();
-
+})());
 
 // Power kW migration
-(async () => {
+_startupMigs.push((async () => {
   try {
     await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS power_kw NUMERIC;`);
   } catch (err) {
     logger.error('power_kw migration failed', { error: err.message });
   }
-})();
+})());
 
 // Planning cycles migration
-(async () => {
+_startupMigs.push((async () => {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS planning_cycles (
@@ -453,19 +456,19 @@ pool.query(`
   } catch (err) {
     logger.error('Planning cycles migration failed', { error: err.message });
   }
-})();
+})());
 
 // Drop the fixed CHECK constraint on regions.code so free-form codes can be used
-(async () => {
+_startupMigs.push((async () => {
   try {
     await pool.query(`ALTER TABLE regions DROP CONSTRAINT IF EXISTS regions_code_check;`);
   } catch (err) {
     logger.error('Regions constraint migration failed', { error: err.message });
   }
-})();
+})());
 
 // Correct emerging-market flags and add missing countries (Chile, Oman)
-(async () => {
+_startupMigs.push((async () => {
   try {
     // Insert Chile and Oman if not already present
     await pool.query(`
@@ -487,10 +490,10 @@ pool.query(`
   } catch (err) {
     logger.error('EM country migration failed', { error: err.message });
   }
-})();
+})());
 
 // Project comments table
-(async () => {
+_startupMigs.push((async () => {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS project_comments (
@@ -509,10 +512,10 @@ pool.query(`
   } catch (err) {
     logger.error('Project comments migration failed', { error: err.message });
   }
-})();
+})());
 
 // Country allocations table (new simplified model: person → country → FTE)
-(async () => {
+_startupMigs.push((async () => {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS country_allocations (
@@ -532,10 +535,10 @@ pool.query(`
   } catch (err) {
     logger.error('Country allocations migration failed', { error: err.message });
   }
-})();
+})());
 
 // Person comments table
-(async () => {
+_startupMigs.push((async () => {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS person_comments (
@@ -552,10 +555,10 @@ pool.query(`
   } catch (err) {
     logger.error('Person comments migration failed', { error: err.message });
   }
-})();
+})());
 
 // Disciplines code column
-(async () => {
+_startupMigs.push((async () => {
   try {
     await pool.query(`ALTER TABLE disciplines ADD COLUMN IF NOT EXISTS code VARCHAR(20);`);
     await pool.query(`
@@ -569,7 +572,7 @@ pool.query(`
   } catch (err) {
     logger.error('Disciplines code migration failed', { error: err.message });
   }
-})();
+})());
 
 app.use('/api/country-allocations', wrapAsync(countryAllocationsRouter));
 app.use('/api/person-comments',     wrapAsync(personCommentsRouter));
@@ -644,60 +647,10 @@ const PORT = process.env.PORT || 3000;
 
   logger.info('Change-request schema migration complete');
 
-  // Ensure disciplines exist first (gearing seed JOIN depends on them)
-  try {
-    await pool.query(`
-      INSERT INTO disciplines (name) VALUES
-        ('Construction'), ('Design'), ('Commercial'), ('Commissioning'), ('Other')
-      ON CONFLICT (name) DO NOTHING
-    `);
-    const { rows: [{ count: dc }] } = await pool.query('SELECT COUNT(*) FROM disciplines');
-    logger.info(`Gearing seed: ${dc} disciplines in DB`);
-  } catch (e) { logger.warn('Discipline seed skipped', { err: e.message }); }
+  await Promise.allSettled(_startupMigs);
 
-  // Ensure gearing_constants table exists and has default rows (idempotent — safe on every start)
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS gearing_constants (
-        id            SERIAL       PRIMARY KEY,
-        discipline_id INTEGER      NOT NULL REFERENCES disciplines(id),
-        project_type  VARCHAR(20)  NOT NULL CHECK (project_type IN ('Retail', 'xScale', 'EM')),
-        min_divisor   DECIMAL(4,2) NOT NULL,
-        max_divisor   DECIMAL(4,2) NOT NULL,
-        updated_by    INTEGER,
-        updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-        UNIQUE (discipline_id, project_type)
-      )
-    `);
-
-    const { rows: [{ count: before }] } = await pool.query('SELECT COUNT(*) FROM gearing_constants');
-    logger.info(`Gearing seed: ${before} rows before insert`);
-
-    const { rowCount } = await pool.query(`
-      INSERT INTO gearing_constants (discipline_id, project_type, min_divisor, max_divisor)
-      SELECT d.id, v.project_type, v.min_d::numeric, v.max_d::numeric
-      FROM (VALUES
-        ('Construction', 'Retail', '2.00', '1.00'),
-        ('Construction', 'xScale', '1.00', '0.50'),
-        ('Construction', 'EM',     '0.50', '0.25'),
-        ('Design',       'Retail', '4.00', '2.00'),
-        ('Design',       'xScale', '2.00', '1.00'),
-        ('Design',       'EM',     '2.00', '1.00'),
-        ('Commercial',   'Retail', '6.00', '3.00'),
-        ('Commercial',   'xScale', '2.50', '1.25'),
-        ('Commercial',   'EM',     '2.50', '1.25'),
-        ('Commissioning','Retail', '4.00', '2.00'),
-        ('Commissioning','xScale', '2.00', '1.00')
-      ) AS v(discipline_name, project_type, min_d, max_d)
-      JOIN disciplines d ON d.name = v.discipline_name
-      WHERE NOT EXISTS (
-        SELECT 1 FROM gearing_constants gc
-        WHERE gc.discipline_id = d.id AND gc.project_type = v.project_type
-      )
-    `);
-
-    logger.info(`Gearing constants ready: ${rowCount} rows inserted`);
-  } catch (e) { logger.warn('Gearing constants seed skipped', { err: e.message }); }
+  await ensureGearingSeeded().catch(e => logger.warn('Gearing constants seed skipped', { err: e.message }));
+  logger.info('Gearing constants ready');
 
   app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
 })();
