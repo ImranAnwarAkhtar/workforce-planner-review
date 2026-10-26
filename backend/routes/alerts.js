@@ -73,6 +73,28 @@ async function resolveRecipients(alert, eventContext = {}) {
       if (ctx === 'manager' && eventContext.manager_email) {
         byCtx.push({ id: null, name: eventContext.manager_name || 'Manager', email: eventContext.manager_email });
       }
+      // Resolve hiring manager by name lookup in people table
+      if (ctx === 'hiring_manager' && eventContext.hiring_manager_name) {
+        const { rows: hm } = await pool.query(
+          `SELECT id, name, email FROM people
+           WHERE name = $1 AND email IS NOT NULL AND email <> '' AND is_active = TRUE LIMIT 1`,
+          [eventContext.hiring_manager_name]
+        );
+        if (hm[0]) byCtx.push(hm[0]);
+      }
+      // Resolve dept head / dept lead by name lookup in people table
+      if (ctx === 'dept_lead' && eventContext.dept_head_name) {
+        const { rows: dl } = await pool.query(
+          `SELECT id, name, email FROM people
+           WHERE name = $1 AND email IS NOT NULL AND email <> '' AND is_active = TRUE LIMIT 1`,
+          [eventContext.dept_head_name]
+        );
+        if (dl[0]) byCtx.push(dl[0]);
+      }
+      // Notify the person who approved (for approved/rejected events)
+      if (ctx === 'approver' && eventContext.approver_email) {
+        byCtx.push({ id: null, name: eventContext.approver_name || 'Approver', email: eventContext.approver_email });
+      }
     }
   }
 
@@ -125,6 +147,11 @@ async function sendAlertEmails(alert, recipients, triggerResult, eventContext = 
   const renderedMessage = renderTemplate(alert.message_template, templateContext)
     || `[GDC Alert] ${alert.name} has been triggered.`;
 
+  const subjectTpl = alert.trigger_config?.subject_template || '';
+  const renderedSubject = subjectTpl
+    ? renderTemplate(subjectTpl, templateContext)
+    : `[GDC Alert] ${alert.name}`;
+
   const lines = [
     renderedMessage,
     '',
@@ -137,7 +164,7 @@ async function sendAlertEmails(alert, recipients, triggerResult, eventContext = 
 
   try {
     await Promise.all(recipients.map(r =>
-      sgMail.send({ to: r.email, from, subject: `[GDC Alert] ${alert.name}`, text: lines })
+      sgMail.send({ to: r.email, from, subject: renderedSubject, text: lines })
     ));
     return true;
   } catch (err) {

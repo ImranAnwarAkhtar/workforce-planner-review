@@ -1579,33 +1579,209 @@ function GearingRatiosTab() {
 // ---------------------------------------------------------------------------
 
 // Trigger catalogue
-const TRIGGER_CATALOGUE: { value: string; label: string; category: 'event' | 'threshold'; hasValue: boolean; unit?: string; tokens: string[] }[] = [
+const TRIGGER_CATALOGUE: { value: string; label: string; category: 'event' | 'threshold'; hasValue: boolean; unit?: string; tokens: string[]; tokenGroups?: Record<string, string[]> }[] = [
   // Event-based
-  { value: 'hire_request_submitted',      label: 'Hire request submitted',          category: 'event',     hasValue: false, tokens: ['request_type','submitter_name','submitter_email'] },
-  { value: 'hire_request_approved',       label: 'Hire request approved (stage)',   category: 'event',     hasValue: false, tokens: ['request_type','stage','approver_name'] },
-  { value: 'hire_request_final_approved', label: 'Hire request fully approved',     category: 'event',     hasValue: false, tokens: ['request_type','approver_name'] },
-  { value: 'hire_request_rejected',       label: 'Hire request rejected',           category: 'event',     hasValue: false, tokens: ['request_type','rejection_reason','rejector_name'] },
-  { value: 'position_filled',             label: 'Position filled',                 category: 'event',     hasValue: false, tokens: ['tbh_id','candidate_name'] },
-  { value: 'person_added',                label: 'Person added to system',          category: 'event',     hasValue: false, tokens: ['person_name','added_by_name'] },
-  { value: 'person_updated',              label: 'Person record updated',           category: 'event',     hasValue: false, tokens: ['person_name','updated_by_name'] },
-  { value: 'cycle_stage_changed',         label: 'Planning cycle stage changed',    category: 'event',     hasValue: false, tokens: ['cycle_name','new_status','changed_by_name'] },
-  { value: 'change_request_submitted',    label: 'Change request submitted',        category: 'event',     hasValue: false, tokens: ['change_type','submitter_name','submitter_email'] },
-  { value: 'change_request_approved',     label: 'Change request approved',         category: 'event',     hasValue: false, tokens: ['change_type','approver_name'] },
-  { value: 'change_request_rejected',     label: 'Change request rejected',         category: 'event',     hasValue: false, tokens: ['change_type','rejection_reason','rejector_name'] },
+  {
+    value: 'hire_request_submitted', label: 'Hire request submitted', category: 'event', hasValue: false,
+    tokens: ['request_type','submitter_name','submitter_email','discipline_name','level_name','contract_type','region_name','country_name','project_name','justification','hiring_manager_name','dept_head_name','triggered_at'],
+    tokenGroups: {
+      'Request':    ['request_type','discipline_name','level_name','contract_type','region_name','country_name','project_name','justification'],
+      'People':     ['submitter_name','submitter_email','hiring_manager_name','dept_head_name'],
+      'System':     ['triggered_at'],
+    },
+  },
+  {
+    value: 'hire_request_approved', label: 'Hire request approved (stage)', category: 'event', hasValue: false,
+    tokens: ['request_type','stage','approver_name','submitter_name','submitter_email','discipline_name','level_name','contract_type','region_name','country_name','project_name','hiring_manager_name','dept_head_name','triggered_at'],
+    tokenGroups: {
+      'Request':    ['request_type','discipline_name','level_name','contract_type','region_name','country_name','project_name'],
+      'Approval':   ['stage','approver_name'],
+      'People':     ['submitter_name','submitter_email','hiring_manager_name','dept_head_name'],
+      'System':     ['triggered_at'],
+    },
+  },
+  {
+    value: 'hire_request_final_approved', label: 'Hire request fully approved', category: 'event', hasValue: false,
+    tokens: ['request_type','approver_name','submitter_name','submitter_email','discipline_name','level_name','contract_type','region_name','country_name','project_name','hiring_manager_name','dept_head_name','triggered_at'],
+    tokenGroups: {
+      'Request':    ['request_type','discipline_name','level_name','contract_type','region_name','country_name','project_name'],
+      'Approval':   ['approver_name'],
+      'People':     ['submitter_name','submitter_email','hiring_manager_name','dept_head_name'],
+      'System':     ['triggered_at'],
+    },
+  },
+  {
+    value: 'hire_request_rejected', label: 'Hire request rejected', category: 'event', hasValue: false,
+    tokens: ['request_type','rejection_reason','rejector_name','submitter_name','submitter_email','discipline_name','level_name','contract_type','region_name','country_name','project_name','hiring_manager_name','dept_head_name','triggered_at'],
+    tokenGroups: {
+      'Request':    ['request_type','discipline_name','level_name','contract_type','region_name','country_name','project_name'],
+      'Rejection':  ['rejection_reason','rejector_name'],
+      'People':     ['submitter_name','submitter_email','hiring_manager_name','dept_head_name'],
+      'System':     ['triggered_at'],
+    },
+  },
+  {
+    value: 'position_filled', label: 'Position filled', category: 'event', hasValue: false,
+    tokens: ['tbh_id','candidate_name','region_name','confirmed_start_date','triggered_at'],
+    tokenGroups: {
+      'Position':   ['tbh_id','candidate_name','region_name','confirmed_start_date'],
+      'System':     ['triggered_at'],
+    },
+  },
+  {
+    value: 'person_added', label: 'Person added to system', category: 'event', hasValue: false,
+    tokens: ['person_name','discipline_name','level_name','region_name','added_by_name','triggered_at'],
+    tokenGroups: {
+      'Person':     ['person_name','discipline_name','level_name','region_name'],
+      'System':     ['added_by_name','triggered_at'],
+    },
+  },
+  {
+    value: 'person_updated', label: 'Person record updated', category: 'event', hasValue: false,
+    tokens: ['person_name','discipline_name','level_name','region_name','updated_by_name','triggered_at'],
+    tokenGroups: {
+      'Person':     ['person_name','discipline_name','level_name','region_name'],
+      'System':     ['updated_by_name','triggered_at'],
+    },
+  },
+  {
+    value: 'cycle_stage_changed', label: 'Planning cycle stage changed', category: 'event', hasValue: false,
+    tokens: ['cycle_name','old_status','new_status','changed_by_name','triggered_at'],
+    tokenGroups: {
+      'Cycle':      ['cycle_name','old_status','new_status'],
+      'System':     ['changed_by_name','triggered_at'],
+    },
+  },
+  {
+    value: 'change_request_submitted', label: 'Change request submitted', category: 'event', hasValue: false,
+    tokens: ['change_type','person_name','submitter_name','submitter_email','region_name','triggered_at'],
+    tokenGroups: {
+      'Request':    ['change_type','person_name','region_name'],
+      'People':     ['submitter_name','submitter_email'],
+      'System':     ['triggered_at'],
+    },
+  },
+  {
+    value: 'change_request_approved', label: 'Change request approved', category: 'event', hasValue: false,
+    tokens: ['change_type','person_name','approver_name','submitter_name','region_name','triggered_at'],
+    tokenGroups: {
+      'Request':    ['change_type','person_name','region_name'],
+      'Approval':   ['approver_name'],
+      'People':     ['submitter_name'],
+      'System':     ['triggered_at'],
+    },
+  },
+  {
+    value: 'change_request_rejected', label: 'Change request rejected', category: 'event', hasValue: false,
+    tokens: ['change_type','person_name','rejection_reason','rejector_name','submitter_name','region_name','triggered_at'],
+    tokenGroups: {
+      'Request':    ['change_type','person_name','region_name'],
+      'Rejection':  ['rejection_reason','rejector_name'],
+      'People':     ['submitter_name'],
+      'System':     ['triggered_at'],
+    },
+  },
   // Threshold-based
-  { value: 'overdue_role',       label: 'Role overdue by more than N days',  category: 'threshold', hasValue: true,  unit: 'days',  tokens: ['alert_name','count','record_list'] },
-  { value: 'open_roles_above',   label: 'Open role count exceeds N',         category: 'threshold', hasValue: true,  unit: 'roles', tokens: ['alert_name','count'] },
-  { value: 'upcoming_starter',   label: 'Starter within next N days',        category: 'threshold', hasValue: true,  unit: 'days',  tokens: ['alert_name','count','record_list'] },
-  { value: 'utilisation_above',  label: 'Utilisation above N%',              category: 'threshold', hasValue: true,  unit: '%',     tokens: ['alert_name','count','record_list'] },
-  { value: 'utilisation_below',  label: 'Utilisation below N%',              category: 'threshold', hasValue: true,  unit: '%',     tokens: ['alert_name','count','record_list'] },
-  { value: 'unallocated_people', label: 'Unallocated people count above N',  category: 'threshold', hasValue: true,  unit: 'people',tokens: ['alert_name','count','record_list'] },
-  { value: 'cycle_days_remaining', label: 'Cycle has fewer than N days left',category: 'threshold', hasValue: true,  unit: 'days',  tokens: ['alert_name','count','record_list'] },
+  { value: 'overdue_role',         label: 'Role overdue by more than N days',  category: 'threshold', hasValue: true,  unit: 'days',   tokens: ['alert_name','count','record_list','triggered_at'] },
+  { value: 'open_roles_above',     label: 'Open role count exceeds N',         category: 'threshold', hasValue: true,  unit: 'roles',  tokens: ['alert_name','count','triggered_at'] },
+  { value: 'upcoming_starter',     label: 'Starter within next N days',        category: 'threshold', hasValue: true,  unit: 'days',   tokens: ['alert_name','count','record_list','triggered_at'] },
+  { value: 'utilisation_above',    label: 'Utilisation above N%',              category: 'threshold', hasValue: true,  unit: '%',      tokens: ['alert_name','count','record_list','triggered_at'] },
+  { value: 'utilisation_below',    label: 'Utilisation below N%',              category: 'threshold', hasValue: true,  unit: '%',      tokens: ['alert_name','count','record_list','triggered_at'] },
+  { value: 'unallocated_people',   label: 'Unallocated people count above N',  category: 'threshold', hasValue: true,  unit: 'people', tokens: ['alert_name','count','record_list','triggered_at'] },
+  { value: 'cycle_days_remaining', label: 'Cycle has fewer than N days left',  category: 'threshold', hasValue: true,  unit: 'days',   tokens: ['alert_name','count','record_list','triggered_at'] },
 ];
 
 const CONTEXT_OPTIONS = [
-  { value: 'submitter', label: 'Submitter of request' },
-  { value: 'manager',   label: 'Manager of person' },
+  { value: 'submitter',       label: 'Request submitter',        description: 'The person who submitted the request' },
+  { value: 'manager',         label: 'Line manager',             description: 'The line manager (if email provided in event)' },
+  { value: 'hiring_manager',  label: 'Hiring manager',           description: 'Hiring manager from the submitter\'s people record' },
+  { value: 'dept_lead',       label: 'Department lead (dept head)', description: 'Dept head from the submitter\'s people record' },
+  { value: 'approver',        label: 'Approver (on approval events)', description: 'The person who approved/rejected the request' },
 ];
+
+// Pre-canned message templates by trigger type
+const MESSAGE_TEMPLATES: Record<string, { label: string; subject: string; body: string }[]> = {
+  hire_request_submitted: [
+    {
+      label: 'Standard notification',
+      subject: '[GDC] New hire request submitted – {{request_type}}',
+      body: `A new hire request has been submitted and is pending approval.\n\nRequest Type: {{request_type}}\nDiscipline: {{discipline_name}}\nLevel: {{level_name}}\nRegion: {{region_name}}\nSubmitted by: {{submitter_name}} ({{submitter_email}})\nHiring Manager: {{hiring_manager_name}}\nDept Head: {{dept_head_name}}\nJustification: {{justification}}\n\nPlease log in to the GDC Workforce Planner to review and approve.`,
+    },
+    {
+      label: 'Brief summary',
+      subject: '[GDC] Hire request pending review',
+      body: `{{submitter_name}} has submitted a {{request_type}} request for a {{level_name}} {{discipline_name}} in {{region_name}}. Please log in to approve.`,
+    },
+  ],
+  hire_request_approved: [
+    {
+      label: 'Stage approval notice',
+      subject: '[GDC] Hire request approved at stage {{stage}}',
+      body: `Your hire request has passed approval at stage {{stage}}.\n\nRequest Type: {{request_type}}\nDiscipline: {{discipline_name}}\nLevel: {{level_name}}\nRegion: {{region_name}}\nApproved by: {{approver_name}}\n\nThe request will continue through the remaining approval stages.`,
+    },
+  ],
+  hire_request_final_approved: [
+    {
+      label: 'Full approval confirmation',
+      subject: '[GDC] Hire request fully approved – {{request_type}}',
+      body: `Your hire request has been fully approved and is now active.\n\nRequest Type: {{request_type}}\nDiscipline: {{discipline_name}}\nLevel: {{level_name}}\nRegion: {{region_name}}\nProject: {{project_name}}\nFinal approver: {{approver_name}}\n\nThe recruitment process can now proceed.`,
+    },
+  ],
+  hire_request_rejected: [
+    {
+      label: 'Rejection with reason',
+      subject: '[GDC] Hire request rejected – action required',
+      body: `Your hire request has been rejected.\n\nRequest Type: {{request_type}}\nDiscipline: {{discipline_name}}\nLevel: {{level_name}}\nRegion: {{region_name}}\nHiring Manager: {{hiring_manager_name}}\nDept Head: {{dept_head_name}}\n\nRejection reason: {{rejection_reason}}\nRejected by: {{rejector_name}}\nDate: {{triggered_at}}\n\nPlease contact {{rejector_name}} if you have any questions, or resubmit with amendments.`,
+    },
+    {
+      label: 'Brief rejection notice',
+      subject: '[GDC] Hire request not approved',
+      body: `The {{request_type}} request submitted by {{submitter_name}} for a {{level_name}} {{discipline_name}} ({{region_name}}) has been rejected by {{rejector_name}}.\n\nReason: {{rejection_reason}}`,
+    },
+  ],
+  position_filled: [
+    {
+      label: 'Position filled notice',
+      subject: '[GDC] Position filled – {{tbh_id}}',
+      body: `A position has been filled.\n\nTBH ID: {{tbh_id}}\nCandidate: {{candidate_name}}\nStart Date: {{confirmed_start_date}}\nRegion: {{region_name}}\n\nDate: {{triggered_at}}`,
+    },
+  ],
+  change_request_submitted: [
+    {
+      label: 'Change request submitted',
+      subject: '[GDC] Change request submitted – {{change_type}}',
+      body: `A change request has been submitted and requires review.\n\nChange Type: {{change_type}}\nPerson: {{person_name}}\nRegion: {{region_name}}\nSubmitted by: {{submitter_name}}\nDate: {{triggered_at}}\n\nPlease log in to review.`,
+    },
+  ],
+  change_request_rejected: [
+    {
+      label: 'Change request rejection',
+      subject: '[GDC] Change request rejected',
+      body: `A change request has been rejected.\n\nChange Type: {{change_type}}\nPerson: {{person_name}}\nRejected by: {{rejector_name}}\nReason: {{rejection_reason}}\nDate: {{triggered_at}}`,
+    },
+  ],
+  overdue_role: [
+    {
+      label: 'Overdue roles digest',
+      subject: '[GDC] {{count}} overdue role(s) require attention',
+      body: `The following roles are overdue for hiring:\n\n{{record_list}}\n\nTotal overdue: {{count}}\nChecked: {{triggered_at}}\n\nPlease review in the GDC Workforce Planner.`,
+    },
+  ],
+  upcoming_starter: [
+    {
+      label: 'Upcoming starters digest',
+      subject: '[GDC] {{count}} starter(s) joining soon',
+      body: `The following people are scheduled to start soon:\n\n{{record_list}}\n\nTotal starters: {{count}}\nChecked: {{triggered_at}}\n\nPlease ensure onboarding is in progress.`,
+    },
+  ],
+  unallocated_people: [
+    {
+      label: 'Unallocated people digest',
+      subject: '[GDC] {{count}} people currently unallocated',
+      body: `The following active people have no allocations for the current month:\n\n{{record_list}}\n\nTotal unallocated: {{count}}\nChecked: {{triggered_at}}\n\nPlease review allocations in the GDC Workforce Planner.`,
+    },
+  ],
+};
 
 const CATEGORY_STYLE = {
   event:     { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
@@ -1616,6 +1792,7 @@ const blankAlertForm = () => ({
   name: '', trigger_type: 'hire_request_submitted' as AlertConfig['trigger_type'],
   trigger_value: 30,
   trigger_config: {} as Record<string, unknown>,
+  subject_template: '',
   message_template: '',
   recipient_ids: [] as number[],
   recipient_role_groups: [] as string[],
@@ -1623,18 +1800,23 @@ const blankAlertForm = () => ({
   active: true,
 });
 
-function renderPreview(template: string, tokens: string[]): string {
+const SAMPLE_TOKENS: Record<string, string> = {
+  alert_name: 'Overdue Roles Alert', count: '3', record_list: '- TBH-0042: 15 days overdue (APAC)',
+  request_type: 'New Hire', submitter_name: 'Jane Smith', submitter_email: 'jane.smith@equinix.com',
+  approver_name: 'John Doe', stage: '2', rejection_reason: 'Budget frozen for this quarter',
+  rejector_name: 'John Doe', tbh_id: 'TBH-0042', candidate_name: 'Alex Johnson',
+  person_name: 'Alex Johnson', added_by_name: 'Jane Smith', updated_by_name: 'Jane Smith',
+  cycle_name: 'Q4 2026', new_status: 'Active', old_status: 'Draft', changed_by_name: 'Jane Smith',
+  change_type: 'Level Change', triggered_at: new Date().toLocaleString('en-GB'),
+  discipline_name: 'IBX DC Ops', level_name: 'L4 Senior', contract_type: 'Permanent',
+  region_name: 'APAC', country_name: 'Singapore', project_name: 'SG5', justification: 'Backfill for attrition',
+  hiring_manager_name: 'Sarah Lee', dept_head_name: 'Michael Chen',
+  confirmed_start_date: '15 Jan 2027', manager_name: 'Sarah Lee',
+};
+
+function renderPreview(template: string): string {
   if (!template) return '';
-  const sample: Record<string, string> = {
-    alert_name: 'Alert Name', count: '3', record_list: '- Example record',
-    request_type: 'New Hire', submitter_name: 'Jane Smith', submitter_email: 'jane@example.com',
-    approver_name: 'John Doe', stage: '2', rejection_reason: 'Budget frozen',
-    rejector_name: 'John Doe', tbh_id: 'TBH-0042', candidate_name: 'Alex Johnson',
-    person_name: 'Alex Johnson', added_by_name: 'Jane Smith', updated_by_name: 'Jane Smith',
-    cycle_name: 'Q4 2026', new_status: 'Active', changed_by_name: 'Jane Smith',
-    change_type: 'Level Change', triggered_at: new Date().toLocaleString('en-GB'),
-  };
-  return template.replace(/\{\{(\w+)\}\}/g, (_, k) => sample[k] ?? `{{${k}}}`);
+  return template.replace(/\{\{(\w+)\}\}/g, (_, k) => SAMPLE_TOKENS[k] ?? `{{${k}}}`);
 }
 
 function AlertsTab() {
@@ -1650,6 +1832,7 @@ function AlertsTab() {
   const [evalResult, setEvalResult] = useState<{ id: number; triggered: boolean; count: number; note?: string; email_sent: boolean } | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   function load() {
     setLoading(true);
@@ -1664,9 +1847,11 @@ function AlertsTab() {
     setForm(blankAlertForm()); setEditTarget(null); setModal('create'); setEvalResult(null); setPreviewMode(false);
   }
   function openEdit(a: AlertConfig) {
+    const tc = a.trigger_config ?? {} as Record<string, unknown>;
     setForm({
       name: a.name, trigger_type: a.trigger_type, trigger_value: a.trigger_value,
-      trigger_config: a.trigger_config ?? {},
+      trigger_config: tc,
+      subject_template: (tc.subject_template as string) ?? '',
       message_template: a.message_template,
       recipient_ids: a.recipient_ids,
       recipient_role_groups: a.recipient_role_groups ?? [],
@@ -1680,8 +1865,12 @@ function AlertsTab() {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      if (modal === 'create') { await alertsApi.create(form); }
-      else if (editTarget)    { await alertsApi.update(editTarget.id, form); }
+      const payload = {
+        ...form,
+        trigger_config: { ...form.trigger_config, subject_template: form.subject_template || '' },
+      };
+      if (modal === 'create') { await alertsApi.create(payload); }
+      else if (editTarget)    { await alertsApi.update(editTarget.id, payload); }
       load(); setModal(null);
     } catch (e) { toast.error(errMsg(e)); } finally { setSaving(false); }
   }
@@ -1713,8 +1902,17 @@ function AlertsTab() {
     setForm(f => ({ ...f, recipient_ids: f.recipient_ids.includes(pid)
       ? f.recipient_ids.filter(x => x !== pid) : [...f.recipient_ids, pid] }));
   }
+  const [tokenTarget, setTokenTarget] = useState<'subject' | 'body'>('body');
   function insertToken(token: string) {
-    setForm(f => ({ ...f, message_template: f.message_template + `{{${token}}}` }));
+    if (tokenTarget === 'subject') {
+      setForm(f => ({ ...f, subject_template: f.subject_template + `{{${token}}}` }));
+    } else {
+      setForm(f => ({ ...f, message_template: f.message_template + `{{${token}}}` }));
+    }
+  }
+  function loadTemplate(tpl: { subject: string; body: string }) {
+    setForm(f => ({ ...f, subject_template: tpl.subject, message_template: tpl.body }));
+    setShowTemplates(false);
   }
 
   const catalogue    = TRIGGER_CATALOGUE.find(t => t.value === form.trigger_type);
@@ -1914,38 +2112,107 @@ function AlertsTab() {
               )}
             </div>
 
-            {/* Message template */}
+            {/* Message composer */}
             <div style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <label style={{ ...lbl, marginBottom: 0 }}>Message Template</label>
-                <div style={{ display: 'flex', gap: 6 }}>
+              {/* Header row: label + template picker + edit/preview toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                <label style={{ ...lbl, marginBottom: 0, fontWeight: 700 }}>Email Template</label>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {(MESSAGE_TEMPLATES[form.trigger_type] ?? []).length > 0 && (
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setShowTemplates(s => !s)}
+                        style={{ fontSize: 11, padding: '3px 10px', borderRadius: 4, border: '1px solid #E91C24', background: showTemplates ? '#FFF5F5' : 'transparent', color: '#E91C24', cursor: 'pointer', fontWeight: 600 }}>
+                        Load template ▾
+                      </button>
+                      {showTemplates && (
+                        <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 280 }}>
+                          {(MESSAGE_TEMPLATES[form.trigger_type] ?? []).map((tpl, i) => (
+                            <button key={i} onClick={() => loadTemplate(tpl)}
+                              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: i < (MESSAGE_TEMPLATES[form.trigger_type]?.length ?? 0) - 1 ? '1px solid #F3F4F6' : 'none', cursor: 'pointer', fontSize: 12 }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                              <div style={{ fontWeight: 600, marginBottom: 2 }}>{tpl.label}</div>
+                              <div style={{ fontSize: 10, color: '#888', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tpl.subject}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <button onClick={() => setPreviewMode(false)} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: `1px solid ${!previewMode ? tk.accent : '#D5D5D5'}`, background: !previewMode ? '#FFF5F5' : 'transparent', color: !previewMode ? tk.accent : '#666', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                   <button onClick={() => setPreviewMode(true)}  style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: `1px solid ${previewMode  ? tk.accent : '#D5D5D5'}`, background: previewMode  ? '#FFF5F5' : 'transparent', color: previewMode  ? tk.accent : '#666', cursor: 'pointer', fontWeight: 600 }}>Preview</button>
                 </div>
               </div>
-              {previewMode ? (
-                <div style={{ ...inp, minHeight: 80, whiteSpace: 'pre-wrap', fontSize: 12, color: '#333', background: '#FAFAFA', lineHeight: 1.6 }}>
-                  {renderPreview(form.message_template, tokens) || <em style={{ color: '#AAA' }}>No template - default message will be used.</em>}
+
+              {/* Subject line */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+                  Subject line
+                  {!previewMode && <button onClick={() => setTokenTarget('subject')} style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 3, border: `1px solid ${tokenTarget === 'subject' ? '#7C3AED' : '#D5D5D5'}`, background: tokenTarget === 'subject' ? '#EDE9FE' : 'transparent', color: tokenTarget === 'subject' ? '#7C3AED' : '#888', cursor: 'pointer', fontWeight: 600 }}>insert tokens here</button>}
                 </div>
-              ) : (
-                <textarea value={form.message_template}
-                  onChange={e => setForm(f => ({ ...f, message_template: e.target.value }))}
-                  rows={4} placeholder="Use {{token}} for dynamic values. Leave blank for a default message."
-                  style={{ ...inp, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }} />
-              )}
-              {tokens.length > 0 && !previewMode && (
-                <div style={{ marginTop: 6 }}>
-                  <div style={{ fontSize: 10, color: '#888', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Available tokens - click to insert</div>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {tokens.map(tok => (
-                      <button key={tok} onClick={() => insertToken(tok)}
-                        style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#4338CA', cursor: 'pointer', fontFamily: 'monospace' }}>
-                        {'{{'}{tok}{'}}'}
-                      </button>
-                    ))}
+                {previewMode ? (
+                  <div style={{ ...inp, fontSize: 12, color: '#333', fontStyle: form.subject_template ? 'normal' : 'italic' }}>
+                    {renderPreview(form.subject_template) || <span style={{ color: '#AAA' }}>[GDC Alert] {form.name || 'Alert Name'}</span>}
                   </div>
+                ) : (
+                  <input value={form.subject_template}
+                    onChange={e => setForm(f => ({ ...f, subject_template: e.target.value }))}
+                    onFocus={() => setTokenTarget('subject')}
+                    placeholder={`[GDC Alert] ${form.name || 'Alert Name'} (leave blank for default)`}
+                    style={{ ...inp, width: '100%', boxSizing: 'border-box', fontFamily: 'monospace', fontSize: 12 }} />
+                )}
+              </div>
+
+              {/* Body */}
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+                  Body
+                  {!previewMode && <button onClick={() => setTokenTarget('body')} style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 3, border: `1px solid ${tokenTarget === 'body' ? '#7C3AED' : '#D5D5D5'}`, background: tokenTarget === 'body' ? '#EDE9FE' : 'transparent', color: tokenTarget === 'body' ? '#7C3AED' : '#888', cursor: 'pointer', fontWeight: 600 }}>insert tokens here</button>}
                 </div>
-              )}
+                {previewMode ? (
+                  <div style={{ ...inp, minHeight: 80, whiteSpace: 'pre-wrap', fontSize: 12, color: '#333', background: '#FAFAFA', lineHeight: 1.6 }}>
+                    {renderPreview(form.message_template) || <em style={{ color: '#AAA' }}>No template - default message will be used.</em>}
+                  </div>
+                ) : (
+                  <textarea value={form.message_template}
+                    onChange={e => setForm(f => ({ ...f, message_template: e.target.value }))}
+                    onFocus={() => setTokenTarget('body')}
+                    rows={5} placeholder="Use {{token}} for dynamic values. Leave blank for a default message."
+                    style={{ ...inp, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }} />
+                )}
+              </div>
+
+              {/* Token palette - grouped */}
+              {tokens.length > 0 && !previewMode && (() => {
+                const groups = catalogue?.tokenGroups;
+                const insertBtn = (tok: string) => (
+                  <button key={tok} onClick={() => insertToken(tok)}
+                    style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#4338CA', cursor: 'pointer', fontFamily: 'monospace' }}>
+                    {'{{'}{tok}{'}}'}
+                  </button>
+                );
+                return (
+                  <div style={{ background: '#F8F9FF', border: '1px solid #E0E7FF', borderRadius: 6, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: '#666', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Available tokens — clicking inserts into {tokenTarget === 'subject' ? 'Subject' : 'Body'}</span>
+                    </div>
+                    {groups ? (
+                      Object.entries(groups).map(([grpName, grpTokens]) => (
+                        <div key={grpName} style={{ marginBottom: 6 }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>{grpName}</div>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {grpTokens.map(insertBtn)}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {tokens.map(insertBtn)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Recipients */}
@@ -1954,7 +2221,7 @@ function AlertsTab() {
 
               {/* Role groups */}
               <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: '#666', marginBottom: 6, fontWeight: 600 }}>Role Groups</div>
+                <div style={{ fontSize: 11, color: '#666', marginBottom: 6, fontWeight: 600 }}>By Role Group</div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {PERM_PROFILES.map(p => {
                     const active = form.recipient_role_groups.includes(p.name);
@@ -1972,12 +2239,16 @@ function AlertsTab() {
 
               {/* Context */}
               <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: '#666', marginBottom: 6, fontWeight: 600 }}>Auto-context (for event triggers)</div>
+                <div style={{ fontSize: 11, color: '#666', marginBottom: 6, fontWeight: 600 }}>
+                  Contextual (auto-resolved from event data)
+                  <span style={{ fontSize: 10, fontWeight: 400, color: '#AAA', marginLeft: 6 }}>For event triggers</span>
+                </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {CONTEXT_OPTIONS.map(o => {
                     const active = form.recipient_context.includes(o.value);
                     return (
                       <button key={o.value} onClick={() => toggleContext(o.value)}
+                        title={o.description}
                         style={{ fontSize: 11, padding: '3px 10px', borderRadius: 10, border: `1px solid ${active ? '#15803D' : '#D5D5D5'}`,
                           background: active ? '#F0FDF4' : 'transparent', color: active ? '#15803D' : '#555',
                           cursor: 'pointer', fontWeight: active ? 700 : 400 }}>
@@ -1986,12 +2257,15 @@ function AlertsTab() {
                     );
                   })}
                 </div>
+                <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>
+                  Hover over each option for details. Hiring manager and dept head are resolved from the submitter's people record.
+                </div>
               </div>
 
               {/* Specific people */}
               {peopleWithEmail.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 11, color: '#666', marginBottom: 6, fontWeight: 600 }}>Specific People</div>
+                  <div style={{ fontSize: 11, color: '#666', marginBottom: 6, fontWeight: 600 }}>Specific Named People</div>
                   <div style={{ border: '1px solid #E5E7EB', borderRadius: 5, maxHeight: 150, overflowY: 'auto' }}>
                     {peopleWithEmail.map(p => (
                       <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', cursor: 'pointer',

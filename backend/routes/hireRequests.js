@@ -73,6 +73,53 @@ router.get('/:id', requireAuth, async (req, res) => {
   res.json({ data: rows[0] });
 });
 
+async function enrichHireRequestContext(hrId, fallbackUser = {}) {
+  try {
+    const { rows } = await pool.query(`
+      SELECT hr.id, hr.request_type, hr.justification,
+             d.name  AS discipline_name,
+             l.level_name,
+             ct.code AS contract_type,
+             r.name  AS region_name,
+             c.name  AS country_name,
+             p.name  AS project_name,
+             u.name  AS submitter_name,
+             u.email AS submitter_email,
+             pe.hiring_manager AS hiring_manager_name,
+             pe.dept_head      AS dept_head_name
+      FROM   hire_requests hr
+      LEFT JOIN disciplines   d  ON hr.discipline_id   = d.id
+      LEFT JOIN levels        l  ON hr.level_id        = l.id
+      LEFT JOIN contract_types ct ON hr.contract_type_id = ct.id
+      LEFT JOIN regions       r  ON hr.region_id       = r.id
+      LEFT JOIN countries     c  ON hr.country_id      = c.id
+      LEFT JOIN projects      p  ON hr.project_id      = p.id
+      LEFT JOIN users         u  ON hr.submitted_by    = u.id
+      LEFT JOIN people        pe ON LOWER(pe.email) = LOWER(u.email) AND pe.is_active = TRUE
+      WHERE hr.id = $1
+    `, [hrId]);
+    if (!rows.length) return { request_id: hrId, ...fallbackUser };
+    const r = rows[0];
+    return {
+      request_id:          r.id,
+      request_type:        r.request_type,
+      discipline_name:     r.discipline_name    || '',
+      level_name:          r.level_name         || '',
+      contract_type:       r.contract_type      || '',
+      region_name:         r.region_name        || '',
+      country_name:        r.country_name       || '',
+      project_name:        r.project_name       || '',
+      justification:       r.justification      || '',
+      submitter_name:      r.submitter_name     || fallbackUser.name  || '',
+      submitter_email:     r.submitter_email    || fallbackUser.email || '',
+      hiring_manager_name: r.hiring_manager_name || '',
+      dept_head_name:      r.dept_head_name      || '',
+    };
+  } catch {
+    return { request_id: hrId, ...fallbackUser };
+  }
+}
+
 router.post('/', requireAuth, requireRole(...ALL_ROLES), async (req, res) => {
   const { request_type, discipline_id, level_id, contract_type_id, region_id, country_id, project_id, justification } = req.body;
   if (!request_type) return res.status(400).json({ error: 'request_type is required' });
@@ -86,10 +133,9 @@ router.post('/', requireAuth, requireRole(...ALL_ROLES), async (req, res) => {
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'hire_request', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'hire_requests', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
-  fireEventAlerts('hire_request_submitted', {
-    request_id: rows[0].id, request_type: rows[0].request_type,
-    submitter_name: req.user.name, submitter_email: req.user.email,
-  }).catch(() => {});
+  enrichHireRequestContext(rows[0].id, { name: req.user.name, email: req.user.email })
+    .then(ctx => fireEventAlerts('hire_request_submitted', ctx))
+    .catch(() => {});
   res.status(201).json({ data: rows[0] });
 });
 
@@ -121,10 +167,9 @@ router.post('/:id/approve', requireAuth, async (req, res, next) => {
   await req.auditLog({ actionType: 'APPROVE', resourceType: 'hire_request', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'APPROVE', tableName: 'hire_requests', recordId: rows[0].id, newValues: { stage: rows[0].stage, status: rows[0].status }, ipAddress: req.ip });
   const eventType = isFullyApproved ? 'hire_request_final_approved' : 'hire_request_approved';
-  fireEventAlerts(eventType, {
-    request_id: rows[0].id, request_type: rows[0].request_type,
-    stage: rows[0].stage, approver_name: req.user.name,
-  }).catch(() => {});
+  enrichHireRequestContext(rows[0].id, { name: req.user.name, email: req.user.email })
+    .then(ctx => fireEventAlerts(eventType, { ...ctx, stage: rows[0].stage, approver_name: req.user.name }))
+    .catch(() => {});
   res.json({ data: rows[0] });
 });
 
@@ -140,10 +185,13 @@ router.post('/:id/reject', requireAuth, requireRole(...SENIOR_ROLES), async (req
   if (!rows.length) return res.status(404).json({ error: 'Hire request not found or not pending' });
   await req.auditLog({ actionType: 'REJECT', resourceType: 'hire_request', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'REJECT', tableName: 'hire_requests', recordId: rows[0].id, newValues: { status: 'Rejected', rejection_reason }, ipAddress: req.ip });
-  fireEventAlerts('hire_request_rejected', {
-    request_id: rows[0].id, request_type: rows[0].request_type,
-    rejection_reason: rows[0].rejection_reason, rejector_name: req.user.name,
-  }).catch(() => {});
+  enrichHireRequestContext(rows[0].id, { name: req.user.name, email: req.user.email })
+    .then(ctx => fireEventAlerts('hire_request_rejected', {
+      ...ctx,
+      rejection_reason: rows[0].rejection_reason || '',
+      rejector_name:    req.user.name,
+    }))
+    .catch(() => {});
   res.json({ data: rows[0] });
 });
 
