@@ -1002,6 +1002,7 @@ export interface HubIqResponse {
   tbh_status:           HubIqTbhStatus[];
   tbh_avg_hire_days:          Record<string, Record<string, number>>;
   tbh_quarterly_hire_days:    { year: number; quarter: number; label: string; days: number; count: number }[];
+  tbh_monthly_hire_days:      { year: number; month: number; label: string; days: number; count: number }[];
   tbh_hire_type:              HubIqTbhHireType[];
   tbh_overdue:          HubIqTbhOverdue[];
   tbh_monthly_forecast: HubIqTbhForecast[];

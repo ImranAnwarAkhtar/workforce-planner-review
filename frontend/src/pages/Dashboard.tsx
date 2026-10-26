@@ -1749,14 +1749,38 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
 }
 
 // ---------------------------------------------------------------------------
+// Shared: month / quarter toggle button
+// ---------------------------------------------------------------------------
+
+function ViewToggle({ view, onChange }: { view: 'month' | 'quarter'; onChange: (v: 'month' | 'quarter') => void }) {
+  return (
+    <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
+      {(['month', 'quarter'] as const).map(v => (
+        <button key={v} onClick={() => onChange(v)} style={{
+          padding: '2px 9px', borderRadius: 4, border: 'none', cursor: 'pointer',
+          fontSize: 10, fontWeight: 700,
+          background: view === v ? '#FFF' : 'transparent',
+          color: view === v ? '#374151' : '#9CA3AF',
+          boxShadow: view === v ? '0 1px 2px rgba(0,0,0,0.10)' : 'none',
+          transition: 'background 0.15s',
+        }}>
+          {v === 'month' ? 'Month' : 'Qtr'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // HIRE STATUS TAB
 // ---------------------------------------------------------------------------
 
-function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbhHireType, tbhOverdue, tbhMonthlyForecast, tbhJobProfile, tbhDiscRegion, yearRange, regionCodeMap, regionNamesAll, selectedRegions }: {
+function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbhMonthlyAvgHireDays, tbhHireType, tbhOverdue, tbhMonthlyForecast, tbhJobProfile, tbhDiscRegion, yearRange, regionCodeMap, regionNamesAll, selectedRegions }: {
   yearA: number; yearB: number;
   tbhStatus: { req_status: string; count: number; funding_year: number; region_name?: string | null }[];
   tbhAvgHireDays: Record<string, Record<string, number>>;
   tbhQuarterlyAvgHireDays: { year: number; quarter: number; label: string; days: number; count: number }[];
+  tbhMonthlyAvgHireDays: { year: number; month: number; label: string; days: number; count: number }[];
   tbhHireType: { hire_type: string; count: number; funding_year: number; region_name?: string | null }[];
   tbhOverdue: { tbh_id: string; req_status: string | null; hire_type: string | null; region_name: string | null; estimated_hire_date: string; days_overdue: number; funding_year: number | null; date_opened: string | null }[];
   tbhMonthlyForecast: { month: string; count: number; funding_year: number; hire_type: string; region_name?: string | null }[];
@@ -1767,6 +1791,8 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   regionNamesAll: string[];
   selectedRegions: string[];
 }) {
+  const [hireView, setHireView] = useState<'month' | 'quarter'>('quarter');
+  const [forecastView, setForecastView] = useState<'month' | 'quarter'>('month');
 
   const STAGE_COLORS: Record<string, string> = {
     'Filled': '#E91C24', 'Open': '#C71B36', 'In Progress': '#A61B49',
@@ -1844,6 +1870,33 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   const hireTrendData = tbhQuarterlyAvgHireDays
     .filter(d => d.days > 0)
     .filter(d => yearRange === null || (d.year >= yearRange[0] && d.year <= yearRange[1]));
+
+  const hireMonthData = tbhMonthlyAvgHireDays
+    .filter(d => d.days > 0)
+    .filter(d => yearRange === null || (d.year >= yearRange[0] && d.year <= yearRange[1]));
+
+  const activeHireData: { label: string; days: number; count: number }[] =
+    hireView === 'quarter' ? hireTrendData : hireMonthData;
+
+  // Quarterly aggregation for the forecast chart
+  const forecastQuarterly = (() => {
+    const qBuckets: Record<string, { Growth: number; Conversion: number; Replacement: number; yr: number; q: number }> = {};
+    for (const [month, v] of Object.entries(forecastByCategory)) {
+      const [yrStr, moStr] = month.split('-');
+      const yr = parseInt(yrStr, 10), mo = parseInt(moStr, 10);
+      const q = Math.floor((mo - 1) / 3) + 1;
+      const key = `${yr}-Q${q}`;
+      if (!qBuckets[key]) qBuckets[key] = { Growth: 0, Conversion: 0, Replacement: 0, yr, q };
+      qBuckets[key].Growth += v.Growth;
+      qBuckets[key].Conversion += v.Conversion;
+      qBuckets[key].Replacement += v.Replacement;
+    }
+    return Object.entries(qBuckets)
+      .map(([k, v]) => ({ month: k, label: `Q${v.q} '${String(v.yr).slice(2)}`, Growth: v.Growth, Conversion: v.Conversion, Replacement: v.Replacement, total: v.Growth + v.Conversion + v.Replacement, dummy: 0 }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+  })();
+
+  const activeForecastData = forecastView === 'month' ? forecastSorted : forecastQuarterly;
 
 
   function fmtDays(days: number | undefined): string {
@@ -1975,9 +2028,12 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 
         {/* Avg Hire Time card */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
-          <div style={{ marginBottom: 8 }}>
-            <div style={sectionLabel}>Avg Hire Time</div>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Filled roles · from open to accepted</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <div>
+              <div style={sectionLabel}>Avg Hire Time</div>
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Filled roles · from open to accepted</div>
+            </div>
+            <ViewToggle view={hireView} onChange={setHireView} />
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
             <span style={{ fontSize: 18, fontWeight: 900, lineHeight: 1, color: avgFilledDays > 0 ? '#086AE3' : '#8B93A3' }}>
@@ -1990,11 +2046,13 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
               ≈ {(avgFilledDays / 7).toFixed(1)} weeks to fill a role
             </div>
           )}
-          {hireTrendData.length >= 2 ? (
+          {activeHireData.length >= 2 ? (
             <>
-              <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Avg days to fill · by quarter</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+                Avg days to fill · by {hireView === 'quarter' ? 'quarter' : 'month'}
+              </div>
               <ResponsiveContainer width="100%" height={110}>
-                <LineChart data={hireTrendData} margin={{ top: 18, right: 8, bottom: 0, left: 16 }}>
+                <LineChart data={activeHireData} margin={{ top: 18, right: 8, bottom: 0, left: 16 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} tickLine={false} />
                   <YAxis hide domain={['auto', 'auto']} />
@@ -2011,6 +2069,8 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
             </>
           ) : avgFilledDays === 0 ? (
             <div style={{ fontSize: 11, color: C.muted, paddingTop: 8 }}>No filled role data yet</div>
+          ) : activeHireData.length < 2 ? (
+            <div style={{ fontSize: 11, color: C.muted, paddingTop: 8 }}>Not enough {hireView} data points yet — try Qtr view</div>
           ) : null}
         </div>
 
@@ -2061,17 +2121,20 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
         </div>
       </div>
 
-      {/* ── Row 3: Monthly Hire Forecast ── */}
+      {/* ── Row 3: Hire Forecast ── */}
       <div style={{ ...cardStyle, padding: '14px 16px' }}>
-        <div style={{ marginBottom: 10 }}>
-          <div style={sectionLabel}>Monthly Hire Forecast</div>
-          <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Unfilled roles by estimated hire month · Growth (Net New) · Conversion · Replacement (Backfill)</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+          <div>
+            <div style={sectionLabel}>{forecastView === 'month' ? 'Monthly' : 'Quarterly'} Hire Forecast</div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Unfilled roles by estimated hire {forecastView} · Growth (Net New) · Conversion · Replacement (Backfill)</div>
+          </div>
+          <ViewToggle view={forecastView} onChange={setForecastView} />
         </div>
-        {forecastSorted.length === 0 ? (
+        {activeForecastData.length === 0 ? (
           <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No forecast data — add estimated hire dates in Talent Acquisition</div>
         ) : (
           <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={forecastSorted} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+            <BarChart data={activeForecastData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} />
               <YAxis hide />
@@ -2101,6 +2164,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 function OnboardingTab({ regionNamesAll = [], selectedRegions = [] }: { regionNamesAll?: string[]; selectedRegions?: string[] }) {
   const [rows, setRows] = useState<TbhCode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startersView, setStartersView] = useState<'month' | 'quarter'>('month');
 
   useEffect(() => {
     tbhCodesApi.list({ limit: 500 }).then(data => { setRows(data); setLoading(false); }).catch(() => setLoading(false));
@@ -2141,6 +2205,31 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [] }: { regionNa
       Other:      bucket.filter(r => !r.hire_source && r.hire_type !== 'Conversion').length,
     });
   }
+
+  // Quarterly aggregation: current quarter + next 4
+  const quarterlyData = (() => {
+    const currentQtr = Math.floor(today.getMonth() / 3);
+    return Array.from({ length: 5 }, (_, i) => {
+      const qtrIdx = (currentQtr + i) % 4;
+      const yearOffset = Math.floor((currentQtr + i) / 4);
+      const yr = today.getFullYear() + yearOffset;
+      const startMonth = qtrIdx * 3;
+      const months = [0, 1, 2].map(offset => {
+        const d = new Date(yr, startMonth + offset, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      });
+      const bucket = starters.filter(r => months.some(m => r.confirmed_start_date!.startsWith(m)));
+      return {
+        month: `Q${qtrIdx + 1} '${String(yr).slice(2)}`,
+        External:   bucket.filter(r => r.hire_source === 'External').length,
+        Internal:   bucket.filter(r => r.hire_source === 'Internal').length,
+        Conversion: bucket.filter(r => r.hire_type === 'Conversion').length,
+        Other:      bucket.filter(r => !r.hire_source && r.hire_type !== 'Conversion').length,
+      };
+    });
+  })();
+
+  const activeStartersData = startersView === 'month' ? monthlyData : quarterlyData;
 
   // Table sorted: upcoming starters (lowest days remaining) first, then past starters (most recent first)
   const tableRows = [...starters].sort((a, b) => {
@@ -2193,10 +2282,15 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [] }: { regionNa
 
         {/* Starters by month */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
-          <div style={sL}>Confirmed Starters by Month</div>
-          <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>Next 6 months · by hire source &amp; type</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <div style={sL}>Confirmed Starters by {startersView === 'month' ? 'Month' : 'Quarter'}</div>
+            <ViewToggle view={startersView} onChange={setStartersView} />
+          </div>
+          <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>
+            {startersView === 'month' ? 'Next 6 months' : 'Current + next 4 quarters'} · by hire source &amp; type
+          </div>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+            <BarChart data={activeStartersData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
               <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
@@ -2395,7 +2489,7 @@ export default function Dashboard() {
             {activeTab === 'People'      && <PeopleTab      yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} allRegionNames={hubData?.all_region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
             {activeTab === 'Requests'    && <RequestsTab    yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionCodeMap={hubData?.region_code_map ?? {}} activeYear={requestYear ?? yearA!} />}
             {activeTab === 'Gearing'     && <GearingTab     yearA={yearA!} yearB={yearB!} dataA={dataA!} dataB={dataB!} regionNames={hubData?.region_names ?? []} regionCodeMap={hubData?.region_code_map ?? {}} />}
-            {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhQuarterlyAvgHireDays={hubData!.tbh_quarterly_hire_days ?? []} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} selectedRegions={hireStatusRegions} />}
+            {activeTab === 'Hire Status' && <HireStatusTab yearA={yearA!} yearB={yearB!} tbhStatus={hubData!.tbh_status} tbhAvgHireDays={hubData!.tbh_avg_hire_days ?? {}} tbhQuarterlyAvgHireDays={hubData!.tbh_quarterly_hire_days ?? []} tbhMonthlyAvgHireDays={hubData!.tbh_monthly_hire_days ?? []} tbhHireType={hubData!.tbh_hire_type ?? []} tbhOverdue={hubData!.tbh_overdue ?? []} tbhMonthlyForecast={hubData!.tbh_monthly_forecast ?? []} tbhJobProfile={hubData!.tbh_job_profile ?? []} tbhDiscRegion={hubData!.tbh_disc_region ?? []} yearRange={hireYearRange} regionCodeMap={hubData!.region_code_map ?? {}} regionNamesAll={hubData!.region_names ?? []} selectedRegions={hireStatusRegions} />}
             {activeTab === 'Onboarding' && <OnboardingTab regionNamesAll={hubData?.region_names ?? []} selectedRegions={onboardingRegions} />}
           </>
         )}
