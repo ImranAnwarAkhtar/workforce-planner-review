@@ -21,7 +21,7 @@ async function fetchBudgetData(cycleId = null) {
   const cycleParams = safeId != null ? [safeId] : [];
   const cycleDetailFilter = safeId != null ? 'AND pe.planning_cycle_id = $1' : '';
 
-  const [kpiRes, byDiscRegionRes, byRegionTypeRes, gearingRes, pipelineRes, disciplinesRes, regionsRes, cyclesRes, requestsDetailRes] = await Promise.all([
+  const [kpiRes, byDiscRegionRes, byRegionTypeRes, gearingRes, pipelineRes, disciplinesRes, regionsRes, cyclesRes, requestsDetailRes, powerByYearRes] = await Promise.all([
     // KPIs: headcount breakdown by category
     safeQuery(`
       SELECT
@@ -103,6 +103,16 @@ async function fetchBudgetData(cycleId = null) {
         ${cycleDetailFilter}
       ORDER BY d.name NULLS LAST, r.name NULLS LAST, pe.name
     `, cycleParams),
+    // Power delivered by year: project count + total MW
+    safeQuery(`
+      SELECT year,
+             COUNT(*)::int                                     AS projects,
+             ROUND(COALESCE(SUM(power_kw), 0) / 1000.0, 1)   AS power_mw
+      FROM projects
+      WHERE is_active = TRUE AND year IS NOT NULL
+      GROUP BY year
+      ORDER BY year
+    `),
   ]);
 
   const kpi = kpiRes.rows[0] || {};
@@ -239,6 +249,12 @@ async function fetchBudgetData(cycleId = null) {
     planning_cycles: cyclesRes.rows,
     regions: regionList,
     requests_detail: requestsDetailRes.rows,
+    power_by_year: powerByYearRes.rows.map(r => ({
+      year: r.year,
+      projects: r.projects,
+      power_mw: parseFloat(r.power_mw),
+      avg_mw: r.projects > 0 ? parseFloat((parseFloat(r.power_mw) / r.projects).toFixed(1)) : 0,
+    })),
   };
 }
 

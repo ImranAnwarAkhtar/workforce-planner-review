@@ -44,6 +44,8 @@ interface RequestDetail { name: string; discipline: string; region: string; leve
 
 interface PlanningCycle { id: number; name: string; status: string; }
 
+interface PowerYear { year: number; projects: number; power_mw: number; avg_mw: number; }
+
 interface BudgetData {
   kpis: KPIs;
   headcount_by_function: HeadcountByFunction;
@@ -53,6 +55,7 @@ interface BudgetData {
   planning_cycles: PlanningCycle[];
   regions: string[];
   requests_detail: RequestDetail[];
+  power_by_year: PowerYear[];
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -136,6 +139,121 @@ function SectionHeader({ title, desc }: { title: string; desc?: string }) {
   );
 }
 
+// ── Inline SVG: stacked area chart for Power MW by year ──────────────────────
+
+function MwAreaChart({ rows }: { rows: PowerYear[] }) {
+  if (rows.length < 2) return <div style={{ fontSize: 12, color: '#8B93A3', padding: '20px 0' }}>Not enough yearly data to chart.</div>;
+  const W = 560, H = 160, PAD = { t: 20, r: 20, b: 36, l: 52 };
+  const iW = W - PAD.l - PAD.r;
+  const iH = H - PAD.t - PAD.b;
+  const maxMw = Math.max(...rows.map(r => r.power_mw), 1);
+  const yTicks = 4;
+  const xStep = iW / (rows.length - 1);
+
+  const pts = rows.map((r, i) => ({ x: PAD.l + i * xStep, y: PAD.t + iH * (1 - r.power_mw / maxMw) }));
+  const areaPath = `M${pts[0].x},${PAD.t + iH} ` +
+    pts.map(p => `L${p.x},${p.y}`).join(' ') +
+    ` L${pts[pts.length - 1].x},${PAD.t + iH} Z`;
+  const linePath = `M${pts.map(p => `${p.x},${p.y}`).join(' L')}`;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: W, display: 'block' }}>
+      <defs>
+        <linearGradient id="mwGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#411980" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#411980" stopOpacity="0.04" />
+        </linearGradient>
+      </defs>
+      {/* Y gridlines */}
+      {Array.from({ length: yTicks + 1 }, (_, i) => {
+        const y = PAD.t + (iH * i) / yTicks;
+        const val = Math.round(maxMw * (1 - i / yTicks));
+        return (
+          <g key={i}>
+            <line x1={PAD.l} x2={PAD.l + iW} y1={y} y2={y} stroke="#F0F0F0" strokeWidth="1" />
+            <text x={PAD.l - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#8B93A3">{val}</text>
+          </g>
+        );
+      })}
+      {/* Area + line */}
+      <path d={areaPath} fill="url(#mwGrad)" />
+      <path d={linePath} fill="none" stroke="#411980" strokeWidth="2" strokeLinejoin="round" />
+      {/* Data points + X labels */}
+      {pts.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r="3.5" fill="#411980" />
+          <text x={p.x} y={H - PAD.b + 14} textAnchor="middle" fontSize="10" fill="#5A657B">{rows[i].year}</text>
+          <text x={p.x} y={p.y - 7} textAnchor="middle" fontSize="9" fill="#411980" fontWeight="600">{rows[i].power_mw}</text>
+        </g>
+      ))}
+      {/* Y axis label */}
+      <text transform={`translate(12,${PAD.t + iH / 2}) rotate(-90)`} textAnchor="middle" fontSize="10" fill="#5A657B">MW</text>
+    </svg>
+  );
+}
+
+// ── Inline SVG: lipstick / dumbbell chart for a discipline's gearing ─────────
+
+function LipstickChart({ discipline, regions }: { discipline: string; regions: GearingRegion[] }) {
+  const active = regions.filter(r => r.min > 0 || r.max > 0 || r.proposed > 0);
+  if (active.length === 0) return null;
+  const BAR_H = 32, GAP = 4, LEFT = 110, RIGHT = 20, TOP = 8;
+  const H = TOP + active.length * (BAR_H + GAP);
+  const allVals = active.flatMap(r => [r.min, r.max, r.proposed, r.optimal].filter(v => v > 0));
+  const maxV = Math.max(...allVals, 1);
+  const scaleW = 340 - LEFT - RIGHT;
+  const x = (v: number) => LEFT + (v / maxV) * scaleW;
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>{discipline} — Regional Gearing</div>
+      <svg viewBox={`0 0 340 ${H + 16}`} style={{ width: '100%', maxWidth: 560, display: 'block' }}>
+        {active.map((r, i) => {
+          const y = TOP + i * (BAR_H + GAP);
+          const cy = y + BAR_H / 2;
+          const rangeX1 = x(r.min);
+          const rangeX2 = x(r.max);
+          const propX = x(r.proposed);
+          const optX  = x(r.optimal);
+          const vColor = r.variance > 0 ? '#FDB90D' : r.variance < 0 ? '#E91C24' : '#33A85C';
+          return (
+            <g key={r.region}>
+              {/* Region label */}
+              <text x={LEFT - 6} y={cy + 4} textAnchor="end" fontSize="10" fill="#374151" fontWeight="600">{r.region}</text>
+              {/* Min–Max range band */}
+              {r.max > r.min && (
+                <rect x={rangeX1} y={cy - 5} width={rangeX2 - rangeX1} height={10} fill="#E0E3E8" rx="2" />
+              )}
+              {/* Optimal marker (tick) */}
+              {r.optimal > 0 && (
+                <line x1={optX} x2={optX} y1={cy - 9} y2={cy + 9} stroke="#5A657B" strokeWidth="2" />
+              )}
+              {/* Proposed bar (lipstick) */}
+              {r.proposed > 0 && (
+                <>
+                  <rect x={LEFT} y={cy - 7} width={propX - LEFT} height={14} fill="#411980" rx="2" opacity="0.85" />
+                  <text x={propX + 4} y={cy + 4} fontSize="10" fill="#411980" fontWeight="700">{r.proposed}</text>
+                </>
+              )}
+              {/* Variance badge */}
+              <text x={LEFT - 6 - 30} y={cy + 4} textAnchor="middle" fontSize="9" fill={vColor} fontWeight="700">
+                {r.variance > 0 ? `+${r.variance}` : r.variance}
+              </text>
+            </g>
+          );
+        })}
+        {/* Legend */}
+        {[['#411980','Proposed'],['#5A657B','Optimal'],['#E0E3E8','Min–Max range']].map(([col, lbl], i) => (
+          <g key={lbl} transform={`translate(${LEFT + i * 110}, ${H + 6})`}>
+            <rect x="0" y="0" width="10" height="10" fill={col} rx="2" />
+            <text x="13" y="9" fontSize="9" fill="#5A657B">{lbl}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 // ── Budget Data Tab ───────────────────────────────────────────────────────────
 
 function BudgetDataTab({ data }: { data: BudgetData }) {
@@ -203,6 +321,55 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
           <KpiTile value={kpis.req_con_fte.toString()} label="Con→FTE Conversions" sub="Requested conversions" color="#33A85C" />
         </div>
       </div>
+
+      {/* ── Power Growth by Year ── */}
+      {data.power_by_year && data.power_by_year.length > 0 && (
+        <div style={S.section}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <SectionHeader title="Growth in Power Delivered" desc="Cumulative power capacity (MW) across active projects, by delivery year." />
+            <button style={S.exportBtn} onClick={() => downloadCSV('power_by_year.csv',
+              ['Year', 'Projects', 'Power (MW)', 'Avg MW / Project'],
+              data.power_by_year.map(r => [r.year, r.projects, r.power_mw, r.avg_mw])
+            )}>↓ Export CSV</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 20, alignItems: 'start' }}>
+            {/* Table */}
+            <div style={S.wrap}>
+              <table style={S.table}>
+                <thead>
+                  <tr>
+                    <th style={S.th}>Year</th>
+                    <th style={S.thC}>Projects</th>
+                    <th style={S.thC}>Power (MW)</th>
+                    <th style={S.thC}>Avg MW / Project</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.power_by_year.map((r, i) => (
+                    <tr key={r.year} style={{ background: i % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
+                      <td style={{ ...S.tdB, background: 'inherit' }}>{r.year}</td>
+                      <td style={{ ...S.tdC, background: 'inherit' }}>{r.projects}</td>
+                      <td style={{ ...S.tdC, background: 'inherit', fontWeight: 700, color: '#411980' }}>{r.power_mw}</td>
+                      <td style={{ ...S.tdC, background: 'inherit', color: '#5A657B' }}>{r.avg_mw}</td>
+                    </tr>
+                  ))}
+                  <tr style={S.totalR}>
+                    <td style={{ ...S.tdB, color: '#FFFFFF', background: '#2D2D2D' }}>TOTAL</td>
+                    <td style={S.tdBr}>{data.power_by_year.reduce((s, r) => s + r.projects, 0)}</td>
+                    <td style={{ ...S.tdBr, color: '#D4B8FF' }}>{data.power_by_year.reduce((s, r) => s + r.power_mw, 0).toFixed(1)}</td>
+                    <td style={S.tdBr}>—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {/* Area chart */}
+            <div style={{ background: '#F9FAFB', border: '1px solid #E0E3E8', borderRadius: 6, padding: '12px 16px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8 }}>MW Delivered by Year</div>
+              <MwAreaChart rows={data.power_by_year} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Headcount by Function ── */}
       <div style={S.section}>
@@ -372,51 +539,55 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
           ))}
         </div>
         {activeGearing && (
-          <div style={S.wrap}>
-            <table style={S.table}>
-              <thead>
-                <tr>
-                  <th style={S.th}>Region</th>
-                  <th style={S.thC}>Min</th>
-                  <th style={S.thC}>Max</th>
-                  <th style={{ ...S.thC, background: '#374151' }}>Proposed</th>
-                  <th style={S.thC}>Optimal</th>
-                  <th style={S.thC}>Variance</th>
-                  <th style={S.thC}>Var %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeGearing.regions.filter(r => r.min > 0 || r.max > 0 || r.proposed > 0).map((r, i) => (
-                  <tr key={r.region} style={{ background: i % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
-                    <td style={{ ...S.tdB, background: 'inherit' }}>{r.region}</td>
-                    <td style={{ ...S.tdC, color: '#8B93A3', background: 'inherit' }}>{r.min}</td>
-                    <td style={{ ...S.tdC, color: '#8B93A3', background: 'inherit' }}>{r.max}</td>
-                    <td style={{ ...S.tdC, fontWeight: 700, color: '#111827', background: 'inherit' }}>{r.proposed}</td>
-                    <td style={{ ...S.tdC, background: 'inherit' }}>{r.optimal}</td>
-                    <td style={{ ...S.tdC, fontWeight: 700, color: varColor(r.variance), background: 'inherit' }}>
-                      {r.variance > 0 ? `+${r.variance}` : r.variance}
+          <>
+            <div style={S.wrap}>
+              <table style={S.table}>
+                <thead>
+                  <tr>
+                    <th style={S.th}>Region</th>
+                    <th style={S.thC}>Min</th>
+                    <th style={S.thC}>Max</th>
+                    <th style={{ ...S.thC, background: '#374151' }}>Proposed</th>
+                    <th style={S.thC}>Optimal</th>
+                    <th style={S.thC}>Variance</th>
+                    <th style={S.thC}>Var %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeGearing.regions.filter(r => r.min > 0 || r.max > 0 || r.proposed > 0).map((r, i) => (
+                    <tr key={r.region} style={{ background: i % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
+                      <td style={{ ...S.tdB, background: 'inherit' }}>{r.region}</td>
+                      <td style={{ ...S.tdC, color: '#8B93A3', background: 'inherit' }}>{r.min}</td>
+                      <td style={{ ...S.tdC, color: '#8B93A3', background: 'inherit' }}>{r.max}</td>
+                      <td style={{ ...S.tdC, fontWeight: 700, color: '#111827', background: 'inherit' }}>{r.proposed}</td>
+                      <td style={{ ...S.tdC, background: 'inherit' }}>{r.optimal}</td>
+                      <td style={{ ...S.tdC, fontWeight: 700, color: varColor(r.variance), background: 'inherit' }}>
+                        {r.variance > 0 ? `+${r.variance}` : r.variance}
+                      </td>
+                      <td style={{ ...S.tdC, fontWeight: 700, color: varColor(r.variance_pct), background: 'inherit' }}>
+                        {pct(r.variance_pct)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={S.totalR}>
+                    <td style={{ ...S.tdB, color: '#FFFFFF', background: '#2D2D2D' }}>Grand Total</td>
+                    <td style={S.tdBr}>{activeGearing.totals.min}</td>
+                    <td style={S.tdBr}>{activeGearing.totals.max}</td>
+                    <td style={{ ...S.tdBr, background: '#374151' }}>{activeGearing.totals.proposed}</td>
+                    <td style={S.tdBr}>{activeGearing.totals.optimal}</td>
+                    <td style={{ ...S.tdBr, color: varColor(activeGearing.totals.variance) }}>
+                      {activeGearing.totals.variance > 0 ? `+${activeGearing.totals.variance}` : activeGearing.totals.variance}
                     </td>
-                    <td style={{ ...S.tdC, fontWeight: 700, color: varColor(r.variance_pct), background: 'inherit' }}>
-                      {pct(r.variance_pct)}
+                    <td style={{ ...S.tdBr, color: varColor(activeGearing.totals.variance_pct) }}>
+                      {pct(activeGearing.totals.variance_pct)}
                     </td>
                   </tr>
-                ))}
-                <tr style={S.totalR}>
-                  <td style={{ ...S.tdB, color: '#FFFFFF', background: '#2D2D2D' }}>Grand Total</td>
-                  <td style={S.tdBr}>{activeGearing.totals.min}</td>
-                  <td style={S.tdBr}>{activeGearing.totals.max}</td>
-                  <td style={{ ...S.tdBr, background: '#374151' }}>{activeGearing.totals.proposed}</td>
-                  <td style={S.tdBr}>{activeGearing.totals.optimal}</td>
-                  <td style={{ ...S.tdBr, color: varColor(activeGearing.totals.variance) }}>
-                    {activeGearing.totals.variance > 0 ? `+${activeGearing.totals.variance}` : activeGearing.totals.variance}
-                  </td>
-                  <td style={{ ...S.tdBr, color: varColor(activeGearing.totals.variance_pct) }}>
-                    {pct(activeGearing.totals.variance_pct)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+            {/* Lipstick chart for the selected discipline */}
+            <LipstickChart discipline={activeGearing.discipline} regions={activeGearing.regions} />
+          </>
         )}
       </div>
 
