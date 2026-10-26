@@ -40,6 +40,7 @@ const S = {
     cursor: 'pointer', whiteSpace: 'nowrap' as const,
   } as React.CSSProperties,
   card: { background: '#FFFFFF', borderRadius: 8, border: '1px solid #E5E5E5', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' } as React.CSSProperties,
+  tableScroll: { overflowX: 'auto' as const, WebkitOverflowScrolling: 'touch' as any },
   table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 12 },
   th: {
     padding: '8px 12px', textAlign: 'left' as const, fontSize: 10,
@@ -716,7 +717,8 @@ export default function People() {
             {search && <span style={{ fontSize: 12, color: '#666' }}>Try clearing the search filter</span>}
           </div>
         ) : (
-          <table style={S.table}>
+          <div style={S.tableScroll}>
+          <table style={{ ...S.table, minWidth: 1100 }}>
             <thead>
               <tr>
                 {canHardDelete && (
@@ -753,6 +755,7 @@ export default function People() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -1183,12 +1186,13 @@ function PersonRow({ person: p, onEdit, onDelete, onPermDelete, selected, onTogg
 
   return (
     <tr
-      style={{ background: selected ? '#FEF0F0' : hover ? '#FAFAFA' : 'transparent' }}
+      style={{ background: selected ? '#FEF0F0' : hover ? '#FAFAFA' : 'transparent', cursor: 'default' }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onDoubleClick={onEdit}
     >
       {onToggle && (
-        <td style={{ ...S.td, width: 44, paddingRight: 0 }}>
+        <td style={{ ...S.td, width: 44, paddingRight: 0 }} onDoubleClick={e => e.stopPropagation()}>
           <input
             type="checkbox"
             checked={!!selected}
@@ -1296,7 +1300,7 @@ function PersonRow({ person: p, onEdit, onDelete, onPermDelete, selected, onTogg
           : <span style={{ color: '#AAAAAA' }}>-</span>}
       </td>
 
-      <td style={{ ...S.td, borderBottom: S.td.borderBottom }}>
+      <td style={{ ...S.td, borderBottom: S.td.borderBottom }} onDoubleClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <button style={S.actionBtn()} onClick={onEdit}>Edit</button>
           {p.is_active && (
