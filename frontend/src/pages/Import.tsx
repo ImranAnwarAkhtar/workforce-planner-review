@@ -287,10 +287,14 @@ function parseTbhCodes(wb: XLSX.WorkBook, maps: RefMaps): ParseResult {
       ta_contact:          cell(r, 15) || null,
       candidate_name:      cell(r, 16) || null,
       estimated_hire_date: cell(r, 17) || null,
-      ta_status_comments:  cell(r, 18) || null,
-      tbh_description:     cell(r, 19) || null,
-      fp_and_a_notes:      cell(r, 20) || null,
-      _preview: { tbh_id: tbhId, hire_type: cell(r, 3), region: regionCode ?? cell(r, 4), status: cell(r, 14) },
+      ta_status_comments:      cell(r, 18) || null,
+      tbh_description:         cell(r, 19) || null,
+      fp_and_a_notes:          cell(r, 20) || null,
+      confirmed_start_date:    cell(r, 21) || null,
+      hire_source:             cell(r, 22) || null,
+      hire_source_details:     cell(r, 23) || null,
+      fp_and_a_approver_notes: cell(r, 24) || null,
+      _preview: { tbh_id: tbhId, hire_type: cell(r, 3), region: regionCode ?? cell(r, 4), status: cell(r, 14), hire_source: cell(r, 22) || null },
     });
   }
 
@@ -317,10 +321,11 @@ const PREVIEW_COLS: Record<Tab, { key: string; label: string }[]> = {
     { key: 'year',    label: 'Year' },
   ],
   tbhcodes: [
-    { key: 'tbh_id',    label: 'TBH ID' },
-    { key: 'hire_type', label: 'Hire Type' },
-    { key: 'region',    label: 'Region' },
-    { key: 'status',    label: 'Status' },
+    { key: 'tbh_id',      label: 'TBH ID' },
+    { key: 'hire_type',   label: 'Hire Type' },
+    { key: 'region',      label: 'Region' },
+    { key: 'status',      label: 'Status' },
+    { key: 'hire_source', label: 'Hire Source' },
   ],
 };
 
@@ -329,13 +334,16 @@ const PREVIEW_COLS: Record<Tab, { key: string; label: string }[]> = {
 const TEMPLATES: Record<Tab, { filename: string; headers: string[]; sample: (string | number)[] }> = {
   people: {
     filename: 'people_import_template.xlsx',
-    headers: ['Name', 'Contract Type', 'Level Code', 'Discipline', 'Region Code', 'Contracted FTE'],
-    sample:  ['Jane Smith', 'FTE', 'M', 'Design', 'APAC', 1.0],
+    headers: [
+      'Name', 'Contract Type', 'Level Code', 'Discipline', 'Region Code', 'Country Code',
+      'Contracted FTE', 'Workday JR ID', 'Job Title', 'Hiring Manager', 'System Profile',
+    ],
+    sample: ['Jane Smith', 'FTE', 'M', 'Design', 'APAC', 'AU', 1.0, '', 'Senior Engineer', 'John Manager', ''],
   },
   projects: {
     filename: 'projects_import_template.xlsx',
-    headers: ['Project Name', 'Status', 'Type', 'Weight', 'Region Code', 'Country Code', 'Metro', 'Phase Code', 'Year'],
-    sample:  ['SYD Campus 1', 'Approved', 'Retail', 1.0, 'APAC', 'AU', 'Sydney', 'CD', 2026],
+    headers: ['Project Name', 'Status', 'Type', 'Weight', 'Power (kW)', 'Region Code', 'Country Code', 'Metro', 'Phase Code', 'Year'],
+    sample:  ['SYD Campus 1', 'Approved', 'Retail', 1.0, '', 'APAC', 'AU', 'Sydney', 'CD', 2026],
   },
   tbhcodes: {
     filename: 'tbh_codes_import_template.xlsx',
@@ -344,12 +352,14 @@ const TEMPLATES: Record<Tab, { filename: string; headers: string[]; sample: (str
       'Legal Entity', 'Location Code', 'Cost Centre', 'Job Profile', 'Replaced Employee',
       'Manager Name', 'Target Hire Date', 'JR ID', 'Req Status', 'TA Contact',
       'Candidate Name', 'Est Hire Date', 'TA Comments', 'TBH Description', 'FP&A Notes',
+      'Confirmed Start Date', 'Hire Source', 'Hire Source Details', 'FP&A Approver Notes',
     ],
     sample: [
       'TBH-001', '', 2026, 'New HC', 'APAC', 'Retail',
       'Equinix Asia Pacific', 'SYD', 'CC-100', 'Senior Manager', '',
       'John Doe', '2026-07-01', '', 'Open', 'ta@equinix.com',
       '', '', '', 'Design Manager role for Sydney', '',
+      '', 'External', '', '',
     ],
   },
 };
@@ -361,11 +371,14 @@ const HINT_ROWS: Record<Tab, string[]> = {
     'Level Code: VP | S Dr | Dr | S M | M | St | Sc | Ex | Sp | In | En | Ca | Te | Cons',
     'Discipline: Construction | Design | Commercial | Commissioning | Other',
     'Region Code: APAC | AMER | AMER_MATRIX | EMEA_N | EMEA_C | EMEA_S | MEA | GLOBAL',
+    'Country Code: 2-letter ISO code e.g. AU, SG, US, GB (optional)',
+    'System Profile: Senior PMO | PMO | Workforce Planning | Finance | Regional PMO (leave blank for standard access)',
   ],
   projects: [
     '↑ Replace sample row above with your data',
     'Status: Approved | Seeded | Proposed',
     'Type: Retail | xScale | Matrix',
+    'Power (kW): numeric value in kilowatts e.g. 2500 (optional)',
     'Region Code: APAC | AMER | AMER_MATRIX | EMEA_N | EMEA_C | EMEA_S | MEA | GLOBAL',
     'Country Code: 2-letter ISO code e.g. AU, SG, US, GB',
   ],
@@ -375,6 +388,8 @@ const HINT_ROWS: Record<Tab, string[]> = {
     'Region Code: APAC | AMER | EMEA_N | EMEA_C | EMEA_S | MEA | GLOBAL',
     'Project Type: Retail | xScale | Matrix',
     'Req Status: Open | Approved | On Hold | Filled | Cancelled',
+    'Hire Source: External | Internal',
+    'Dates: YYYY-MM-DD format e.g. 2026-07-01',
   ],
 };
 
@@ -480,9 +495,9 @@ export default function Import() {
 
   const TAB_LABELS: Record<Tab, string> = { people: 'People', projects: 'Projects', tbhcodes: 'TBH Codes' };
   const TAB_DESC: Record<Tab, string> = {
-    people:   'Reads FTE and CON sheets — extracts name, contract type, level, discipline and region for each person',
-    projects: 'Reads regional sheets (APAC 26/27, AMER 26/27, etc.) — extracts project codes, type, weight, metro and status',
-    tbhcodes: 'Reads TBH_Data sheet — extracts all TBH code fields including hire type, region, job profile and status',
+    people:   'Reads FTE and CON sheets — extracts name, contract type, level, discipline, region, job title, hiring manager and system profile for each person',
+    projects: 'Reads regional sheets (APAC 26/27, AMER 26/27, etc.) — extracts project codes, type, weight, power (kW), metro and status',
+    tbhcodes: 'Reads TBH_Data sheet — extracts all TBH code fields including hire type, region, job profile, hire source, confirmed start date and status',
   };
 
   const previewCols = PREVIEW_COLS[activeTab];

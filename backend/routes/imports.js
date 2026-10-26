@@ -20,10 +20,11 @@ router.post('/people', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANN
     for (const r of records) {
       if (!r.name) continue;
       const { rows } = await client.query(
-        `INSERT INTO people (name, contract_type_id, level_id, discipline_id, contracted_fte, workday_jr_id)
-         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+        `INSERT INTO people (name, contract_type_id, level_id, discipline_id, contracted_fte, workday_jr_id, job_title, hiring_manager, system_profile)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
         [r.name, r.contract_type_id ?? null, r.level_id ?? null, r.discipline_id ?? null,
-         r.contracted_fte ?? 1.0, r.workday_jr_id ?? null]
+         r.contracted_fte ?? 1.0, r.workday_jr_id ?? null,
+         r.job_title ?? null, r.hiring_manager ?? null, r.system_profile ?? null]
       );
       const personId = rows[0].id;
       for (const rid of (r.region_ids ?? [])) {
@@ -104,10 +105,14 @@ router.post('/tbh-codes', requireAuth, requireRole(ROLES.PMO, ROLES.FINANCE), as
            (tbh_id, old_tbh, funding_year, hire_type, region_id, project_type, legal_entity,
             location_code, cost_centre, job_profile, replaced_emp_name, manager_name,
             target_hire_date, jr_id, req_status, ta_contact, candidate_name,
-            estimated_hire_date, ta_status_comments, tbh_description, fp_and_a_notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+            estimated_hire_date, ta_status_comments, tbh_description, fp_and_a_notes,
+            confirmed_start_date, hire_source, hire_source_details, fp_and_a_approver_notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
          ON CONFLICT (tbh_id) DO UPDATE SET
            funding_year = EXCLUDED.funding_year, req_status = EXCLUDED.req_status,
+           confirmed_start_date = COALESCE(EXCLUDED.confirmed_start_date, tbh_codes.confirmed_start_date),
+           hire_source = COALESCE(EXCLUDED.hire_source, tbh_codes.hire_source),
+           hire_source_details = COALESCE(EXCLUDED.hire_source_details, tbh_codes.hire_source_details),
            updated_at = NOW()
          RETURNING *`,
         [r.tbh_id, r.old_tbh ?? null, r.funding_year ?? null, r.hire_type ?? null,
@@ -116,7 +121,9 @@ router.post('/tbh-codes', requireAuth, requireRole(ROLES.PMO, ROLES.FINANCE), as
          r.replaced_emp_name ?? null, r.manager_name ?? null, r.target_hire_date ?? null,
          r.jr_id ?? null, r.req_status ?? null, r.ta_contact ?? null,
          r.candidate_name ?? null, r.estimated_hire_date ?? null,
-         r.ta_status_comments ?? null, r.tbh_description ?? null, r.fp_and_a_notes ?? null]
+         r.ta_status_comments ?? null, r.tbh_description ?? null, r.fp_and_a_notes ?? null,
+         r.confirmed_start_date ?? null, r.hire_source ?? null, r.hire_source_details ?? null,
+         r.fp_and_a_approver_notes ?? null]
       );
       inserted.push(rows[0]);
     }
@@ -161,11 +168,12 @@ router.post('/projects', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLA
       const status = ['Approved','Seeded','Proposed'].includes(r.status) ? r.status : 'Proposed';
 
       const { rows } = await client.query(
-        `INSERT INTO projects (name, type, status, weight, region_id, country_id, metro, phase_code, year)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `INSERT INTO projects (name, type, status, weight, power_kw, region_id, country_id, metro, phase_code, year)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ON CONFLICT DO NOTHING RETURNING *`,
-        [r.name, type, status, r.weight ?? 1.0, regionId, countryId,
-         r.metro ?? null, r.phase_code ?? null, r.year ?? null]
+        [r.name, type, status, r.weight ?? 1.0,
+         r.power_kw != null && r.power_kw !== '' ? parseFloat(r.power_kw) : null,
+         regionId, countryId, r.metro ?? null, r.phase_code ?? null, r.year ?? null]
       );
       if (rows[0]) inserted.push(rows[0]);
     }
