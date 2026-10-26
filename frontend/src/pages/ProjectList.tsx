@@ -434,8 +434,12 @@ export default function ProjectList() {
               ) : filtered.map((p, i) => {
                 const isSelected = selectedIds.has(p.id);
                 return (
-                  <tr key={p.id} style={{ background: isSelected ? '#FEF4F4' : i % 2 === 0 ? '#FFFFFF' : '#FAFAFA' }}>
-                    <td style={{ ...TD, padding: '7px 6px 7px 10px', width: 36 }}>
+                  <tr
+                    key={p.id}
+                    style={{ background: isSelected ? '#FEF4F4' : i % 2 === 0 ? '#FFFFFF' : '#FAFAFA', cursor: 'default' }}
+                    onDoubleClick={() => openEdit(p)}
+                  >
+                    <td style={{ ...TD, padding: '7px 6px 7px 10px', width: 36 }} onDoubleClick={e => e.stopPropagation()}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.id)}
                         style={{ cursor: 'pointer', accentColor: '#E91C24', width: 13, height: 13 }} />
                     </td>
@@ -457,7 +461,7 @@ export default function ProjectList() {
                     <td style={{ ...TD, textAlign: 'right', fontWeight: 600 }}>{Number(p.weight).toFixed(1)}</td>
                     <td style={{ ...TD, textAlign: 'right', color: p.power_kw ? '#00737A' : '#CCC', fontWeight: p.power_kw ? 600 : 400 }}>{fmtKw(p.power_kw)}</td>
                     <td style={{ ...TD, textAlign: 'right', color: p.power_kw ? '#00737A' : '#CCC', fontWeight: p.power_kw ? 600 : 400 }}>{fmtMw(p.power_kw)}</td>
-                    <td style={{ ...TD, textAlign: 'center', padding: '4px 8px' }}>
+                    <td style={{ ...TD, textAlign: 'center', padding: '4px 8px' }} onDoubleClick={e => e.stopPropagation()}>
                       <button onClick={() => openEdit(p)} title="Edit project"
                         style={{ background: 'none', border: '1px solid #D5D5D5', borderRadius: 5, padding: '3px 6px', cursor: 'pointer', color: '#5A657B', display: 'inline-flex', alignItems: 'center' }}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
