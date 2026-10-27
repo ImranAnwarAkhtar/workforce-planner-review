@@ -2521,7 +2521,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
           {startersSplit === 'source' ? (
             <>
               <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={activeStartersData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <BarChart data={activeStartersData} margin={{ top: 18, right: 8, bottom: 4, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
                   <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
@@ -2537,6 +2537,16 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
                   </Bar>
                   <Bar dataKey="Other" stackId="s" fill="#8B93A3" radius={[2,2,0,0]}>
                     <LabelList dataKey="Other" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                    <LabelList
+                      position="top"
+                      content={(props: any) => {
+                        const { x, y, width, index } = props;
+                        const e = activeStartersData[index] as any;
+                        const total = (e?.External ?? 0) + (e?.Internal ?? 0) + (e?.Conversion ?? 0) + (e?.Other ?? 0);
+                        if (!total) return null;
+                        return <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 10} textAnchor="middle" fill="#374151" fontSize={10} fontWeight={700}>{total}</text>;
+                      }}
+                    />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -2552,16 +2562,31 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
           ) : (
             <>
               <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={activeDiscData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <BarChart data={activeDiscData} margin={{ top: 18, right: 8, bottom: 4, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
                   <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
                   <Tooltip contentStyle={{ fontSize: 11 }} />
-                  {DISCIPLINES.map((disc, i) => (
-                    <Bar key={disc} dataKey={disc} stackId="d" fill={DISC_COLORS[disc]} radius={i === DISCIPLINES.length - 1 ? [2,2,0,0] : [0,0,0,0]}>
-                      <LabelList dataKey={disc} position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
-                    </Bar>
-                  ))}
+                  {DISCIPLINES.map((disc, i) => {
+                    const isTop = i === DISCIPLINES.length - 1;
+                    return (
+                      <Bar key={disc} dataKey={disc} stackId="d" fill={DISC_COLORS[disc]} radius={isTop ? [2,2,0,0] : [0,0,0,0]}>
+                        <LabelList dataKey={disc} position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                        {isTop && (
+                          <LabelList
+                            position="top"
+                            content={(props: any) => {
+                              const { x, y, width, index } = props;
+                              const e = activeDiscData[index] as any;
+                              const total = DISCIPLINES.reduce((s, d) => s + ((e?.[d] as number) ?? 0), 0);
+                              if (!total) return null;
+                              return <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 10} textAnchor="middle" fill="#374151" fontSize={10} fontWeight={700}>{total}</text>;
+                            }}
+                          />
+                        )}
+                      </Bar>
+                    );
+                  })}
                 </BarChart>
               </ResponsiveContainer>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
