@@ -503,6 +503,29 @@ useEffect(() => {
   }
 
   function openEditModal(p: Person) {
+    if (contractGroup(p) === 'request') {
+      setLockedPerson(null);
+      setModalPersonId('');
+      setModalAllocs({});
+      setAllocMode('equal');
+      setEqualCountries(new Set());
+      setModalTab('approve');
+      setReqTypeId('');
+      setReqYear('');
+      setReqDiscId('');
+      setReqLevelId('');
+      setReqLabel('');
+      setReqNotes('');
+      setReqHiringMgrId('');
+      setReqHubLeadId('');
+      setApprovePersonId(p.id);
+      setApproveTbhCode('');
+      setApproveCandidate('');
+      setApproveStartDate('');
+      setApproveNotes('');
+      setAddModal({});
+      return;
+    }
     const existing: Record<number, string> = {};
     for (const a of countryAllocs.filter(a => a.person_id === p.id)) {
       existing[a.country_id] = String(a.fte_value);
