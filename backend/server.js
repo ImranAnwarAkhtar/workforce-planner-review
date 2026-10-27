@@ -467,6 +467,16 @@ _startupMigs.push((async () => {
   }
 })());
 
+// Hire request extended fields (hiring manager, hub lead, approval details)
+_startupMigs.push(pool.query(`
+  ALTER TABLE hire_requests ADD COLUMN IF NOT EXISTS hiring_manager_id    INTEGER REFERENCES people(id) ON DELETE SET NULL;
+  ALTER TABLE hire_requests ADD COLUMN IF NOT EXISTS hub_lead_id          INTEGER REFERENCES people(id) ON DELETE SET NULL;
+  ALTER TABLE hire_requests ADD COLUMN IF NOT EXISTS tbh_code             TEXT;
+  ALTER TABLE hire_requests ADD COLUMN IF NOT EXISTS candidate_name       TEXT;
+  ALTER TABLE hire_requests ADD COLUMN IF NOT EXISTS confirmed_start_date DATE;
+  ALTER TABLE hire_requests ADD COLUMN IF NOT EXISTS position_notes       TEXT;
+`).catch(err => logger.error('Hire requests extended fields migration failed', { error: err.message })));
+
 // Correct emerging-market flags and add missing countries (Chile, Oman)
 _startupMigs.push((async () => {
   try {

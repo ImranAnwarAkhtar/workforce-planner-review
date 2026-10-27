@@ -542,6 +542,10 @@ export interface HireRequest {
   country_name: string | null;
   project_name: string | null;
   submitted_by_name: string | null;
+  hiring_manager_id: number | null;
+  hiring_manager_name: string | null;
+  hub_lead_id: number | null;
+  hub_lead_name: string | null;
 }
 
 export interface HireRequestDetail extends HireRequest {
@@ -562,6 +566,17 @@ export interface HireRequestDetail extends HireRequest {
   rejected_by_name: string | null;
   rejected_at: string | null;
   rejection_reason: string | null;
+  tbh_code: string | null;
+  candidate_name: string | null;
+  confirmed_start_date: string | null;
+  position_notes: string | null;
+}
+
+export interface ApproveHireRequestBody {
+  tbh_code?: string | null;
+  candidate_name?: string | null;
+  confirmed_start_date?: string | null;
+  position_notes?: string | null;
 }
 
 export interface HireRequestsQuery {
@@ -582,6 +597,8 @@ export interface CreateHireRequestBody {
   country_id?: number | null;
   project_id?: number | null;
   justification?: string | null;
+  hiring_manager_id?: number | null;
+  hub_lead_id?: number | null;
 }
 
 export const hireRequestsApi = {
@@ -594,8 +611,8 @@ export const hireRequestsApi = {
   create: (body: CreateHireRequestBody) =>
     client.post<ItemResponse<HireRequestDetail>>('/hire-requests', body).then((r) => r.data.data),
 
-  approve: (id: number) =>
-    client.post<ItemResponse<HireRequestDetail>>(`/hire-requests/${id}/approve`).then((r) => r.data.data),
+  approve: (id: number, body?: ApproveHireRequestBody) =>
+    client.post<ItemResponse<HireRequestDetail>>(`/hire-requests/${id}/approve`, body ?? {}).then((r) => r.data.data),
 
   reject: (id: number, rejection_reason?: string) =>
     client.post<ItemResponse<HireRequestDetail>>(`/hire-requests/${id}/reject`, { rejection_reason }).then((r) => r.data.data),

@@ -29,7 +29,9 @@ router.get('/', requireAuth, async (req, res) => {
     `SELECT hr.id, hr.request_type, hr.status, hr.stage, hr.justification, hr.created_at,
             d.name AS discipline_name, l.level_name, ct.code AS contract_type_code,
             r.name AS region_name, c.name AS country_name, p.name AS project_name,
-            u.name AS submitted_by_name
+            u.name AS submitted_by_name,
+            hm.name AS hiring_manager_name, hr.hiring_manager_id,
+            hl.name AS hub_lead_name,       hr.hub_lead_id
      FROM hire_requests hr
      LEFT JOIN disciplines d ON hr.discipline_id = d.id
      LEFT JOIN levels l ON hr.level_id = l.id
@@ -38,6 +40,8 @@ router.get('/', requireAuth, async (req, res) => {
      LEFT JOIN countries c ON hr.country_id = c.id
      LEFT JOIN projects p ON hr.project_id = p.id
      LEFT JOIN users u ON hr.submitted_by = u.id
+     LEFT JOIN people hm ON hr.hiring_manager_id = hm.id
+     LEFT JOIN people hl ON hr.hub_lead_id = hl.id
      ${where}
      ORDER BY hr.created_at DESC
      LIMIT $${i} OFFSET $${i + 1}`,
@@ -53,7 +57,9 @@ router.get('/:id', requireAuth, async (req, res) => {
             r.name AS region_name, c.name AS country_name, p.name AS project_name,
             su.name AS submitted_by_name,
             s2u.name AS stage2_user_name, s3u.name AS stage3_user_name, s4u.name AS stage4_user_name,
-            ru.name AS rejected_by_name
+            ru.name AS rejected_by_name,
+            hm.name AS hiring_manager_name,
+            hl.name AS hub_lead_name
      FROM hire_requests hr
      LEFT JOIN disciplines d ON hr.discipline_id = d.id
      LEFT JOIN levels l ON hr.level_id = l.id
@@ -66,6 +72,8 @@ router.get('/:id', requireAuth, async (req, res) => {
      LEFT JOIN users s3u ON hr.stage3_user_id = s3u.id
      LEFT JOIN users s4u ON hr.stage4_user_id = s4u.id
      LEFT JOIN users ru ON hr.rejected_by = ru.id
+     LEFT JOIN people hm ON hr.hiring_manager_id = hm.id
+     LEFT JOIN people hl ON hr.hub_lead_id = hl.id
      WHERE hr.id = $1`,
     [req.params.id]
   );
@@ -121,15 +129,16 @@ async function enrichHireRequestContext(hrId, fallbackUser = {}) {
 }
 
 router.post('/', requireAuth, requireRole(...ALL_ROLES), async (req, res) => {
-  const { request_type, discipline_id, level_id, contract_type_id, region_id, country_id, project_id, justification } = req.body;
+  const { request_type, discipline_id, level_id, contract_type_id, region_id, country_id, project_id, justification, hiring_manager_id, hub_lead_id } = req.body;
   if (!request_type) return res.status(400).json({ error: 'request_type is required' });
 
   const { rows } = await pool.query(
     `INSERT INTO hire_requests
-       (request_type, discipline_id, level_id, contract_type_id, region_id, country_id, project_id, justification, submitted_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+       (request_type, discipline_id, level_id, contract_type_id, region_id, country_id, project_id, justification, submitted_by, hiring_manager_id, hub_lead_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
     [request_type, discipline_id ?? null, level_id ?? null, contract_type_id ?? null,
-     region_id ?? null, country_id ?? null, project_id ?? null, justification ?? null, req.user.id]
+     region_id ?? null, country_id ?? null, project_id ?? null, justification ?? null, req.user.id,
+     hiring_manager_id ?? null, hub_lead_id ?? null]
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'hire_request', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'hire_requests', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
@@ -156,14 +165,16 @@ router.post('/:id/approve', requireAuth, async (req, res, next) => {
   const userCol = `stage${hr.stage + 1}_user_id`;
   const timeCol = `stage${hr.stage + 1}_approved_at`;
 
+  const { tbh_code, candidate_name, confirmed_start_date, position_notes } = req.body || {};
+
   let updateSql;
   if (isFullyApproved) {
-    updateSql = `UPDATE hire_requests SET stage = $1, status = 'Approved', ${userCol} = $2, ${timeCol} = NOW() WHERE id = $3 RETURNING *`;
+    updateSql = `UPDATE hire_requests SET stage = $1, status = 'Approved', ${userCol} = $2, ${timeCol} = NOW(), tbh_code = $4, candidate_name = $5, confirmed_start_date = $6, position_notes = $7 WHERE id = $3 RETURNING *`;
   } else {
-    updateSql = `UPDATE hire_requests SET stage = $1, ${userCol} = $2, ${timeCol} = NOW() WHERE id = $3 RETURNING *`;
+    updateSql = `UPDATE hire_requests SET stage = $1, ${userCol} = $2, ${timeCol} = NOW(), tbh_code = $4, candidate_name = $5, confirmed_start_date = $6, position_notes = $7 WHERE id = $3 RETURNING *`;
   }
 
-  const { rows } = await pool.query(updateSql, [nextStage, req.user.id, req.params.id]);
+  const { rows } = await pool.query(updateSql, [nextStage, req.user.id, req.params.id, tbh_code ?? null, candidate_name ?? null, confirmed_start_date || null, position_notes ?? null]);
   await req.auditLog({ actionType: 'APPROVE', resourceType: 'hire_request', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'APPROVE', tableName: 'hire_requests', recordId: rows[0].id, newValues: { stage: rows[0].stage, status: rows[0].status }, ipAddress: req.ip });
   const eventType = isFullyApproved ? 'hire_request_final_approved' : 'hire_request_approved';

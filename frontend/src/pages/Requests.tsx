@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
-  hireRequestsApi, refDataApi,
-  type HireRequest, type Discipline, type Level, type ContractType, type Region, type Country,
-  type CreateHireRequestBody,
+  hireRequestsApi, refDataApi, peopleApi,
+  type HireRequest, type Person, type Discipline, type Level, type ContractType, type Region, type Country,
+  type CreateHireRequestBody, type ApproveHireRequestBody,
 } from '../services/api';
 
 // ---------------------------------------------------------------------------
@@ -147,10 +147,12 @@ interface FormState {
   request_type: string; discipline_id: string; level_id: string;
   contract_type_id: string; region_id: string; country_id: string;
   project_id: string; justification: string;
+  hiring_manager_id: string; hub_lead_id: string;
 }
 const emptyForm: FormState = {
   request_type: 'New Hire', discipline_id: '', level_id: '', contract_type_id: '',
   region_id: '', country_id: '', project_id: '', justification: '',
+  hiring_manager_id: '', hub_lead_id: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -178,6 +180,12 @@ export default function HireRequests() {
   const [rejecting, setRejecting]       = useState(false);
 
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  const [people, setPeople] = useState<Person[]>([]);
+  const [modalTab, setModalTab] = useState<'request' | 'approval'>('request');
+  const [approveTarget, setApproveTarget] = useState<HireRequest | null>(null);
+  const [approvalForm, setApprovalForm] = useState({ tbh_code: '', candidate_name: '', confirmed_start_date: '', position_notes: '' });
+  const [approving, setApproving] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -207,6 +215,14 @@ export default function HireRequests() {
     [form.region_id, countries]
   );
 
+  useEffect(() => {
+    if (!modalOpen) return;
+    const params: { limit: number; is_active: 'true'; discipline_id?: number; region_id?: number } = { limit: 500, is_active: 'true' };
+    if (form.discipline_id) params.discipline_id = parseInt(form.discipline_id, 10);
+    if (form.region_id)     params.region_id     = parseInt(form.region_id, 10);
+    peopleApi.list(params).then(setPeople).catch(() => {});
+  }, [modalOpen, form.discipline_id, form.region_id]);
+
   function setField(k: keyof FormState, v: string) {
     setForm(f => ({ ...f, [k]: v, ...(k === 'region_id' ? { country_id: '' } : {}) }));
   }
@@ -216,24 +232,50 @@ export default function HireRequests() {
     setSaving(true);
     try {
       const body: CreateHireRequestBody = {
-        request_type:     form.request_type,
-        discipline_id:    form.discipline_id    ? parseInt(form.discipline_id, 10)    : null,
-        level_id:         form.level_id         ? parseInt(form.level_id, 10)         : null,
-        contract_type_id: form.contract_type_id ? parseInt(form.contract_type_id, 10) : null,
-        region_id:        form.region_id        ? parseInt(form.region_id, 10)        : null,
-        country_id:       form.country_id       ? parseInt(form.country_id, 10)       : null,
-        justification:    form.justification || null,
+        request_type:      form.request_type,
+        discipline_id:     form.discipline_id     ? parseInt(form.discipline_id, 10)     : null,
+        level_id:          form.level_id          ? parseInt(form.level_id, 10)          : null,
+        contract_type_id:  form.contract_type_id  ? parseInt(form.contract_type_id, 10)  : null,
+        region_id:         form.region_id         ? parseInt(form.region_id, 10)         : null,
+        country_id:        form.country_id        ? parseInt(form.country_id, 10)        : null,
+        justification:     form.justification     || null,
+        hiring_manager_id: form.hiring_manager_id ? parseInt(form.hiring_manager_id, 10) : null,
+        hub_lead_id:       form.hub_lead_id       ? parseInt(form.hub_lead_id, 10)       : null,
       };
       await hireRequestsApi.create(body);
-      setModalOpen(false);
+      closeModal();
       setForm(emptyForm);
       loadRequests();
     } finally { setSaving(false); }
   }
 
-  async function handleApprove(id: number) {
-    await hireRequestsApi.approve(id).catch(() => {});
-    loadRequests();
+  function openApprovalModal(r: HireRequest) {
+    setApproveTarget(r);
+    setApprovalForm({ tbh_code: '', candidate_name: '', confirmed_start_date: '', position_notes: '' });
+    setModalTab('approval');
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setApproveTarget(null);
+    setModalTab('request');
+  }
+
+  async function handleApproveWithDetails() {
+    if (!approveTarget) return;
+    setApproving(true);
+    try {
+      const body: ApproveHireRequestBody = {
+        tbh_code:             approvalForm.tbh_code             || null,
+        candidate_name:       approvalForm.candidate_name       || null,
+        confirmed_start_date: approvalForm.confirmed_start_date || null,
+        position_notes:       approvalForm.position_notes       || null,
+      };
+      await hireRequestsApi.approve(approveTarget.id, body);
+      closeModal();
+      loadRequests();
+    } finally { setApproving(false); }
   }
 
   async function handleReject() {
@@ -270,7 +312,7 @@ export default function HireRequests() {
       <div style={{ flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFFFFF', borderBottom: '3px solid #E91C24', padding: '8px 16px' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1 }}>Hire Requests</div>
-          <button style={{ ...BTN_PRIMARY, padding: '4px 10px', fontSize: 11, borderRadius: 4 }} onClick={() => { setForm(emptyForm); setModalOpen(true); }}>
+          <button style={{ ...BTN_PRIMARY, padding: '4px 10px', fontSize: 11, borderRadius: 4 }} onClick={() => { setForm(emptyForm); setModalTab('request'); setApproveTarget(null); setModalOpen(true); }}>
             + New Request
           </button>
         </div>
@@ -343,12 +385,14 @@ export default function HireRequests() {
 
                         {/* Key details chips */}
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                          {r.discipline_name && <Chip label="Discipline" value={r.discipline_name} />}
-                          {r.level_name      && <Chip label="Level"      value={r.level_name} />}
-                          {r.contract_type_code && <Chip label="Contract" value={r.contract_type_code} />}
-                          {r.region_name     && <Chip label="Region"     value={r.region_name} />}
-                          {r.country_name    && <Chip label="Country"    value={r.country_name} />}
-                          {r.project_name    && <Chip label="Project"    value={r.project_name} />}
+                          {r.discipline_name     && <Chip label="Discipline"   value={r.discipline_name} />}
+                          {r.level_name          && <Chip label="Level"        value={r.level_name} />}
+                          {r.contract_type_code  && <Chip label="Contract"     value={r.contract_type_code} />}
+                          {r.region_name         && <Chip label="Region"       value={r.region_name} />}
+                          {r.country_name        && <Chip label="Country"      value={r.country_name} />}
+                          {r.project_name        && <Chip label="Project"      value={r.project_name} />}
+                          {r.hiring_manager_name && <Chip label="Hiring Mgr"  value={r.hiring_manager_name} />}
+                          {r.hub_lead_name       && <Chip label="Hub Lead"     value={r.hub_lead_name} />}
                         </div>
 
                         {/* Stage progress */}
@@ -368,7 +412,7 @@ export default function HireRequests() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, alignItems: 'flex-end' }}>
                         {r.status === 'Pending' && (
                           <>
-                            <button onClick={() => handleApprove(r.id)} style={{
+                            <button onClick={() => openApprovalModal(r)} style={{
                               padding: '5px 12px', background: '#EBF7EF', color: '#33A85C',
                               border: '1px solid #A8DDB5', borderRadius: 4, fontSize: 12,
                               fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
@@ -416,78 +460,183 @@ export default function HireRequests() {
         )}
       </div>
 
-      {/* ── New Request modal ── */}
+      {/* ── Request / Approval modal ── */}
       {modalOpen && (
-        <Modal title="Submit Hire Request" onClose={() => setModalOpen(false)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label style={LABEL}>Request Type *</label>
-              <select style={SELECT} value={form.request_type} onChange={e => setField('request_type', e.target.value)}>
-                {REQUEST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={LABEL}>Level</label>
-                <select style={SELECT} value={form.level_id} onChange={e => setField('level_id', e.target.value)}>
-                  <option value="">— Any —</option>
-                  {levels.map(l => <option key={l.id} value={l.id}>{l.level_name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={LABEL}>Discipline</label>
-                <select style={SELECT} value={form.discipline_id} onChange={e => setField('discipline_id', e.target.value)}>
-                  <option value="">— Any —</option>
-                  {disciplines.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={LABEL}>Contract Type</label>
-                <select style={SELECT} value={form.contract_type_id} onChange={e => setField('contract_type_id', e.target.value)}>
-                  <option value="">— Any —</option>
-                  {contractTypes.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={LABEL}>Region</label>
-                <select style={SELECT} value={form.region_id} onChange={e => setField('region_id', e.target.value)}>
-                  <option value="">— Any —</option>
-                  {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {form.region_id && (
-              <div>
-                <label style={LABEL}>Country</label>
-                <select style={SELECT} value={form.country_id} onChange={e => setField('country_id', e.target.value)}>
-                  <option value="">— Any —</option>
-                  {filteredCountries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-            )}
-
-            <div>
-              <label style={LABEL}>Justification / Business Case</label>
-              <textarea
-                style={{ ...INPUT, height: 80, resize: 'vertical' as const, fontFamily: 'inherit' }}
-                value={form.justification}
-                onChange={e => setField('justification', e.target.value)}
-                placeholder="Why is this hire needed? What project / workload does it support?"
-              />
-            </div>
+        <Modal
+          title={approveTarget ? `Request #${approveTarget.id} — ${approveTarget.request_type}` : 'Submit Hire Request'}
+          onClose={closeModal}
+        >
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #E5E5E5', marginBottom: 20, marginTop: -4 }}>
+            {(['request', 'approval'] as const).map(tab => {
+              const label = tab === 'request' ? 'Request' : 'Approval';
+              const disabled = tab === 'approval' && !approveTarget;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => { if (!disabled) setModalTab(tab); }}
+                  style={{
+                    padding: '8px 16px', background: 'transparent', border: 'none',
+                    borderBottom: modalTab === tab ? '2px solid #E91C24' : '2px solid transparent',
+                    color: modalTab === tab ? '#111111' : disabled ? '#CCCCCC' : '#888888',
+                    fontSize: 13, cursor: disabled ? 'default' : 'pointer',
+                    fontWeight: modalTab === tab ? 700 : 400, marginBottom: -1,
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22, paddingTop: 18, borderTop: '1px solid #EEEEEE' }}>
-            <button style={BTN_SECONDARY} onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button>
-            <button style={BTN_PRIMARY} onClick={handleSubmit} disabled={saving}>
-              {saving ? 'Submitting…' : 'Submit Request'}
-            </button>
-          </div>
+          {modalTab === 'request' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={LABEL}>Request Type *</label>
+                <select style={SELECT} value={form.request_type} onChange={e => setField('request_type', e.target.value)}>
+                  {REQUEST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={LABEL}>Level</label>
+                  <select style={SELECT} value={form.level_id} onChange={e => setField('level_id', e.target.value)}>
+                    <option value="">— Any —</option>
+                    {levels.map(l => <option key={l.id} value={l.id}>{l.level_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={LABEL}>Discipline</label>
+                  <select style={SELECT} value={form.discipline_id} onChange={e => setField('discipline_id', e.target.value)}>
+                    <option value="">— Any —</option>
+                    {disciplines.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={LABEL}>Contract Type</label>
+                  <select style={SELECT} value={form.contract_type_id} onChange={e => setField('contract_type_id', e.target.value)}>
+                    <option value="">— Any —</option>
+                    {contractTypes.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={LABEL}>Region</label>
+                  <select style={SELECT} value={form.region_id} onChange={e => setField('region_id', e.target.value)}>
+                    <option value="">— Any —</option>
+                    {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {form.region_id && (
+                <div>
+                  <label style={LABEL}>Country</label>
+                  <select style={SELECT} value={form.country_id} onChange={e => setField('country_id', e.target.value)}>
+                    <option value="">— Any —</option>
+                    {filteredCountries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={LABEL}>Hiring Manager</label>
+                  <select style={SELECT} value={form.hiring_manager_id} onChange={e => setField('hiring_manager_id', e.target.value)}>
+                    <option value="">— Select —</option>
+                    {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  {(form.region_id || form.discipline_id) && (
+                    <div style={{ fontSize: 10, color: '#999999', marginTop: 3 }}>
+                      Filtered by selected {[form.region_id && 'region', form.discipline_id && 'discipline'].filter(Boolean).join(' + ')}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label style={LABEL}>Hub Lead</label>
+                  <select style={SELECT} value={form.hub_lead_id} onChange={e => setField('hub_lead_id', e.target.value)}>
+                    <option value="">— Select —</option>
+                    {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={LABEL}>Justification / Business Case</label>
+                <textarea
+                  style={{ ...INPUT, height: 80, resize: 'vertical' as const, fontFamily: 'inherit' }}
+                  value={form.justification}
+                  onChange={e => setField('justification', e.target.value)}
+                  placeholder="Why is this hire needed? What project / workload does it support?"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8, paddingTop: 18, borderTop: '1px solid #EEEEEE' }}>
+                <button style={BTN_SECONDARY} onClick={closeModal} disabled={saving}>Cancel</button>
+                <button style={BTN_PRIMARY} onClick={handleSubmit} disabled={saving}>
+                  {saving ? 'Submitting…' : 'Submit Request'}
+                </button>
+              </div>
+            </div>
+          ) : !approveTarget ? (
+            <div style={{ textAlign: 'center', padding: '36px 0', color: '#AAAAAA', fontSize: 13 }}>
+              Use the ✓ Approve button on a pending request to open this tab.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Request summary */}
+              <div style={{ background: '#F8F9FB', borderRadius: 6, padding: '12px 14px', border: '1px solid #E5E5E5' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#888888', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Request Summary</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <RequestTypeBadge type={approveTarget.request_type} />
+                  {approveTarget.discipline_name  && <Chip label="Discipline"   value={approveTarget.discipline_name} />}
+                  {approveTarget.level_name       && <Chip label="Level"        value={approveTarget.level_name} />}
+                  {approveTarget.region_name      && <Chip label="Region"       value={approveTarget.region_name} />}
+                  {approveTarget.hiring_manager_name && <Chip label="Hiring Mgr" value={approveTarget.hiring_manager_name} />}
+                  {approveTarget.hub_lead_name    && <Chip label="Hub Lead"     value={approveTarget.hub_lead_name} />}
+                </div>
+                <StageProgress stage={approveTarget.stage} status={approveTarget.status} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={LABEL}>TBH Code</label>
+                  <input style={INPUT} value={approvalForm.tbh_code} onChange={e => setApprovalForm(f => ({ ...f, tbh_code: e.target.value }))} placeholder="e.g. TBH-2026-001" />
+                </div>
+                <div>
+                  <label style={LABEL}>Confirmed Start Date</label>
+                  <input style={{ ...INPUT, cursor: 'pointer' }} type="date" value={approvalForm.confirmed_start_date} onChange={e => setApprovalForm(f => ({ ...f, confirmed_start_date: e.target.value }))} />
+                </div>
+              </div>
+
+              <div>
+                <label style={LABEL}>Candidate Name</label>
+                <input style={INPUT} value={approvalForm.candidate_name} onChange={e => setApprovalForm(f => ({ ...f, candidate_name: e.target.value }))} placeholder="Name of the selected candidate" />
+              </div>
+
+              <div>
+                <label style={LABEL}>Position Notes</label>
+                <textarea style={{ ...INPUT, height: 72, resize: 'vertical' as const, fontFamily: 'inherit' }} value={approvalForm.position_notes} onChange={e => setApprovalForm(f => ({ ...f, position_notes: e.target.value }))} placeholder="Any additional notes about this position…" />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8, paddingTop: 18, borderTop: '1px solid #EEEEEE' }}>
+                <button style={BTN_SECONDARY} onClick={closeModal} disabled={approving}>Cancel</button>
+                <button
+                  onClick={() => { setRejectTarget(approveTarget); setRejectReason(''); closeModal(); }}
+                  style={{ padding: '8px 18px', background: '#FEF3F2', color: '#AD050C', border: '1px solid #FBBDBA', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                  disabled={approving}
+                >
+                  ✕ Reject
+                </button>
+                <button style={BTN_PRIMARY} onClick={handleApproveWithDetails} disabled={approving}>
+                  {approving ? 'Approving…' : `✓ Approve Stage ${approveTarget.stage}`}
+                </button>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
 
