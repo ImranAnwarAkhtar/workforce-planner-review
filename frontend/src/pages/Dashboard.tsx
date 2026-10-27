@@ -2445,9 +2445,11 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   const discCounts = Object.fromEntries(DISCIPLINES.map(d => [d, starters.filter(r => classifyDisc(r) === d).length]));
 
   // Region split
-  const REGION_PALETTE = ['#E91C24','#086AE3','#33A85C','#FDB90D','#00737A','#411980','#841A5B','#E87B00','#0891B2','#6B7280'];
+  const REGION_GRAD = ['#E91C24','#D4193B','#BF1852','#A61B49','#8E1A5A','#841A5B','#6E1A67','#631A6E','#4E1878','#411980'];
   const regionList = Array.from(new Set(starters.map(r => r.region_name ?? 'Unknown'))).sort();
-  const REGION_COLORS = Object.fromEntries(regionList.map((r, i) => [r, REGION_PALETTE[i % REGION_PALETTE.length]]));
+  const REGION_COLORS = Object.fromEntries(
+    regionList.map((r, i) => [r, REGION_GRAD[Math.round(i * (REGION_GRAD.length - 1) / Math.max(regionList.length - 1, 1))]])
+  );
   const monthlyRegionData = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
