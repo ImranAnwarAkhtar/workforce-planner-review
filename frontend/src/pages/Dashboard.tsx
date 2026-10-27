@@ -2325,8 +2325,8 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   const [rows, setRows] = useState<TbhCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [startersView, setStartersView] = useState<'month' | 'quarter'>('month');
-  const [startersSplit, setStartersSplit] = useState<'source' | 'discipline'>('source');
-  const [taCardSplit, setTaCardSplit] = useState<'source' | 'discipline'>('source');
+  const [startersSplit, setStartersSplit] = useState<'source' | 'discipline' | 'region'>('source');
+  const [taCardSplit, setTaCardSplit] = useState<'source' | 'discipline' | 'region'>('source');
 
   useEffect(() => {
     tbhCodesApi.list({ limit: 500 }).then(data => { setRows(data); setLoading(false); }).catch(() => setLoading(false));
@@ -2444,6 +2444,39 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   const activeDiscData = startersView === 'month' ? monthlyDiscData : quarterlyDiscData;
   const discCounts = Object.fromEntries(DISCIPLINES.map(d => [d, starters.filter(r => classifyDisc(r) === d).length]));
 
+  // Region split
+  const REGION_PALETTE = ['#E91C24','#086AE3','#33A85C','#FDB90D','#00737A','#411980','#841A5B','#E87B00','#0891B2','#6B7280'];
+  const regionList = Array.from(new Set(starters.map(r => r.region_name ?? 'Unknown'))).sort();
+  const REGION_COLORS = Object.fromEntries(regionList.map((r, i) => [r, REGION_PALETTE[i % REGION_PALETTE.length]]));
+  const monthlyRegionData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleString('en-GB', { month: 'short', year: '2-digit' });
+    const bucket = starters.filter(r => r.confirmed_start_date!.startsWith(key));
+    const entry: Record<string, string | number> = { month: label };
+    for (const region of regionList) entry[region] = bucket.filter(r => (r.region_name ?? 'Unknown') === region).length;
+    return entry;
+  });
+  const quarterlyRegionData = (() => {
+    const currentQtr = Math.floor(today.getMonth() / 3);
+    return Array.from({ length: 5 }, (_, i) => {
+      const qtrIdx = (currentQtr + i) % 4;
+      const yearOffset = Math.floor((currentQtr + i) / 4);
+      const yr = today.getFullYear() + yearOffset;
+      const startMonth = qtrIdx * 3;
+      const months = [0, 1, 2].map(o => {
+        const d2 = new Date(yr, startMonth + o, 1);
+        return `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, '0')}`;
+      });
+      const bucket = starters.filter(r => months.some(m => r.confirmed_start_date!.startsWith(m)));
+      const entry: Record<string, string | number> = { month: `Q${qtrIdx + 1} '${String(yr).slice(2)}` };
+      for (const region of regionList) entry[region] = bucket.filter(r => (r.region_name ?? 'Unknown') === region).length;
+      return entry;
+    });
+  })();
+  const activeRegionData = startersView === 'month' ? monthlyRegionData : quarterlyRegionData;
+  const regionCounts = Object.fromEntries(regionList.map(r => [r, starters.filter(s => (s.region_name ?? 'Unknown') === r).length]));
+
   // Table sorted: upcoming starters (lowest days remaining) first, then past starters (most recent first)
   const tableRows = [...starters].sort((a, b) => {
     const da = daysUntil(a.confirmed_start_date!);
@@ -2499,7 +2532,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
             <div style={sL}>Confirmed Starters by {startersView === 'month' ? 'Month' : 'Quarter'}</div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
-                {(['source', 'discipline'] as const).map(v => (
+                {(['source', 'discipline', 'region'] as const).map(v => (
                   <button key={v} onClick={() => setStartersSplit(v)} style={{
                     padding: '2px 9px', borderRadius: 4, border: 'none', cursor: 'pointer',
                     fontSize: 10, fontWeight: 700,
@@ -2508,7 +2541,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
                     boxShadow: startersSplit === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
                     transition: 'all 0.15s',
                   }}>
-                    {v === 'source' ? 'Source' : 'Discipline'}
+                    {v === 'source' ? 'Source' : v === 'discipline' ? 'Discipline' : 'Region'}
                   </button>
                 ))}
               </div>
@@ -2516,7 +2549,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
             </div>
           </div>
           <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>
-            {startersView === 'month' ? 'Next 6 months' : 'Current + next 4 quarters'} · by hire {startersSplit === 'source' ? 'source & type' : 'discipline'}
+            {startersView === 'month' ? 'Next 6 months' : 'Current + next 4 quarters'} · by hire {startersSplit === 'source' ? 'source & type' : startersSplit === 'discipline' ? 'discipline' : 'region'}
           </div>
           {startersSplit === 'source' ? (
             <>
@@ -2559,7 +2592,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
                 ))}
               </div>
             </>
-          ) : (
+          ) : startersSplit === 'discipline' ? (
             <>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={activeDiscData} margin={{ top: 18, right: 8, bottom: 4, left: 0 }}>
@@ -2598,6 +2631,45 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
                 ))}
               </div>
             </>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={activeRegionData} margin={{ top: 18, right: 8, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
+                  <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
+                  <Tooltip contentStyle={{ fontSize: 11 }} />
+                  {regionList.map((region, i) => {
+                    const isTop = i === regionList.length - 1;
+                    return (
+                      <Bar key={region} dataKey={region} stackId="r" fill={REGION_COLORS[region]} radius={isTop ? [2,2,0,0] : [0,0,0,0]}>
+                        <LabelList dataKey={region} position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                        {isTop && (
+                          <LabelList
+                            position="top"
+                            content={(props: any) => {
+                              const { x, y, width, index } = props;
+                              const e = activeRegionData[index] as any;
+                              const total = regionList.reduce((s, r) => s + ((e?.[r] as number) ?? 0), 0);
+                              if (!total) return null;
+                              return <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 10} textAnchor="middle" fill="#374151" fontSize={10} fontWeight={700}>{total}</text>;
+                            }}
+                          />
+                        )}
+                      </Bar>
+                    );
+                  })}
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+                {regionList.map(region => (
+                  <div key={region} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#555' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: REGION_COLORS[region], display: 'inline-block' }} />
+                    {region}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
 
@@ -2606,7 +2678,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={sL}>Talent Acquired</div>
             <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
-              {(['source', 'discipline'] as const).map(v => (
+              {(['source', 'discipline', 'region'] as const).map(v => (
                 <button key={v} onClick={() => setTaCardSplit(v)} style={{
                   padding: '2px 7px', borderRadius: 4, border: 'none', cursor: 'pointer',
                   fontSize: 9, fontWeight: 700,
@@ -2615,7 +2687,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
                   boxShadow: taCardSplit === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
                   transition: 'all 0.15s',
                 }}>
-                  {v === 'source' ? 'Source' : 'Discipline'}
+                  {v === 'source' ? 'Source' : v === 'discipline' ? 'Discipline' : 'Region'}
                 </button>
               ))}
             </div>
@@ -2638,7 +2710,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
                 </div>
               );
             })
-          ) : (
+          ) : taCardSplit === 'discipline' ? (
             DISCIPLINES.map(disc => {
               const cnt = discCounts[disc] ?? 0;
               const pct = starters.length > 0 ? Math.round((cnt / starters.length) * 100) : 0;
@@ -2647,6 +2719,26 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
                 <div key={disc}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
                     <span style={{ color: '#374151', fontWeight: 600 }}>{disc}</span>
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                      <span style={{ color: col, fontWeight: 700 }}>{cnt}</span>
+                      <span style={{ color: col, fontWeight: 500, fontSize: 9, opacity: 0.85 }}>{pct}%</span>
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3 }}>
+                    <div style={{ height: '100%', borderRadius: 3, background: col, width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            regionList.map(region => {
+              const cnt = regionCounts[region] ?? 0;
+              const pct = starters.length > 0 ? Math.round((cnt / starters.length) * 100) : 0;
+              const col = REGION_COLORS[region];
+              return (
+                <div key={region}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
+                    <span style={{ color: '#374151', fontWeight: 600 }}>{region}</span>
                     <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
                       <span style={{ color: col, fontWeight: 700 }}>{cnt}</span>
                       <span style={{ color: col, fontWeight: 500, fontSize: 9, opacity: 0.85 }}>{pct}%</span>
