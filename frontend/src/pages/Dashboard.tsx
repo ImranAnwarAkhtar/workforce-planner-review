@@ -2395,17 +2395,23 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
         {/* Talent acquisition split */}
         <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={sL}>Talent Acquisition</div>
-          {([['External', externalCount, '#086AE3'], ['Internal', internalCount, '#411980'], ['Conversion', conversionCount, '#841A5B']] as [string, number, string][]).map(([lbl, cnt, col]) => (
-            <div key={lbl}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 3 }}>
-                <span style={{ color: '#374151', fontWeight: 600 }}>{lbl}</span>
-                <span style={{ color: col, fontWeight: 700 }}>{cnt}</span>
+          {([['External', externalCount, '#086AE3'], ['Internal', internalCount, '#411980'], ['Conversion', conversionCount, '#841A5B']] as [string, number, string][]).map(([lbl, cnt, col]) => {
+            const pct = starters.length > 0 ? Math.round((cnt / starters.length) * 100) : 0;
+            return (
+              <div key={lbl}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
+                  <span style={{ color: '#374151', fontWeight: 600 }}>{lbl}</span>
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                    <span style={{ color: col, fontWeight: 700 }}>{cnt}</span>
+                    <span style={{ color: col, fontWeight: 500, fontSize: 9, opacity: 0.85 }}>{pct}%</span>
+                  </span>
+                </div>
+                <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3 }}>
+                  <div style={{ height: '100%', borderRadius: 3, background: col, width: `${pct}%` }} />
+                </div>
               </div>
-              <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3 }}>
-                <div style={{ height: '100%', borderRadius: 3, background: col, width: starters.length > 0 ? `${(cnt / starters.length) * 100}%` : '0%' }} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
