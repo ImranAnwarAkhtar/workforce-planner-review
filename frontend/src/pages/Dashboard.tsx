@@ -2403,8 +2403,8 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   // Discipline split
   const DISCIPLINES = ['Construction', 'Design', 'Commercial', 'Commissioning', 'Global', 'Other'] as const;
   const DISC_COLORS: Record<string, string> = {
-    Construction: '#E91C24', Design: '#086AE3', Commercial: '#00737A',
-    Commissioning: '#411980', Global: '#841A5B', Other: '#8B93A3',
+    ...C.discColors,
+    Global: '#411980',
   };
   function classifyDisc(r: TbhCode): string {
     const text = ((r.job_profile ?? '') + ' ' + (r.tbh_description ?? '')).toLowerCase();
