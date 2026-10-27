@@ -145,7 +145,6 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   const [reqYear, setReqYear]             = useState('');
   const [reqDiscId, setReqDiscId]         = useState<number | ''>('');
   const [reqLevelId, setReqLevelId]       = useState<number | ''>('');
-  const [reqLabel, setReqLabel]           = useState('');
   const [reqNotes, setReqNotes]           = useState('');
   const [reqHiringMgrId, setReqHiringMgrId] = useState<number | ''>('');
   const [reqHubLeadId, setReqHubLeadId]     = useState<number | ''>('');
@@ -464,7 +463,6 @@ useEffect(() => {
     setReqYear('');
     setReqDiscId('');
     setReqLevelId('');
-    setReqLabel('');
     setReqNotes('');
     setReqHiringMgrId('');
     setReqHubLeadId('');
@@ -490,7 +488,6 @@ useEffect(() => {
     setReqYear(cycleYear);
     setReqDiscId(preDisciplineId ?? '');
     setReqLevelId('');
-    setReqLabel('');
     setReqNotes('');
     setReqHiringMgrId('');
     setReqHubLeadId('');
@@ -514,7 +511,6 @@ useEffect(() => {
       setReqYear('');
       setReqDiscId('');
       setReqLevelId('');
-      setReqLabel('');
       setReqNotes('');
       setReqHiringMgrId('');
       setReqHubLeadId('');
@@ -612,8 +608,7 @@ useEffect(() => {
         : null;
       const finalCtId = yearSpecificCt ? yearSpecificCt.id : reqTypeId;
       const yearSuffix = yr2 && !yearSpecificCt ? ` - ${yr2}` : '';
-      // Label auto-generated from type + year (not discipline)
-      const name = reqLabel.trim() || (ct?.code ?? '') + yearSuffix;
+      const name = (ct?.code ?? '') + yearSuffix;
       // Prepend timestamp and user name to notes
       const wfpUser = getUser();
       const ts = new Date().toLocaleString('en-GB', {
@@ -1697,18 +1692,6 @@ useEffect(() => {
                       <option key={l.id} value={l.id}>{l.short_code} — {l.level_name}</option>
                     ))}
                   </select>
-                </div>
-
-                {/* Label / name */}
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Label (optional)</label>
-                  <input
-                    type="text"
-                    value={reqLabel}
-                    onChange={e => setReqLabel(e.target.value)}
-                    placeholder="Auto-generated from type + year (e.g. R FTE - 26)"
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', boxSizing: 'border-box' as const }}
-                  />
                 </div>
 
                 {/* Hiring Manager */}
