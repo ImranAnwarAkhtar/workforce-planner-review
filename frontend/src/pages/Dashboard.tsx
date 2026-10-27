@@ -2325,6 +2325,8 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   const [rows, setRows] = useState<TbhCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [startersView, setStartersView] = useState<'month' | 'quarter'>('month');
+  const [startersSplit, setStartersSplit] = useState<'source' | 'discipline'>('source');
+  const [taCardSplit, setTaCardSplit] = useState<'source' | 'discipline'>('source');
 
   useEffect(() => {
     tbhCodesApi.list({ limit: 500 }).then(data => { setRows(data); setLoading(false); }).catch(() => setLoading(false));
@@ -2398,6 +2400,50 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
 
   const activeStartersData = startersView === 'month' ? monthlyData : quarterlyData;
 
+  // Discipline split
+  const DISCIPLINES = ['Construction', 'Design', 'Commercial', 'Commissioning', 'Global', 'Other'] as const;
+  const DISC_COLORS: Record<string, string> = {
+    Construction: '#E91C24', Design: '#086AE3', Commercial: '#00737A',
+    Commissioning: '#411980', Global: '#841A5B', Other: '#8B93A3',
+  };
+  function classifyDisc(r: TbhCode): string {
+    const text = ((r.job_profile ?? '') + ' ' + (r.tbh_description ?? '')).toLowerCase();
+    if (text.includes('commissioning')) return 'Commissioning';
+    if (text.includes('construction'))  return 'Construction';
+    if (text.includes('design'))        return 'Design';
+    if (text.includes('commercial'))    return 'Commercial';
+    if (text.includes('global'))        return 'Global';
+    return 'Other';
+  }
+  const monthlyDiscData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleString('en-GB', { month: 'short', year: '2-digit' });
+    const bucket = starters.filter(r => r.confirmed_start_date!.startsWith(key));
+    const entry: Record<string, string | number> = { month: label };
+    for (const disc of DISCIPLINES) entry[disc] = bucket.filter(r => classifyDisc(r) === disc).length;
+    return entry;
+  });
+  const quarterlyDiscData = (() => {
+    const currentQtr = Math.floor(today.getMonth() / 3);
+    return Array.from({ length: 5 }, (_, i) => {
+      const qtrIdx = (currentQtr + i) % 4;
+      const yearOffset = Math.floor((currentQtr + i) / 4);
+      const yr = today.getFullYear() + yearOffset;
+      const startMonth = qtrIdx * 3;
+      const months = [0, 1, 2].map(o => {
+        const d = new Date(yr, startMonth + o, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      });
+      const bucket = starters.filter(r => months.some(m => r.confirmed_start_date!.startsWith(m)));
+      const entry: Record<string, string | number> = { month: `Q${qtrIdx + 1} '${String(yr).slice(2)}` };
+      for (const disc of DISCIPLINES) entry[disc] = bucket.filter(r => classifyDisc(r) === disc).length;
+      return entry;
+    });
+  })();
+  const activeDiscData = startersView === 'month' ? monthlyDiscData : quarterlyDiscData;
+  const discCounts = Object.fromEntries(DISCIPLINES.map(d => [d, starters.filter(r => classifyDisc(r) === d).length]));
+
   // Table sorted: upcoming starters (lowest days remaining) first, then past starters (most recent first)
   const tableRows = [...starters].sort((a, b) => {
     const da = daysUntil(a.confirmed_start_date!);
@@ -2451,61 +2497,143 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
             <div style={sL}>Confirmed Starters by {startersView === 'month' ? 'Month' : 'Quarter'}</div>
-            <ViewToggle view={startersView} onChange={setStartersView} />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
+                {(['source', 'discipline'] as const).map(v => (
+                  <button key={v} onClick={() => setStartersSplit(v)} style={{
+                    padding: '2px 9px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                    fontSize: 10, fontWeight: 700,
+                    background: startersSplit === v ? '#FFF' : 'transparent',
+                    color: startersSplit === v ? '#374151' : '#9CA3AF',
+                    boxShadow: startersSplit === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all 0.15s',
+                  }}>
+                    {v === 'source' ? 'Source' : 'Discipline'}
+                  </button>
+                ))}
+              </div>
+              <ViewToggle view={startersView} onChange={setStartersView} />
+            </div>
           </div>
           <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>
-            {startersView === 'month' ? 'Next 6 months' : 'Current + next 4 quarters'} · by hire source &amp; type
+            {startersView === 'month' ? 'Next 6 months' : 'Current + next 4 quarters'} · by hire {startersSplit === 'source' ? 'source & type' : 'discipline'}
           </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={activeStartersData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
-              <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
-              <Tooltip contentStyle={{ fontSize: 11 }} />
-              <Bar dataKey="External" stackId="s" fill="#086AE3" radius={[0,0,0,0]}>
-                <LabelList dataKey="External" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
-              </Bar>
-              <Bar dataKey="Internal" stackId="s" fill="#411980" radius={[0,0,0,0]}>
-                <LabelList dataKey="Internal" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
-              </Bar>
-              <Bar dataKey="Conversion" stackId="s" fill="#841A5B" radius={[0,0,0,0]}>
-                <LabelList dataKey="Conversion" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
-              </Bar>
-              <Bar dataKey="Other" stackId="s" fill="#8B93A3" radius={[2,2,0,0]}>
-                <LabelList dataKey="Other" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-            {[['#086AE3','External'],['#411980','Internal'],['#841A5B','Conversion'],['#8B93A3','Other']].map(([col, lbl]) => (
-              <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#555' }}>
-                <span style={{ width: 10, height: 10, borderRadius: 2, background: col, display: 'inline-block' }} />
-                {lbl}
+          {startersSplit === 'source' ? (
+            <>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={activeStartersData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
+                  <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
+                  <Tooltip contentStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="External" stackId="s" fill="#086AE3" radius={[0,0,0,0]}>
+                    <LabelList dataKey="External" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                  </Bar>
+                  <Bar dataKey="Internal" stackId="s" fill="#411980" radius={[0,0,0,0]}>
+                    <LabelList dataKey="Internal" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                  </Bar>
+                  <Bar dataKey="Conversion" stackId="s" fill="#841A5B" radius={[0,0,0,0]}>
+                    <LabelList dataKey="Conversion" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                  </Bar>
+                  <Bar dataKey="Other" stackId="s" fill="#8B93A3" radius={[2,2,0,0]}>
+                    <LabelList dataKey="Other" position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                {[['#086AE3','External'],['#411980','Internal'],['#841A5B','Conversion'],['#8B93A3','Other']].map(([col, lbl]) => (
+                  <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#555' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: col, display: 'inline-block' }} />
+                    {lbl}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={activeDiscData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} />
+                  <YAxis tick={false} axisLine={false} tickLine={false} width={0} />
+                  <Tooltip contentStyle={{ fontSize: 11 }} />
+                  {DISCIPLINES.map((disc, i) => (
+                    <Bar key={disc} dataKey={disc} stackId="d" fill={DISC_COLORS[disc]} radius={i === DISCIPLINES.length - 1 ? [2,2,0,0] : [0,0,0,0]}>
+                      <LabelList dataKey={disc} position="center" style={{ fontSize: 9, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                    </Bar>
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+                {DISCIPLINES.map(disc => (
+                  <div key={disc} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#555' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: DISC_COLORS[disc], display: 'inline-block' }} />
+                    {disc}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Talent acquisition split */}
-        <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={sL}>Talent Acquisition</div>
-          {([['External', externalCount, '#086AE3'], ['Internal', internalCount, '#411980'], ['Conversion', conversionCount, '#841A5B']] as [string, number, string][]).map(([lbl, cnt, col]) => {
-            const pct = starters.length > 0 ? Math.round((cnt / starters.length) * 100) : 0;
-            return (
-              <div key={lbl}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
-                  <span style={{ color: '#374151', fontWeight: 600 }}>{lbl}</span>
-                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                    <span style={{ color: col, fontWeight: 700 }}>{cnt}</span>
-                    <span style={{ color: col, fontWeight: 500, fontSize: 9, opacity: 0.85 }}>{pct}%</span>
-                  </span>
+        {/* Talent Acquired */}
+        <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={sL}>Talent Acquired</div>
+            <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
+              {(['source', 'discipline'] as const).map(v => (
+                <button key={v} onClick={() => setTaCardSplit(v)} style={{
+                  padding: '2px 7px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                  fontSize: 9, fontWeight: 700,
+                  background: taCardSplit === v ? '#FFF' : 'transparent',
+                  color: taCardSplit === v ? '#374151' : '#9CA3AF',
+                  boxShadow: taCardSplit === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.15s',
+                }}>
+                  {v === 'source' ? 'Source' : 'Discipline'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {taCardSplit === 'source' ? (
+            ([['External', externalCount, '#086AE3'], ['Internal', internalCount, '#411980'], ['Conversion', conversionCount, '#841A5B']] as [string, number, string][]).map(([lbl, cnt, col]) => {
+              const pct = starters.length > 0 ? Math.round((cnt / starters.length) * 100) : 0;
+              return (
+                <div key={lbl}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
+                    <span style={{ color: '#374151', fontWeight: 600 }}>{lbl}</span>
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                      <span style={{ color: col, fontWeight: 700 }}>{cnt}</span>
+                      <span style={{ color: col, fontWeight: 500, fontSize: 9, opacity: 0.85 }}>{pct}%</span>
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3 }}>
+                    <div style={{ height: '100%', borderRadius: 3, background: col, width: `${pct}%` }} />
+                  </div>
                 </div>
-                <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3 }}>
-                  <div style={{ height: '100%', borderRadius: 3, background: col, width: `${pct}%` }} />
+              );
+            })
+          ) : (
+            DISCIPLINES.map(disc => {
+              const cnt = discCounts[disc] ?? 0;
+              const pct = starters.length > 0 ? Math.round((cnt / starters.length) * 100) : 0;
+              const col = DISC_COLORS[disc];
+              return (
+                <div key={disc}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
+                    <span style={{ color: '#374151', fontWeight: 600 }}>{disc}</span>
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                      <span style={{ color: col, fontWeight: 700 }}>{cnt}</span>
+                      <span style={{ color: col, fontWeight: 500, fontSize: 9, opacity: 0.85 }}>{pct}%</span>
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3 }}>
+                    <div style={{ height: '100%', borderRadius: 3, background: col, width: `${pct}%` }} />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
