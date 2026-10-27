@@ -140,14 +140,24 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   const [refDisciplines, setRefDisciplines]     = useState<Discipline[]>([]);
 
   // ── Modal tab + request form state ───────────────────────────────────────
-  const [modalTab, setModalTab]           = useState<'person' | 'request'>('person');
+  const [modalTab, setModalTab]           = useState<'person' | 'request' | 'approve'>('person');
   const [reqTypeId, setReqTypeId]         = useState<number | ''>('');
   const [reqYear, setReqYear]             = useState('');
   const [reqDiscId, setReqDiscId]         = useState<number | ''>('');
   const [reqLevelId, setReqLevelId]       = useState<number | ''>('');
   const [reqLabel, setReqLabel]           = useState('');
   const [reqNotes, setReqNotes]           = useState('');
+  const [reqHiringMgrId, setReqHiringMgrId] = useState<number | ''>('');
+  const [reqHubLeadId, setReqHubLeadId]     = useState<number | ''>('');
   const [reqSaving, setReqSaving]         = useState(false);
+
+  // ── Approve Request tab state ─────────────────────────────────────────────
+  const [approvePersonId, setApprovePersonId] = useState<number | ''>('');
+  const [approveTbhCode, setApproveTbhCode]   = useState('');
+  const [approveCandidate, setApproveCandidate] = useState('');
+  const [approveStartDate, setApproveStartDate] = useState('');
+  const [approveNotes, setApproveNotes]       = useState('');
+  const [approveSaving, setApproveSaving]     = useState(false);
 
   // ── Undo / redo history ───────────────────────────────────────────────────
   type AllocSnapshot = { personId: number; cycleId: number | null; before: { country_id: number; fte_value: number }[]; after: { country_id: number; fte_value: number }[] };
@@ -456,6 +466,13 @@ useEffect(() => {
     setReqLevelId('');
     setReqLabel('');
     setReqNotes('');
+    setReqHiringMgrId('');
+    setReqHubLeadId('');
+    setApprovePersonId('');
+    setApproveTbhCode('');
+    setApproveCandidate('');
+    setApproveStartDate('');
+    setApproveNotes('');
   }
 
   function openAddModal(preDisciplineId?: number) {
@@ -475,6 +492,13 @@ useEffect(() => {
     setReqLevelId('');
     setReqLabel('');
     setReqNotes('');
+    setReqHiringMgrId('');
+    setReqHubLeadId('');
+    setApprovePersonId('');
+    setApproveTbhCode('');
+    setApproveCandidate('');
+    setApproveStartDate('');
+    setApproveNotes('');
     setAddModal({ preDisciplineId });
   }
 
@@ -574,7 +598,11 @@ useEffect(() => {
         hour: '2-digit', minute: '2-digit',
       });
       const noteStamp = wfpUser ? `[${ts} — ${wfpUser.name}]` : `[${ts}]`;
-      const notesValue = reqNotes.trim() ? `${noteStamp} ${reqNotes.trim()}` : null;
+      const hmPerson = allPeople.find(p => p.id === reqHiringMgrId);
+      const hlPerson = allPeople.find(p => p.id === reqHubLeadId);
+      const baseNote = reqNotes.trim() ? `${noteStamp} ${reqNotes.trim()}` : null;
+      const hubLeadNote = hlPerson ? `Hub Lead: ${hlPerson.name}` : null;
+      const notesValue = [baseNote, hubLeadNote].filter(Boolean).join(' | ') || null;
       void lv; // level is stored on the person record, not used in name generation
       await peopleApi.create({
         name,
@@ -582,6 +610,7 @@ useEffect(() => {
         discipline_id: reqDiscId,
         level_id: reqLevelId || null,
         notes: notesValue,
+        hiring_manager: hmPerson?.name ?? null,
         region_ids: selectedRegionId ? [selectedRegionId] : [],
         planning_cycle_id: selectedCycleId ?? null,
       });
@@ -590,6 +619,30 @@ useEffect(() => {
       await loadData();
     } catch { toast.error('Failed to save request'); }
     finally { setReqSaving(false); }
+  }
+
+  async function saveApprovalDetails() {
+    if (!approvePersonId) { toast.error('Select a request to approve'); return; }
+    setApproveSaving(true);
+    try {
+      const wfpUser = getUser();
+      const ts = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const stamp = wfpUser ? `[${ts} — ${wfpUser.name}]` : `[${ts}]`;
+      const parts = [
+        approveTbhCode.trim()   ? `TBH: ${approveTbhCode.trim()}`        : null,
+        approveCandidate.trim() ? `Candidate: ${approveCandidate.trim()}` : null,
+        approveStartDate        ? `Start: ${approveStartDate}`            : null,
+        approveNotes.trim()     || null,
+      ].filter(Boolean);
+      const approvalLine = `${stamp} APPROVED — ${parts.length ? parts.join(' · ') : '(no details)'}`;
+      const target = allPeople.find(p => p.id === approvePersonId);
+      const newNotes = target?.notes ? `${target.notes}\n${approvalLine}` : approvalLine;
+      await peopleApi.update(approvePersonId as number, { notes: newNotes });
+      toast.success('Approval details saved');
+      closeModal();
+      await loadData();
+    } catch { toast.error('Failed to save approval details'); }
+    finally { setApproveSaving(false); }
   }
 
   const modalTotal = allocMode === 'equal'
@@ -605,6 +658,17 @@ useEffect(() => {
     if (addModal?.preDisciplineId) ppl = ppl.filter(p => p.discipline_id === addModal.preDisciplineId);
     return ppl.sort((a, b) => a.name.localeCompare(b.name));
   }, [allPeople, addModal]);
+
+  const reqHiringManagers = useMemo(() => {
+    let ppl = allPeople.filter(p => contractGroup(p) === 'employee' || contractGroup(p) === 'contingent');
+    if (reqDiscId) ppl = ppl.filter(p => p.discipline_id === (reqDiscId as number));
+    return ppl.sort((a, b) => a.name.localeCompare(b.name));
+  }, [allPeople, reqDiscId]);
+
+  const pendingRequests = useMemo(
+    () => allPeople.filter(p => contractGroup(p) === 'request').sort((a, b) => a.name.localeCompare(b.name)),
+    [allPeople]
+  );
 
   const selectedRegionName = regions.find(r => r.id === selectedRegionId)?.name ?? '';
 
@@ -1340,19 +1404,19 @@ useEffect(() => {
             }}>
               {/* Tab selector */}
               <div style={{ display: 'flex', borderBottom: '2px solid #E8E8E8', marginBottom: 20 }}>
-                {(['person', 'request'] as const).map(tab => (
+                {(['person', 'request', 'approve'] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setModalTab(tab)}
                     style={{
-                      padding: '8px 20px', border: 'none', background: 'transparent', cursor: 'pointer',
-                      fontSize: 14, fontWeight: modalTab === tab ? 700 : 400,
+                      padding: '8px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
+                      fontSize: 13, fontWeight: modalTab === tab ? 700 : 400,
                       color: modalTab === tab ? '#E91C24' : '#888888',
                       borderBottom: modalTab === tab ? '2px solid #E91C24' : '2px solid transparent',
                       marginBottom: -2,
                     }}
                   >
-                    {tab === 'person' ? 'Add Person' : 'Add Request'}
+                    {tab === 'person' ? 'Add Person' : tab === 'request' ? 'Add Request' : 'Approve Request'}
                   </button>
                 ))}
               </div>
@@ -1624,6 +1688,39 @@ useEffect(() => {
                   />
                 </div>
 
+                {/* Hiring Manager */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Hiring Manager (optional)</label>
+                  <select
+                    value={reqHiringMgrId}
+                    onChange={e => setReqHiringMgrId(e.target.value ? Number(e.target.value) : '')}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
+                  >
+                    <option value="">— Select manager —</option>
+                    {reqHiringManagers.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}{p.level_code ? ` (${p.level_code})` : ''}</option>
+                    ))}
+                  </select>
+                  {reqDiscId && (
+                    <div style={{ fontSize: 10, color: '#999', marginTop: 3 }}>Filtered by selected discipline{selectedRegionId ? ' + region' : ''}</div>
+                  )}
+                </div>
+
+                {/* Hub Lead */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Hub Lead (optional)</label>
+                  <select
+                    value={reqHubLeadId}
+                    onChange={e => setReqHubLeadId(e.target.value ? Number(e.target.value) : '')}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
+                  >
+                    <option value="">— Select hub lead —</option>
+                    {(allPeople.filter(p => contractGroup(p) === 'employee' || contractGroup(p) === 'contingent')).sort((a, b) => a.name.localeCompare(b.name)).map(p => (
+                      <option key={p.id} value={p.id}>{p.name}{p.level_code ? ` (${p.level_code})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Notes */}
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Notes (optional)</label>
@@ -1652,6 +1749,103 @@ useEffect(() => {
                     }}
                   >
                     {reqSaving ? 'Saving…' : 'Add Request'}
+                  </button>
+                </div>
+              </div>)}
+
+              {/* ── Approve Request tab ── */}
+              {modalTab === 'approve' && (
+              <div>
+                {/* Select request */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Request to Approve</label>
+                  {pendingRequests.length === 0 ? (
+                    <div style={{ padding: '10px 12px', background: '#F5F5F5', borderRadius: 4, fontSize: 12, color: '#888888', border: '1px solid #E0E0E0' }}>
+                      No pending requests in this view. Add a request via the "Add Request" tab first.
+                    </div>
+                  ) : (
+                    <select
+                      value={approvePersonId}
+                      onChange={e => setApprovePersonId(e.target.value ? Number(e.target.value) : '')}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
+                    >
+                      <option value="">— Select a request —</option>
+                      {pendingRequests.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}{p.discipline_name ? ` · ${p.discipline_name}` : ''}{p.level_code ? ` (${p.level_code})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {approvePersonId !== '' && (
+                <>
+                  {/* TBH Code */}
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>TBH Code</label>
+                    <input
+                      type="text"
+                      value={approveTbhCode}
+                      onChange={e => setApproveTbhCode(e.target.value)}
+                      placeholder="e.g. TBH-2026-001"
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', boxSizing: 'border-box' as const }}
+                    />
+                  </div>
+
+                  {/* Candidate Name */}
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Candidate Name</label>
+                    <input
+                      type="text"
+                      value={approveCandidate}
+                      onChange={e => setApproveCandidate(e.target.value)}
+                      placeholder="Name of the selected candidate"
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', boxSizing: 'border-box' as const }}
+                    />
+                  </div>
+
+                  {/* Confirmed Start Date */}
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Confirmed Start Date</label>
+                    <input
+                      type="date"
+                      value={approveStartDate}
+                      onChange={e => setApproveStartDate(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', boxSizing: 'border-box' as const, cursor: 'pointer' }}
+                    />
+                  </div>
+
+                  {/* Notes */}
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Approval Notes (optional)</label>
+                    <textarea
+                      value={approveNotes}
+                      onChange={e => setApproveNotes(e.target.value)}
+                      placeholder="Any additional notes about this hire…"
+                      rows={2}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', resize: 'vertical' as const, boxSizing: 'border-box' as const }}
+                    />
+                  </div>
+                </>
+                )}
+
+                {/* Footer buttons — Approve Request */}
+                <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                  <button onClick={closeModal} style={{ flex: 1, padding: '9px 0', background: '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 5, fontSize: 13, color: '#555555', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveApprovalDetails}
+                    disabled={!approvePersonId || approveSaving}
+                    style={{
+                      flex: 2, padding: '9px 0', background: '#33A85C', border: 'none', borderRadius: 5,
+                      fontSize: 13, fontWeight: 600, color: '#FFFFFF',
+                      cursor: (!approvePersonId || approveSaving) ? 'default' : 'pointer',
+                      opacity: (!approvePersonId || approveSaving) ? 0.5 : 1,
+                    }}
+                  >
+                    {approveSaving ? 'Saving…' : '✓ Save Approval Details'}
                   </button>
                 </div>
               </div>)}
