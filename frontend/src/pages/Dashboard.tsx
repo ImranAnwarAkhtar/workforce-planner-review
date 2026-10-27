@@ -2213,9 +2213,19 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
               </Bar>
               <Bar dataKey="Replacement" stackId="s" fill="#411980" radius={[3, 3, 0, 0]}>
                 <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
-              </Bar>
-              <Bar dataKey="dummy" stackId="s" fill="transparent" isAnimationActive={false}>
-                <LabelList dataKey="total" position="top" style={{ fontSize: 10, fill: '#374151', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+                <LabelList
+                  position="top"
+                  content={(props: any) => {
+                    const { x, y, width, index } = props;
+                    const entry = activeForecastData[index];
+                    if (!entry || entry.total <= 0) return null;
+                    return (
+                      <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 4} textAnchor="middle" fill="#374151" fontSize={10} fontWeight={700}>
+                        {entry.total}
+                      </text>
+                    );
+                  }}
+                />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
