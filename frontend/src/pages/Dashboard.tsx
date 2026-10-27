@@ -2220,7 +2220,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
                     const entry = activeForecastData[index];
                     if (!entry || entry.total <= 0) return null;
                     return (
-                      <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 4} textAnchor="middle" fill="#374151" fontSize={10} fontWeight={700}>
+                      <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 10} textAnchor="middle" fill="#374151" fontSize={10} fontWeight={700}>
                         {entry.total}
                       </text>
                     );
