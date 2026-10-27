@@ -1859,6 +1859,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 }) {
   const [hireView, setHireView] = useState<'month' | 'quarter'>('quarter');
   const [forecastView, setForecastView] = useState<'month' | 'quarter'>('month');
+  const [forecastChartView, setForecastChartView] = useState<'source' | 'type'>('source');
 
   const STAGE_COLORS: Record<string, string> = {
     'Filled': '#E91C24', 'Open': '#C71B36', 'In Progress': '#A61B49',
@@ -1964,6 +1965,32 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 
   const activeForecastData = forecastView === 'month' ? forecastSorted : forecastQuarterly;
 
+  // Type view: aggregate filteredForecast into Growth (Net New) + Replacement (Backfill) only
+  const forecastByType: Record<string, { Growth: number; Replacement: number }> = {};
+  for (const r of filteredForecast) {
+    if (!forecastByType[r.month]) forecastByType[r.month] = { Growth: 0, Replacement: 0 };
+    if (r.hire_type === 'Net New') forecastByType[r.month].Growth += r.count;
+    else if (r.hire_type === 'Backfill') forecastByType[r.month].Replacement += r.count;
+  }
+  const forecastTypeSorted = Object.entries(forecastByType)
+    .map(([month, v]) => ({ month, label: fmtMonth(month), Growth: v.Growth, Replacement: v.Replacement, total: v.Growth + v.Replacement }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+  const forecastTypeQuarterly = (() => {
+    const qBuckets: Record<string, { Growth: number; Replacement: number; yr: number; q: number }> = {};
+    for (const [month, v] of Object.entries(forecastByType)) {
+      const [yrStr, moStr] = month.split('-');
+      const yr = parseInt(yrStr, 10), mo = parseInt(moStr, 10);
+      const q = Math.floor((mo - 1) / 3) + 1;
+      const key = `${yr}-Q${q}`;
+      if (!qBuckets[key]) qBuckets[key] = { Growth: 0, Replacement: 0, yr, q };
+      qBuckets[key].Growth += v.Growth;
+      qBuckets[key].Replacement += v.Replacement;
+    }
+    return Object.entries(qBuckets)
+      .map(([k, v]) => ({ month: k, label: `Q${v.q} '${String(v.yr).slice(2)}`, Growth: v.Growth, Replacement: v.Replacement, total: v.Growth + v.Replacement }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+  })();
+  const activeTypeData = forecastView === 'month' ? forecastTypeSorted : forecastTypeQuarterly;
 
   function fmtDays(days: number | undefined): string {
     if (days === undefined) return '—';
@@ -2192,43 +2219,97 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <div>
             <div style={sectionLabel}>{forecastView === 'month' ? 'Monthly' : 'Quarterly'} Hire Forecast</div>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Unfilled roles by estimated hire {forecastView} · Growth (Net New) · Conversion · Replacement (Backfill)</div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
+              {forecastChartView === 'source'
+                ? `Unfilled roles by estimated hire ${forecastView} · Growth (Net New) · Conversion · Replacement (Backfill)`
+                : `Unfilled roles by hire type · Net New (Growth) · Backfill (Replacement)`}
+            </div>
           </div>
-          <ViewToggle view={forecastView} onChange={setForecastView} />
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
+              {(['source', 'type'] as const).map(v => (
+                <button key={v} onClick={() => setForecastChartView(v)} style={{
+                  padding: '2px 9px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                  fontSize: 10, fontWeight: 700,
+                  background: forecastChartView === v ? '#FFF' : 'transparent',
+                  color: forecastChartView === v ? '#374151' : '#9CA3AF',
+                  boxShadow: forecastChartView === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.15s',
+                }}>
+                  {v === 'source' ? 'Source' : 'Type'}
+                </button>
+              ))}
+            </div>
+            <ViewToggle view={forecastView} onChange={setForecastView} />
+          </div>
         </div>
-        {activeForecastData.length === 0 ? (
-          <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No forecast data — add estimated hire dates in Talent Acquisition</div>
+        {forecastChartView === 'source' ? (
+          activeForecastData.length === 0 ? (
+            <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No forecast data — add estimated hire dates in Talent Acquisition</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={activeForecastData} margin={{ top: 18, right: 12, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} />
+                <YAxis hide />
+                <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, name: any) => v === 0 ? [null] : [`${v} roles`, name]} />
+                <Bar dataKey="Growth"      stackId="s" fill="#E91C24" radius={[0, 0, 3, 3]}>
+                  <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+                </Bar>
+                <Bar dataKey="Conversion"  stackId="s" fill="#841A5B">
+                  <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+                </Bar>
+                <Bar dataKey="Replacement" stackId="s" fill="#411980" radius={[3, 3, 0, 0]}>
+                  <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+                  <LabelList
+                    position="top"
+                    content={(props: any) => {
+                      const { x, y, width, index } = props;
+                      const entry = activeForecastData[index];
+                      if (!entry || entry.total <= 0) return null;
+                      return (
+                        <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 10} textAnchor="middle" fill="#374151" fontSize={10} fontWeight={700}>
+                          {entry.total}
+                        </text>
+                      );
+                    }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )
         ) : (
-          <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={activeForecastData} margin={{ top: 18, right: 12, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} />
-              <YAxis hide />
-              <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, name: any) => name === 'dummy' || v === 0 ? [null] : [`${v} roles`, name]} />
-              <Bar dataKey="Growth"      stackId="s" fill="#E91C24" radius={[0, 0, 3, 3]}>
-                <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
-              </Bar>
-              <Bar dataKey="Conversion"  stackId="s" fill="#841A5B">
-                <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
-              </Bar>
-              <Bar dataKey="Replacement" stackId="s" fill="#411980" radius={[3, 3, 0, 0]}>
-                <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
-                <LabelList
-                  position="top"
-                  content={(props: any) => {
-                    const { x, y, width, index } = props;
-                    const entry = activeForecastData[index];
-                    if (!entry || entry.total <= 0) return null;
-                    return (
-                      <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 10} textAnchor="middle" fill="#374151" fontSize={10} fontWeight={700}>
-                        {entry.total}
-                      </text>
-                    );
-                  }}
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          activeTypeData.length === 0 ? (
+            <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No forecast data — add estimated hire dates in Talent Acquisition</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={activeTypeData} margin={{ top: 18, right: 12, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} />
+                <YAxis hide />
+                <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, name: any) => v === 0 ? [null] : [`${v} roles`, name]} />
+                <Bar dataKey="Growth"      stackId="t" fill="#E91C24" radius={[0, 0, 3, 3]}>
+                  <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+                </Bar>
+                <Bar dataKey="Replacement" stackId="t" fill="#411980" radius={[3, 3, 0, 0]}>
+                  <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+                  <LabelList
+                    position="top"
+                    content={(props: any) => {
+                      const { x, y, width, index } = props;
+                      const entry = activeTypeData[index];
+                      if (!entry || entry.total <= 0) return null;
+                      return (
+                        <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 10} textAnchor="middle" fill="#374151" fontSize={10} fontWeight={700}>
+                          {entry.total}
+                        </text>
+                      );
+                    }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )
         )}
       </div>
 
