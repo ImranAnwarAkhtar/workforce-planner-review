@@ -1776,20 +1776,7 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
                 {/* Chart — right panel, fills remaining width */}
                 {allRegions.length > 0 && (
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', padding: '12px 12px 6px' }}>
-                    <div style={{ flex: 1, position: 'relative', minHeight: 220 }}>
-                      <div style={{ position: 'absolute', inset: 0 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={barData} margin={{ top: 10, right: 8, bottom: 20, left: 8 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                            <XAxis dataKey="region" tick={{ fontSize: 9, fill: C.muted }} angle={-20} textAnchor="end" interval={0} />
-                            <YAxis hide width={0} domain={[0, 'auto']} />
-                            <Tooltip content={<BulletTooltip />} />
-                            <Bar dataKey="Max" fill={color} shape={(props: any) => <BulletBar {...props} labelColor={labelColor} />} isAnimationActive={false} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 14, justifyContent: 'center', paddingTop: 4 }}>
+                    <div style={{ display: 'flex', gap: 14, justifyContent: 'center', paddingBottom: 6 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <div style={{ width: 12, height: 9, borderRadius: 2, background: `${color}35` }} />
                         <span style={{ fontSize: 10, color: C.muted }}>Min</span>
@@ -1801,6 +1788,19 @@ function GearingTab({ yearA, yearB, dataA, dataB, regionNames, regionCodeMap }: 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <div style={{ width: 14, height: 3, borderRadius: 1, background: C.accent }} />
                         <span style={{ fontSize: 10, color: C.muted }}>Proposed</span>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, position: 'relative', minHeight: 220 }}>
+                      <div style={{ position: 'absolute', inset: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={barData} margin={{ top: 4, right: 8, bottom: 20, left: 8 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                            <XAxis dataKey="region" tick={{ fontSize: 9, fill: C.muted }} angle={-20} textAnchor="end" interval={0} />
+                            <YAxis hide width={0} domain={[0, 'auto']} />
+                            <Tooltip content={<BulletTooltip />} />
+                            <Bar dataKey="Max" fill={color} shape={(props: any) => <BulletBar {...props} labelColor={labelColor} />} isAnimationActive={false} />
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
                   </div>
