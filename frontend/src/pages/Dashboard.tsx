@@ -2200,7 +2200,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
           <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No forecast data — add estimated hire dates in Talent Acquisition</div>
         ) : (
           <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={activeForecastData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+            <BarChart data={activeForecastData} margin={{ top: 18, right: 12, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.muted }} />
               <YAxis hide />
@@ -2213,6 +2213,9 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
               </Bar>
               <Bar dataKey="Replacement" stackId="s" fill="#411980" radius={[3, 3, 0, 0]}>
                 <LabelList position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
+              </Bar>
+              <Bar dataKey="dummy" stackId="s" fill="transparent" isAnimationActive={false}>
+                <LabelList dataKey="total" position="top" style={{ fontSize: 10, fill: '#374151', fontWeight: 700 }} formatter={(v: any) => v > 0 ? String(v) : ''} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
