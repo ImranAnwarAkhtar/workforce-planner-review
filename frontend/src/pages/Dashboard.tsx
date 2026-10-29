@@ -2326,7 +2326,9 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   const [loading, setLoading] = useState(true);
   const [startersView, setStartersView] = useState<'month' | 'quarter'>('month');
   const [startersSplit, setStartersSplit] = useState<'source' | 'discipline' | 'region'>('source');
+  const [startersCombined, setStartersCombined] = useState(false);
   const [taCardSplit, setTaCardSplit] = useState<'source' | 'discipline' | 'region'>('source');
+  const [taCardCombined, setTaCardCombined] = useState(false);
 
   useEffect(() => {
     tbhCodesApi.list({ limit: 500 }).then(data => { setRows(data); setLoading(false); }).catch(() => setLoading(false));
@@ -2479,6 +2481,42 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   const activeRegionData = startersView === 'month' ? monthlyRegionData : quarterlyRegionData;
   const regionCounts = Object.fromEntries(regionList.map(r => [r, starters.filter(s => (s.region_name ?? 'Unknown') === r).length]));
 
+  // Combined chart: region × quarter, stacked by discipline
+  const combinedChartData = (() => {
+    const currentQtr = Math.floor(today.getMonth() / 3);
+    const quarters = Array.from({ length: 5 }, (_, i) => {
+      const qIdx = (currentQtr + i) % 4;
+      const yr = today.getFullYear() + Math.floor((currentQtr + i) / 4);
+      const startMonth = qIdx * 3;
+      const months = [0, 1, 2].map(o => {
+        const d = new Date(yr, startMonth + o, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      });
+      return { label: `Q${qIdx + 1} '${String(yr).slice(2)}`, months };
+    });
+    const result: Record<string, string | number>[] = [];
+    for (const region of regionList) {
+      for (const { label, months } of quarters) {
+        const bucket = starters.filter(r => (r.region_name ?? 'Unknown') === region && months.some(m => r.confirmed_start_date!.startsWith(m)));
+        const entry: Record<string, string | number> = { month: `${region} ${label}` };
+        for (const disc of DISCIPLINES) entry[disc] = bucket.filter(r => classifyDisc(r) === disc).length;
+        result.push(entry);
+      }
+    }
+    return result;
+  })();
+
+  // Combined TA: region × source
+  const combinedTaData = regionList.map(region => {
+    const bucket = starters.filter(r => (r.region_name ?? 'Unknown') === region);
+    return {
+      region,
+      External:   bucket.filter(r => r.hire_source === 'External').length,
+      Internal:   bucket.filter(r => r.hire_source === 'Internal').length,
+      Conversion: bucket.filter(r => r.hire_type === 'Conversion').length,
+    };
+  });
+
   // Table sorted: upcoming starters (lowest days remaining) first, then past starters (most recent first)
   const tableRows = [...starters].sort((a, b) => {
     const da = daysUntil(a.confirmed_start_date!);
@@ -2531,29 +2569,76 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
         {/* Starters by month */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-            <div style={sL}>Confirmed Starters by {startersView === 'month' ? 'Month' : 'Quarter'}</div>
+            <div style={sL}>Confirmed Starters by {startersCombined ? 'Region & Quarter' : startersView === 'month' ? 'Month' : 'Quarter'}</div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
-                {(['source', 'discipline', 'region'] as const).map(v => (
-                  <button key={v} onClick={() => setStartersSplit(v)} style={{
-                    padding: '2px 9px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                    fontSize: 10, fontWeight: 700,
-                    background: startersSplit === v ? '#FFF' : 'transparent',
-                    color: startersSplit === v ? '#374151' : '#9CA3AF',
-                    boxShadow: startersSplit === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                    transition: 'all 0.15s',
-                  }}>
-                    {v === 'source' ? 'Source' : v === 'discipline' ? 'Discipline' : 'Region'}
-                  </button>
-                ))}
-              </div>
-              <ViewToggle view={startersView} onChange={setStartersView} />
+              {!startersCombined && (
+                <>
+                  <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
+                    {(['source', 'discipline', 'region'] as const).map(v => (
+                      <button key={v} onClick={() => setStartersSplit(v)} style={{
+                        padding: '2px 9px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                        fontSize: 10, fontWeight: 700,
+                        background: startersSplit === v ? '#FFF' : 'transparent',
+                        color: startersSplit === v ? '#374151' : '#9CA3AF',
+                        boxShadow: startersSplit === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                        transition: 'all 0.15s',
+                      }}>
+                        {v === 'source' ? 'Source' : v === 'discipline' ? 'Discipline' : 'Region'}
+                      </button>
+                    ))}
+                  </div>
+                  <ViewToggle view={startersView} onChange={setStartersView} />
+                </>
+              )}
+              <button onClick={() => setStartersCombined(v => !v)} style={{
+                padding: '3px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                fontSize: 10, fontWeight: 700,
+                background: startersCombined ? '#E91C24' : '#F0F1F3',
+                color: startersCombined ? '#FFF' : '#555',
+                transition: 'all 0.15s',
+              }}>Combined</button>
             </div>
           </div>
           <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>
-            {startersView === 'month' ? 'Next 6 months' : 'Current + next 4 quarters'} · by hire {startersSplit === 'source' ? 'source & type' : startersSplit === 'discipline' ? 'discipline' : 'region'}
+            {startersCombined ? 'Region × quarter · stacked by discipline' : startersView === 'month' ? 'Next 6 months' : 'Current + next 4 quarters'} · {startersCombined ? '' : `by hire ${startersSplit === 'source' ? 'source & type' : startersSplit === 'discipline' ? 'discipline' : 'region'}`}
           </div>
-          {startersSplit === 'source' ? (
+          {startersCombined ? (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={combinedChartData} margin={{ top: 18, right: 8, bottom: 48, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 8, fill: C.muted }} tickLine={false} angle={-40} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} width={22} />
+                  <Tooltip contentStyle={{ fontSize: 11 }} />
+                  {DISCIPLINES.map((disc, i) => {
+                    const isTop = i === DISCIPLINES.length - 1;
+                    return (
+                      <Bar key={disc} dataKey={disc} stackId="c" fill={DISC_COLORS[disc]} radius={isTop ? [2,2,0,0] : [0,0,0,0]}>
+                        <LabelList dataKey={disc} position="center" style={{ fontSize: 8, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                        {isTop && (
+                          <LabelList position="top" content={(props: any) => {
+                            const { x, y, width, index } = props;
+                            const e = combinedChartData[index] as any;
+                            const total = DISCIPLINES.reduce((s, d) => s + ((e?.[d] as number) ?? 0), 0);
+                            if (!total) return null;
+                            return <text x={(x ?? 0) + (width ?? 0) / 2} y={(y ?? 0) - 4} textAnchor="middle" fill="#374151" fontSize={9} fontWeight={700}>{total}</text>;
+                          }} />
+                        )}
+                      </Bar>
+                    );
+                  })}
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
+                {DISCIPLINES.map(disc => (
+                  <div key={disc} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#555' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: DISC_COLORS[disc], display: 'inline-block' }} />
+                    {disc}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : startersSplit === 'source' ? (
             <>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={activeStartersData} margin={{ top: 18, right: 8, bottom: 4, left: 0 }}>
@@ -2679,22 +2764,51 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
         <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={sL}>Talent Acquired</div>
-            <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
-              {(['source', 'discipline', 'region'] as const).map(v => (
-                <button key={v} onClick={() => setTaCardSplit(v)} style={{
-                  padding: '2px 7px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                  fontSize: 9, fontWeight: 700,
-                  background: taCardSplit === v ? '#FFF' : 'transparent',
-                  color: taCardSplit === v ? '#374151' : '#9CA3AF',
-                  boxShadow: taCardSplit === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                  transition: 'all 0.15s',
-                }}>
-                  {v === 'source' ? 'Source' : v === 'discipline' ? 'Discipline' : 'Region'}
-                </button>
-              ))}
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              {!taCardCombined && (
+                <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
+                  {(['source', 'discipline', 'region'] as const).map(v => (
+                    <button key={v} onClick={() => setTaCardSplit(v)} style={{
+                      padding: '2px 7px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                      fontSize: 9, fontWeight: 700,
+                      background: taCardSplit === v ? '#FFF' : 'transparent',
+                      color: taCardSplit === v ? '#374151' : '#9CA3AF',
+                      boxShadow: taCardSplit === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.15s',
+                    }}>
+                      {v === 'source' ? 'Source' : v === 'discipline' ? 'Discipline' : 'Region'}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button onClick={() => setTaCardCombined(v => !v)} style={{
+                padding: '2px 8px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                fontSize: 9, fontWeight: 700,
+                background: taCardCombined ? '#E91C24' : '#F0F1F3',
+                color: taCardCombined ? '#FFF' : '#555',
+                transition: 'all 0.15s',
+              }}>Combined</button>
             </div>
           </div>
-          {taCardSplit === 'source' ? (
+          {taCardCombined ? (
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={combinedTaData} margin={{ top: 14, right: 4, bottom: 28, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                <XAxis dataKey="region" tick={{ fontSize: 8, fill: C.muted }} tickLine={false} angle={-30} textAnchor="end" interval={0} />
+                <YAxis tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} width={20} />
+                <Tooltip contentStyle={{ fontSize: 10 }} />
+                <Bar dataKey="External" stackId="t" fill="#086AE3" radius={[0,0,0,0]}>
+                  <LabelList dataKey="External" position="center" style={{ fontSize: 8, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                </Bar>
+                <Bar dataKey="Internal" stackId="t" fill="#411980" radius={[0,0,0,0]}>
+                  <LabelList dataKey="Internal" position="center" style={{ fontSize: 8, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                </Bar>
+                <Bar dataKey="Conversion" stackId="t" fill="#841A5B" radius={[2,2,0,0]}>
+                  <LabelList dataKey="Conversion" position="center" style={{ fontSize: 8, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : taCardSplit === 'source' ? (
             ([['External', externalCount, '#086AE3'], ['Internal', internalCount, '#411980'], ['Conversion', conversionCount, '#841A5B']] as [string, number, string][]).map(([lbl, cnt, col]) => {
               const pct = starters.length > 0 ? Math.round((cnt / starters.length) * 100) : 0;
               return (
