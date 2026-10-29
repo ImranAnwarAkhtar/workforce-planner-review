@@ -2948,6 +2948,59 @@ export default function Dashboard() {
   const [requestYear, setRequestYear] = useState<number | null>(null);
   const [hireStatusRegions, setHireStatusRegions] = useState<string[]>([]);
   const [onboardingRegions, setOnboardingRegions] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  function exportTab() {
+    const el = contentRef.current;
+    if (!el) return;
+    setExporting(true);
+
+    const originalTitle = document.title;
+    document.title = `${activeTab} — GDC Planning Dashboard — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
+    // Inject print style: show only the content area, laid out at full height
+    const style = document.createElement('style');
+    style.id = '__dash_print_style__';
+    style.textContent = `
+      @media print {
+        @page { size: A3 landscape; margin: 12mm; }
+        body > * { display: none !important; }
+        #__dash_print_root__ { display: block !important; font-family: "Noto Sans", sans-serif; }
+        #__dash_print_root__ * { box-sizing: border-box; }
+        svg text { font-family: "Noto Sans", sans-serif !important; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Build a full-height clone of the content
+    const wrapper = document.createElement('div');
+    wrapper.id = '__dash_print_root__';
+    wrapper.style.cssText = 'display:none;padding:0;background:#fff;';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #E91C24;';
+    header.innerHTML = `
+      <div style="font-size:15px;font-weight:700;color:#111;">${activeTab} — GDC Planning Dashboard</div>
+      <div style="font-size:11px;color:#5A657B;">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+    `;
+    wrapper.appendChild(header);
+
+    const content = el.cloneNode(true) as HTMLElement;
+    content.style.overflow = 'visible';
+    content.style.height = 'auto';
+    wrapper.appendChild(content);
+
+    document.body.appendChild(wrapper);
+
+    requestAnimationFrame(() => {
+      window.print();
+      document.title = originalTitle;
+      document.head.removeChild(style);
+      document.body.removeChild(wrapper);
+      setExporting(false);
+    });
+  }
 
   useEffect(() => {
     dashboardApi.planningYears()
@@ -3018,8 +3071,30 @@ export default function Dashboard() {
       {/* Tab bar */}
       <TabBar active={activeTab} onChange={setActiveTab} availableYears={Array.from(new Set([2022,2023,2024,2025,2026,2027,2028,...(hubData?.available_years??[])])).sort((a,b)=>a-b)} yearRange={hireYearRange} onYearRangeChange={setHireYearRange} yearA={yearA} yearB={yearB} requestYear={requestYear ?? yearA} onRequestYearChange={setRequestYear} regionNamesAll={hubData?.region_names ?? []} hireStatusRegions={hireStatusRegions} onHireStatusRegionsChange={setHireStatusRegions} onboardingRegions={onboardingRegions} onOnboardingRegionsChange={setOnboardingRegions} onboardingYearRange={onboardingYearRange} onOnboardingYearRangeChange={setOnboardingYearRange} />
 
+      {/* Export button bar */}
+      {ready && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '4px 20px', background: '#FAFBFC', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <button
+            onClick={exportTab}
+            disabled={exporting}
+            title="Export this tab as PDF — use 'Save as PDF' or 'Microsoft Print to PDF' in the print dialog"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 12px', border: `1px solid ${C.border}`, borderRadius: 5,
+              fontSize: 11, fontWeight: 600, cursor: exporting ? 'wait' : 'pointer',
+              background: exporting ? '#F0F1F3' : '#FFFFFF',
+              color: exporting ? C.muted : '#374151',
+              transition: 'all 0.15s',
+            }}
+          >
+            <span style={{ fontSize: 13 }}>⬇</span>
+            {exporting ? 'Preparing…' : `Export ${activeTab}`}
+          </button>
+        </div>
+      )}
+
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+      <div ref={contentRef} style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
         {loading && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
             <div style={{ fontSize: 14, color: C.muted }}>Loading dashboard…</div>
