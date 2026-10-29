@@ -771,6 +771,10 @@ export interface TbhCode {
   planning_cycle_id: number | null;
   planning_cycle_name: string | null;
   region_name: string | null;
+  discipline_name: string | null;
+  hiring_manager: string | null;
+  level_name: string | null;
+  contract_type_code: string | null;
   is_in_plan: boolean;
   created_at: string | null;
 }

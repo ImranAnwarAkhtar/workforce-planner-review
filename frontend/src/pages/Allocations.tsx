@@ -3,8 +3,10 @@ import { flagUrl, countryCode, COUNTRY_ORDER } from '../data/countryData';
 import toast from 'react-hot-toast';
 import {
   peopleApi, projectsApi, refDataApi, gearingApi, countryAllocationsApi, personCommentsApi,
+  tbhCodesApi,
   type Person, type Project, type Region, type GearingConstant,
-  type CountryAllocation, type ContractType, type Level, type Discipline,
+  type CountryAllocation, type ContractType, type Level, type Discipline, type TbhCode,
+  type TbhCodesQuery,
 } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import { useTabDirty } from '../context/TabContext';
@@ -157,6 +159,12 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   const [approveStartDate, setApproveStartDate] = useState('');
   const [approveNotes, setApproveNotes]       = useState('');
   const [approveSaving, setApproveSaving]     = useState(false);
+  const [approveTbhCodes, setApproveTbhCodes]       = useState<TbhCode[]>([]);
+  const [approveTbhLoading, setApproveTbhLoading]   = useState(false);
+  const [createPersonPrompt, setCreatePersonPrompt] = useState<{
+    name: string; levelName: string | null; discName: string | null; contractCode: string | null;
+  } | null>(null);
+  const [createPersonSaving, setCreatePersonSaving] = useState(false);
 
   // ── Undo / redo history ───────────────────────────────────────────────────
   type AllocSnapshot = { personId: number; cycleId: number | null; before: { country_id: number; fte_value: number }[]; after: { country_id: number; fte_value: number }[] };
@@ -182,6 +190,17 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
     refDataApi.levels().then(setRefLevels).catch(() => {});
     refDataApi.disciplines().then(setRefDisciplines).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!approvePersonId) { setApproveTbhCodes([]); return; }
+    setApproveTbhLoading(true);
+    const params: TbhCodesQuery = { limit: 500 };
+    if (selectedRegionId) params.region_id = selectedRegionId;
+    tbhCodesApi.list(params)
+      .then(setApproveTbhCodes)
+      .catch(() => setApproveTbhCodes([]))
+      .finally(() => setApproveTbhLoading(false));
+  }, [approvePersonId, selectedRegionId]);
 
   useEffect(() => { setCollapsedCountries(new Set()); setCountryFilter(''); }, [selectedRegionId]);
 
@@ -471,6 +490,7 @@ useEffect(() => {
     setApproveCandidate('');
     setApproveStartDate('');
     setApproveNotes('');
+    setCreatePersonPrompt(null);
   }
 
   function openAddModal(preDisciplineId?: number) {
@@ -663,6 +683,28 @@ useEffect(() => {
     finally { setApproveSaving(false); }
   }
 
+  async function createPersonFromTbh() {
+    if (!createPersonPrompt) return;
+    setCreatePersonSaving(true);
+    try {
+      const disc = refDisciplines.find(d => d.name === createPersonPrompt.discName);
+      const level = refLevels.find(l => l.level_name === createPersonPrompt.levelName);
+      const ct = refContractTypes.find(c => c.code === createPersonPrompt.contractCode);
+      await peopleApi.create({
+        name: createPersonPrompt.name,
+        discipline_id: disc?.id ?? null,
+        level_id: level?.id ?? null,
+        contract_type_id: ct?.id ?? null,
+        region_ids: selectedRegionId ? [selectedRegionId] : [],
+        planning_cycle_id: selectedCycleId ?? null,
+      });
+      toast.success(`People record created for ${createPersonPrompt.name}`);
+      setCreatePersonPrompt(null);
+      await loadData();
+    } catch { toast.error('Failed to create people record'); }
+    finally { setCreatePersonSaving(false); }
+  }
+
   const modalTotal = allocMode === 'equal'
     ? equalCountries.size > 0 ? 1.0 : 0
     : countryGroups.reduce((s, g) => s + (parseFloat(modalAllocs[g.countryId] ?? '0') || 0), 0);
@@ -686,6 +728,33 @@ useEffect(() => {
   const pendingRequests = useMemo(
     () => allPeople.filter(p => contractGroup(p) === 'request').sort((a, b) => a.name.localeCompare(b.name)),
     [allPeople]
+  );
+
+  const approveRequestPerson = useMemo(
+    () => allPeople.find(p => p.id === approvePersonId) ?? null,
+    [allPeople, approvePersonId]
+  );
+
+  const filteredTbhCodes = useMemo(() => {
+    if (!approveRequestPerson) return approveTbhCodes;
+    return approveTbhCodes.filter(t => {
+      if (approveRequestPerson.discipline_name && t.discipline_name) {
+        const pDisc = approveRequestPerson.discipline_name.toLowerCase();
+        const tDisc = t.discipline_name.toLowerCase();
+        if (!pDisc.includes(tDisc) && !tDisc.includes(pDisc)) return false;
+      }
+      if (approveRequestPerson.hiring_manager && t.hiring_manager) {
+        const pMgr = approveRequestPerson.hiring_manager.toLowerCase();
+        const tMgr = t.hiring_manager.toLowerCase();
+        if (!pMgr.includes(tMgr) && !tMgr.includes(pMgr)) return false;
+      }
+      return true;
+    });
+  }, [approveTbhCodes, approveRequestPerson]);
+
+  const selectedTbhRecord = useMemo(
+    () => filteredTbhCodes.find(t => t.tbh_id === approveTbhCode) ?? null,
+    [filteredTbhCodes, approveTbhCode]
   );
 
   const selectedRegionName = regions.find(r => r.id === selectedRegionId)?.name ?? '';
@@ -796,6 +865,26 @@ useEffect(() => {
             </div>
           </div>
         </div>
+
+        {/* ── Row 2: discipline FTE breakdown ── */}
+        {!loading && bannerMetrics.byDisc.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', padding: '4px 12px', background: '#F8F9FB', borderTop: '1px solid #E0E3E8' }}>
+            <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.07em', whiteSpace: 'nowrap', marginRight: 10, flexShrink: 0 }}>By Discipline</span>
+            {bannerMetrics.byDisc.map(({ discipline, allocated }) => {
+              const comp = compBannerMetrics.byDisc.find(d => d.discipline === discipline);
+              const col = DISCIPLINE_COLOURS[discipline] ?? { bg: '#5A657B', text: '#FFFFFF', light: '#F0F2F5' };
+              return (
+                <div key={discipline} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', marginRight: 6, background: col.light, borderRadius: 4, border: `1px solid ${col.bg}40`, flexShrink: 0 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: col.bg, flexShrink: 0 }} />
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{discipline}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: col.bg, whiteSpace: 'nowrap' }}>{allocated.toFixed(1)}</span>
+                  <span style={{ fontSize: 8, color: '#9BA4B5' }}>FTE</span>
+                  {compCycleId && comp && <DeltaBadge a={comp.allocated} b={allocated} size={9} isFloat />}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
       </div>
 
@@ -1772,7 +1861,13 @@ useEffect(() => {
                   ) : (
                     <select
                       value={approvePersonId}
-                      onChange={e => setApprovePersonId(e.target.value ? Number(e.target.value) : '')}
+                      onChange={e => {
+                        setApprovePersonId(e.target.value ? Number(e.target.value) : '');
+                        setApproveTbhCode('');
+                        setApproveCandidate('');
+                        setApproveStartDate('');
+                        setCreatePersonPrompt(null);
+                      }}
                       style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
                     >
                       <option value="">— Select a request —</option>
@@ -1789,26 +1884,113 @@ useEffect(() => {
                 <>
                   {/* TBH Code */}
                   <div style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>TBH Code</label>
-                    <input
-                      type="text"
-                      value={approveTbhCode}
-                      onChange={e => setApproveTbhCode(e.target.value)}
-                      placeholder="e.g. TBH-2026-001"
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', boxSizing: 'border-box' as const }}
-                    />
+                    <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                      TBH Code
+                      {approveTbhLoading && <span style={{ marginLeft: 6, fontSize: 9, color: '#9BA4B5', fontWeight: 400, textTransform: 'none' as const }}>loading…</span>}
+                      {!approveTbhLoading && filteredTbhCodes.length > 0 && <span style={{ marginLeft: 6, fontSize: 9, color: '#5A657B', fontWeight: 400, textTransform: 'none' as const }}>{filteredTbhCodes.length} available</span>}
+                    </label>
+                    {filteredTbhCodes.length > 0 ? (
+                      <select
+                        value={approveTbhCode}
+                        onChange={e => {
+                          const tbhId = e.target.value;
+                          setApproveTbhCode(tbhId);
+                          setApproveCandidate('');
+                          setCreatePersonPrompt(null);
+                          const rec = filteredTbhCodes.find(t => t.tbh_id === tbhId);
+                          if (rec?.target_hire_date) setApproveStartDate(rec.target_hire_date);
+                        }}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
+                      >
+                        <option value="">— Select TBH code —</option>
+                        {filteredTbhCodes.map(t => (
+                          <option key={t.id} value={t.tbh_id}>
+                            {t.tbh_id}{t.discipline_name ? ` · ${t.discipline_name}` : ''}{t.level_name ? ` (${t.level_name})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={approveTbhCode}
+                        onChange={e => setApproveTbhCode(e.target.value)}
+                        placeholder={approveTbhLoading ? 'Loading TBH codes…' : 'No matching TBH codes — enter manually'}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: approveTbhLoading ? '#F5F5F5' : '#FFFFFF', boxSizing: 'border-box' as const }}
+                      />
+                    )}
                   </div>
 
                   {/* Candidate Name */}
                   <div style={{ marginBottom: 14 }}>
                     <label style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, display: 'block', marginBottom: 4 }}>Candidate Name</label>
-                    <input
-                      type="text"
-                      value={approveCandidate}
-                      onChange={e => setApproveCandidate(e.target.value)}
-                      placeholder="Name of the selected candidate"
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', boxSizing: 'border-box' as const }}
-                    />
+                    {selectedTbhRecord?.candidate_name ? (
+                      <select
+                        value={approveCandidate}
+                        onChange={e => {
+                          const name = e.target.value;
+                          setApproveCandidate(name);
+                          if (name && !allPeople.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+                            setCreatePersonPrompt({
+                              name,
+                              levelName: selectedTbhRecord?.level_name ?? null,
+                              discName: selectedTbhRecord?.discipline_name ?? null,
+                              contractCode: selectedTbhRecord?.contract_type_code ?? null,
+                            });
+                          } else {
+                            setCreatePersonPrompt(null);
+                          }
+                        }}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF' }}
+                      >
+                        <option value="">— Select candidate —</option>
+                        <option value={selectedTbhRecord.candidate_name}>{selectedTbhRecord.candidate_name}</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={approveCandidate}
+                        onChange={e => setApproveCandidate(e.target.value)}
+                        onBlur={e => {
+                          const name = e.target.value.trim();
+                          if (name && !allPeople.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+                            setCreatePersonPrompt({
+                              name,
+                              levelName: selectedTbhRecord?.level_name ?? null,
+                              discName: selectedTbhRecord?.discipline_name ?? null,
+                              contractCode: selectedTbhRecord?.contract_type_code ?? null,
+                            });
+                          } else {
+                            setCreatePersonPrompt(null);
+                          }
+                        }}
+                        placeholder="Name of the selected candidate"
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, color: '#111111', background: '#FFFFFF', boxSizing: 'border-box' as const }}
+                      />
+                    )}
+                    {createPersonPrompt && (
+                      <div style={{ marginTop: 8, padding: '10px 12px', background: '#FFF9E6', border: '1px solid #FDB90D', borderRadius: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 4 }}>
+                          "{createPersonPrompt.name}" is not yet in the people list
+                        </div>
+                        <div style={{ fontSize: 10, color: '#5A657B', marginBottom: 8 }}>
+                          Create a new record pre-populated with:
+                          {createPersonPrompt.discName && <span style={{ marginLeft: 4, fontWeight: 600, color: '#374151' }}>{createPersonPrompt.discName}</span>}
+                          {createPersonPrompt.levelName && <span style={{ marginLeft: 4, fontWeight: 600, color: '#374151' }}>· {createPersonPrompt.levelName}</span>}
+                          {createPersonPrompt.contractCode && <span style={{ marginLeft: 4, fontWeight: 600, color: '#374151' }}>· {createPersonPrompt.contractCode}</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={() => setCreatePersonPrompt(null)}
+                            style={{ flex: 1, padding: '6px 0', background: '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 11, color: '#555555', cursor: 'pointer' }}
+                          >Skip</button>
+                          <button
+                            onClick={createPersonFromTbh}
+                            disabled={createPersonSaving}
+                            style={{ flex: 2, padding: '6px 0', background: '#086AE3', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#FFFFFF', cursor: createPersonSaving ? 'default' : 'pointer', opacity: createPersonSaving ? 0.6 : 1 }}
+                          >{createPersonSaving ? 'Creating…' : '+ Create People Record'}</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Confirmed Start Date */}
