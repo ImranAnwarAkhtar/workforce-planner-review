@@ -576,6 +576,58 @@ _startupMigs.push((async () => {
   }
 })());
 
+// Reference lists table + seed data
+_startupMigs.push((async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ref_lists (
+        id         SERIAL PRIMARY KEY,
+        list_name  VARCHAR(100) NOT NULL,
+        value      VARCHAR(255) NOT NULL,
+        sort_order INT          NOT NULL DEFAULT 0,
+        UNIQUE (list_name, value)
+      );
+    `);
+    // Seed values — ON CONFLICT DO NOTHING so manual edits survive restarts
+    const seed = [
+      ['hire_type',   'Net New',                     0],
+      ['hire_type',   'Backfill',                    1],
+      ['hire_type',   'Conversion',                  2],
+      ['hire_type',   'Uplift',                      3],
+      ['hire_status', 'Req not raised',              0],
+      ['hire_status', 'Open',                        1],
+      ['hire_status', 'Screening',                   2],
+      ['hire_status', 'Interviewing',                3],
+      ['hire_status', 'Offer Pending',               4],
+      ['hire_status', 'Offer Accepted',              5],
+      ['hire_status', 'Hired',                       6],
+      ['hire_status', 'Closed',                      7],
+      ['hire_source', 'External',                    0],
+      ['hire_source', 'Internal (within GDC)',       1],
+      ['hire_source', 'Internal (outside GDC)',      2],
+      ['hire_source', 'Conversion',                  3],
+      ['hire_source', 'Promotion',                   4],
+      ['project_type','Retail',                      0],
+      ['project_type','xScale',                      1],
+      ['project_type','EM',                          2],
+      ['request_type','Net New',                     0],
+      ['request_type','Backfill',                    1],
+      ['request_type','Conversion',                  2],
+      ['request_type','Contractor Extension',        3],
+      ['request_type','Contractor to Perm',          4],
+    ];
+    for (const [list_name, value, sort_order] of seed) {
+      await pool.query(
+        `INSERT INTO ref_lists (list_name, value, sort_order) VALUES ($1,$2,$3) ON CONFLICT (list_name,value) DO NOTHING`,
+        [list_name, value, sort_order]
+      );
+    }
+    logger.info('ref_lists migration complete');
+  } catch (err) {
+    logger.error('ref_lists migration failed', { error: err.message });
+  }
+})());
+
 // Rename SNR level → Vice President (VP) and SNR contract type → VP
 _startupMigs.push((async () => {
   try {

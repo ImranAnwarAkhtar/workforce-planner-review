@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { refDataApi, metrosApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type Metro, type PlanningCycle, type CycleApprover, type CycleStageAccess, type GearingConstant, type AlertConfig, type AlertLog, type Person } from '../services/api';
+import { refDataApi, metrosApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type Metro, type PlanningCycle, type CycleApprover, type CycleStageAccess, type GearingConstant, type AlertConfig, type AlertLog, type Person, type RefListEntry } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import axios from 'axios';
 
@@ -2525,11 +2525,201 @@ function CycleStagesTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Reference Lists Tab
+// ---------------------------------------------------------------------------
+
+const LIST_META: { key: string; label: string; desc: string }[] = [
+  { key: 'hire_type',    label: 'Hire Types',    desc: 'Values shown in the Hire Type dropdown on TBH code records.' },
+  { key: 'hire_status',  label: 'Hire Statuses', desc: 'Recruitment pipeline statuses for TBH codes.' },
+  { key: 'hire_source',  label: 'Hire Sources',  desc: 'How a hire was sourced (External, Internal, etc.).' },
+  { key: 'project_type', label: 'Project Types', desc: 'Types used to categorise projects (e.g. Retail, xScale).' },
+  { key: 'request_type', label: 'Request Types', desc: 'Hire request categories used in the Requests module.' },
+];
+
+function RefListsTab() {
+  const [allEntries, setAllEntries]     = useState<RefListEntry[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [activeList, setActiveList]     = useState(LIST_META[0].key);
+  const [editingId, setEditingId]       = useState<number | null>(null);
+  const [editValue, setEditValue]       = useState('');
+  const [deletingId, setDeletingId]     = useState<number | null>(null);
+  const [adding, setAdding]             = useState(false);
+  const [newValue, setNewValue]         = useState('');
+  const [saving, setSaving]             = useState(false);
+
+  function load() {
+    setLoading(true);
+    refDataApi.refLists().then(setAllEntries).catch(() => {}).finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const entries = allEntries
+    .filter(e => e.list_name === activeList)
+    .sort((a, b) => a.sort_order - b.sort_order || a.value.localeCompare(b.value));
+
+  async function handleAdd() {
+    if (!newValue.trim()) return;
+    setSaving(true);
+    try {
+      await rawClient.post('/admin/ref-lists', {
+        list_name: activeList, value: newValue.trim(), sort_order: entries.length,
+      });
+      load(); setAdding(false); setNewValue('');
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleSave(id: number) {
+    if (!editValue.trim()) return;
+    setSaving(true);
+    try {
+      await rawClient.put(`/admin/ref-lists/${id}`, { value: editValue.trim() });
+      load(); setEditingId(null);
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleDelete(id: number) {
+    setSaving(true);
+    try {
+      await rawClient.delete(`/admin/ref-lists/${id}`);
+      load(); setDeletingId(null);
+    } catch (e: unknown) { toast.error(errMsg(e)); setDeletingId(null); } finally { setSaving(false); }
+  }
+
+  async function handleReorder(id: number, dir: -1 | 1) {
+    const idx = entries.findIndex(e => e.id === id);
+    if (idx < 0) return;
+    const swap = entries[idx + dir];
+    if (!swap) return;
+    setSaving(true);
+    try {
+      await rawClient.put(`/admin/ref-lists/${id}`,      { sort_order: swap.sort_order });
+      await rawClient.put(`/admin/ref-lists/${swap.id}`, { sort_order: entries[idx].sort_order });
+      load();
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  const meta = LIST_META.find(m => m.key === activeList)!;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16, alignItems: 'start' }}>
+      {/* Left: list selector */}
+      <div style={{ ...card, overflow: 'hidden' }}>
+        {LIST_META.map(m => (
+          <button key={m.key} onClick={() => { setActiveList(m.key); setEditingId(null); setAdding(false); }} style={{
+            display: 'block', width: '100%', textAlign: 'left', padding: '11px 14px',
+            background: activeList === m.key ? '#FEF0F0' : 'transparent',
+            border: 'none', borderLeft: activeList === m.key ? `3px solid ${tk.accent}` : '3px solid transparent',
+            color: activeList === m.key ? '#AD050C' : '#374151',
+            fontSize: 13, fontWeight: activeList === m.key ? 600 : 400, cursor: 'pointer',
+            borderBottom: '1px solid #F0F0F0',
+          }}>{m.label}</button>
+        ))}
+      </div>
+
+      {/* Right: values for the selected list */}
+      <div style={card}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{meta.label}</div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{meta.desc}</div>
+          </div>
+          <button onClick={() => { setAdding(true); setEditingId(null); setNewValue(''); }}
+            style={{ padding: '7px 14px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            + Add Value
+          </button>
+        </div>
+
+        {adding && (
+          <div style={{ padding: '12px 16px', background: '#FAFAFA', borderBottom: '1px solid #E8E8E8', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input autoFocus value={newValue} onChange={e => setNewValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setAdding(false); }}
+              placeholder="New value…"
+              style={{ ...inp, flex: 1, margin: 0 }} />
+            <button onClick={handleAdd} disabled={saving || !newValue.trim()}
+              style={{ padding: '7px 14px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !newValue.trim() ? 0.5 : 1 }}>
+              {saving ? 'Saving…' : 'Add'}
+            </button>
+            <button onClick={() => setAdding(false)} style={{ ...btnSecondary, padding: '7px 12px' }}>Cancel</button>
+          </div>
+        )}
+
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={{ ...th, width: 36 }}>#</th>
+              <th style={th}>Value</th>
+              <th style={{ ...th, textAlign: 'right' as const }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={3} style={{ ...td, textAlign: 'center', color: '#999' }}>Loading…</td></tr>
+            ) : entries.length === 0 ? (
+              <tr><td colSpan={3} style={{ ...td, textAlign: 'center', color: '#999' }}>No values yet — add one above.</td></tr>
+            ) : entries.map((e, idx) => {
+              if (editingId === e.id) return (
+                <tr key={e.id} style={{ background: '#FAFAFA' }}>
+                  <td style={td}>{idx + 1}</td>
+                  <td style={td}>
+                    <input autoFocus value={editValue} onChange={ev => setEditValue(ev.target.value)}
+                      onKeyDown={ev => { if (ev.key === 'Enter') handleSave(e.id); if (ev.key === 'Escape') setEditingId(null); }}
+                      style={{ ...inp, margin: 0 }} />
+                  </td>
+                  <td style={{ ...td, textAlign: 'right' as const }}>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button onClick={() => handleSave(e.id)} disabled={saving}
+                        style={{ padding: '5px 12px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+                      <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+              if (deletingId === e.id) return (
+                <tr key={e.id} style={{ background: '#FFF5F5' }}>
+                  <td style={td}>{idx + 1}</td>
+                  <td style={{ ...td, color: '#AD050C' }}>{e.value}</td>
+                  <td style={{ ...td, textAlign: 'right' as const }}>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: '#AD050C', marginRight: 4 }}>Delete this value?</span>
+                      <button onClick={() => handleDelete(e.id)} disabled={saving}
+                        style={{ padding: '5px 12px', background: '#AD050C', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Yes, delete</button>
+                      <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+              return (
+                <tr key={e.id} style={{ background: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
+                  <td style={{ ...td, color: '#9BA3AF', fontSize: 12 }}>{idx + 1}</td>
+                  <td style={{ ...td, fontWeight: 500 }}>{e.value}</td>
+                  <td style={{ ...td, textAlign: 'right' as const }}>
+                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
+                      <button onClick={() => handleReorder(e.id, -1)} disabled={idx === 0 || saving}
+                        title="Move up" style={{ padding: '4px 8px', background: 'transparent', border: '1px solid #E0E0E0', borderRadius: 4, fontSize: 11, cursor: idx === 0 ? 'default' : 'pointer', color: '#777', opacity: idx === 0 ? 0.3 : 1 }}>↑</button>
+                      <button onClick={() => handleReorder(e.id, 1)} disabled={idx === entries.length - 1 || saving}
+                        title="Move down" style={{ padding: '4px 8px', background: 'transparent', border: '1px solid #E0E0E0', borderRadius: 4, fontSize: 11, cursor: idx === entries.length - 1 ? 'default' : 'pointer', color: '#777', opacity: idx === entries.length - 1 ? 0.3 : 1 }}>↓</button>
+                      <button onClick={() => { setEditingId(e.id); setEditValue(e.value); setDeletingId(null); setAdding(false); }}
+                        style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Edit</button>
+                      <button onClick={() => { setDeletingId(e.id); setEditingId(null); setAdding(false); }}
+                        style={{ padding: '5px 10px', background: 'transparent', color: '#AD050C', border: '1px solid #F5C0BB', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Admin page
 // ---------------------------------------------------------------------------
 
 
-const TABS = ['Planning Cycles', 'Cycle Stages', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'Metros', 'User Access', 'Gearing Ratios', 'Alerts'] as const;
+const TABS = ['Planning Cycles', 'Cycle Stages', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'Metros', 'User Access', 'Gearing Ratios', 'Alerts', 'Reference Lists'] as const;
 type Tab = typeof TABS[number];
 
 export default function Admin() {
@@ -2563,8 +2753,9 @@ export default function Admin() {
       {activeTab === 'Regions'        && <RegionsTab />}
       {activeTab === 'Metros'         && <MetrosTab />}
       {activeTab === 'User Access'     && <UserAccessTab />}
-      {activeTab === 'Gearing Ratios' && <GearingRatiosTab />}
-      {activeTab === 'Alerts'          && <AlertsTab />}
+      {activeTab === 'Gearing Ratios'   && <GearingRatiosTab />}
+      {activeTab === 'Alerts'            && <AlertsTab />}
+      {activeTab === 'Reference Lists'   && <RefListsTab />}
     </div>
   );
 }

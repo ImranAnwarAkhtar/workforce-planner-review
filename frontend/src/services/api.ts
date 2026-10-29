@@ -842,6 +842,8 @@ export interface Metro {
   region_code: string | null;
 }
 
+export interface RefListEntry { id: number; list_name: string; value: string; sort_order: number; }
+
 export const refDataApi = {
   disciplines:   () => client.get<ListResponse<Discipline>>('/admin/disciplines').then((r) => r.data.data),
   levels:        () => client.get<ListResponse<Level>>('/admin/levels').then((r) => r.data.data),
@@ -853,6 +855,11 @@ export const refDataApi = {
   metros: (region_id?: number) =>
     client.get<ListResponse<Metro>>('/admin/metros', { params: region_id ? { region_id } : undefined })
       .then((r) => r.data.data),
+  refLists: () => client.get<ListResponse<RefListEntry>>('/admin/ref-lists').then((r) => r.data.data),
+  refListByName: (name: string) =>
+    client.get<ListResponse<RefListEntry>>('/admin/ref-lists').then((r) =>
+      r.data.data.filter((e) => e.list_name === name).sort((a, b) => a.sort_order - b.sort_order)
+    ),
 };
 
 // ---------------------------------------------------------------------------

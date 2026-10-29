@@ -544,4 +544,51 @@ router.delete('/metros/:id', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR
   res.json({ data: { id } });
 });
 
+// ── Reference Lists CRUD ──────────────────────────────────────────────────────
+
+router.get('/ref-lists', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT * FROM ref_lists ORDER BY list_name, sort_order, value'
+  );
+  res.json({ data: rows });
+});
+
+router.post('/ref-lists', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANNING), async (req, res) => {
+  const { list_name, value, sort_order } = req.body;
+  if (!list_name || !value) return res.status(400).json({ error: 'list_name and value are required' });
+  const { rows } = await pool.query(
+    'INSERT INTO ref_lists (list_name, value, sort_order) VALUES ($1, $2, $3) RETURNING *',
+    [list_name.trim(), value.trim(), sort_order ?? 0]
+  );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'ref_lists', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
+  res.status(201).json({ data: rows[0] });
+});
+
+router.put('/ref-lists/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANNING), async (req, res) => {
+  const { value, sort_order } = req.body;
+  const sets = [], params = [];
+  let i = 1;
+  if (value      !== undefined) { sets.push(`value = $${i++}`);      params.push(value.trim()); }
+  if (sort_order !== undefined) { sets.push(`sort_order = $${i++}`); params.push(sort_order); }
+  if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
+  params.push(req.params.id);
+  const { rows } = await pool.query(
+    `UPDATE ref_lists SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`, params
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Entry not found' });
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'ref_lists', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
+  res.json({ data: rows[0] });
+});
+
+router.delete('/ref-lists/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANNING), async (req, res) => {
+  try {
+    const { rowCount } = await pool.query('DELETE FROM ref_lists WHERE id = $1', [req.params.id]);
+    if (!rowCount) return res.status(404).json({ error: 'Entry not found' });
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE', tableName: 'ref_lists', recordId: parseInt(req.params.id, 10), ipAddress: req.ip });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;

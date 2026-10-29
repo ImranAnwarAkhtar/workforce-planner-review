@@ -6,8 +6,10 @@ import { useColFilter, type ColDef } from '../hooks/useColFilter';
 // Constants
 // ---------------------------------------------------------------------------
 
-const REQ_STATUSES = ['Req not raised', 'Screening', 'Interviewing', 'Offer Pending', 'Offer Accepted', 'Hired', 'Closed'];
-const HIRE_TYPES   = ['Net New', 'Backfill', 'Conversion', 'Uplift'];
+// Fallback values used until API data loads
+const REQ_STATUSES_DEFAULT = ['Req not raised', 'Screening', 'Interviewing', 'Offer Pending', 'Offer Accepted', 'Hired', 'Closed'];
+const HIRE_TYPES_DEFAULT   = ['Net New', 'Backfill', 'Conversion', 'Uplift'];
+const HIRE_SOURCES_DEFAULT = ['External', 'Internal (within GDC)', 'Internal (outside GDC)', 'Conversion', 'Promotion'];
 
 const STATUS_META: Record<string, { color: string; bg: string; border: string }> = {
   'Req not raised': { color: '#6B7280', bg: '#F9FAFB', border: '#E5E7EB' },
@@ -208,6 +210,9 @@ function tbhToForm(t: TbhCode): FormState {
 export default function Recruitment() {
   const [tbhCodes, setTbhCodes] = useState<TbhCode[]>([]);
   const [regions,  setRegions]  = useState<Region[]>([]);
+  const [hireTypes,   setHireTypes]   = useState<string[]>(HIRE_TYPES_DEFAULT);
+  const [reqStatuses, setReqStatuses] = useState<string[]>(REQ_STATUSES_DEFAULT);
+  const [hireSources, setHireSources] = useState<string[]>(HIRE_SOURCES_DEFAULT);
 
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -232,7 +237,15 @@ export default function Recruitment() {
     return next;
   });
 
-  useEffect(() => { refDataApi.regions().then(setRegions).catch(() => {}); }, []);
+  useEffect(() => {
+    refDataApi.regions().then(setRegions).catch(() => {});
+    refDataApi.refLists().then(all => {
+      const vals = (name: string) => all.filter(e => e.list_name === name).sort((a,b) => a.sort_order - b.sort_order).map(e => e.value);
+      const ht = vals('hire_type');   if (ht.length)  setHireTypes(ht);
+      const hs = vals('hire_status'); if (hs.length)  setReqStatuses(hs);
+      const src = vals('hire_source'); if (src.length) setHireSources(src);
+    }).catch(() => {});
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -359,7 +372,7 @@ export default function Recruitment() {
         </div>
 
         {/* Per-status counts */}
-        {REQ_STATUSES.map(s => (
+        {reqStatuses.map(s => (
           <div key={s} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', borderRight: '1px solid #E0E3E8', flex: '1 1 auto', minWidth: 0 }}>
             <span style={{ fontSize: 19, fontWeight: 700, color: STATUS_BANNER_COLOR[s], lineHeight: 1 }}>
               {statusCounts[s] ?? 0}
@@ -387,7 +400,7 @@ export default function Recruitment() {
         />
         <select style={{ padding: '6px 8px', background: '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 6, color: '#111111', fontSize: 12, cursor: 'pointer', outline: 'none' }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">All statuses</option>
-          {REQ_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          {reqStatuses.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select style={{ padding: '6px 8px', background: '#FFFFFF', border: '1px solid #D5D5D5', borderRadius: 6, color: '#111111', fontSize: 12, cursor: 'pointer', outline: 'none' }} value={yearFilter} onChange={e => setYearFilter(e.target.value)}>
           <option value="">All years</option>
@@ -399,7 +412,7 @@ export default function Recruitment() {
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Status:</span>
           <button onClick={() => setStatusFilter('')} style={{ padding: '3px 9px', borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: statusFilter === '' ? '1.5px solid #374151' : '1px solid #E0E0E0', background: statusFilter === '' ? '#374151' : '#F9FAFB', color: statusFilter === '' ? '#FFFFFF' : '#555' }}>All</button>
-          {REQ_STATUSES.map(s => {
+          {reqStatuses.map(s => {
             const m = STATUS_META[s];
             const active = statusFilter === s;
             return (
@@ -646,7 +659,7 @@ export default function Recruitment() {
               <div>
                 <label style={labelSt}>Hire Type</label>
                 <select style={selectSt} value={form.hire_type} onChange={e => sf('hire_type', e.target.value)}>
-                  {HIRE_TYPES.map(h => <option key={h} value={h}>{h}</option>)}
+                  {hireTypes.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
             </div>
@@ -655,7 +668,7 @@ export default function Recruitment() {
               <div>
                 <label style={labelSt}>Status</label>
                 <select style={selectSt} value={form.req_status} onChange={e => sf('req_status', e.target.value)}>
-                  {REQ_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  {reqStatuses.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
@@ -710,11 +723,7 @@ export default function Recruitment() {
                 <label style={labelSt}>Hire Source</label>
                 <select style={inputSt} value={form.hire_source} onChange={e => sf('hire_source', e.target.value)}>
                   <option value="">— select —</option>
-                  <option value="External">External</option>
-                  <option value="Internal (within GDC)">Internal (within GDC)</option>
-                  <option value="Internal (outside GDC)">Internal (outside GDC)</option>
-                  <option value="Conversion">Conversion</option>
-                  <option value="Promotion">Promotion</option>
+                  {hireSources.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>{/* spacer */}</div>
