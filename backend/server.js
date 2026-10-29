@@ -170,6 +170,10 @@ _startupMigs.push(pool.query(`
 `).catch(err => logger.error('TBH codes jr_id_added_at/comp_ratio migration failed', { error: err.message })));
 
 _startupMigs.push(pool.query(`
+  ALTER TABLE people ADD COLUMN IF NOT EXISTS end_date DATE;
+`).catch(err => logger.error('People end_date migration failed', { error: err.message })));
+
+_startupMigs.push(pool.query(`
   ALTER TABLE people ADD COLUMN IF NOT EXISTS planning_cycle_id INTEGER REFERENCES planning_cycles(id) ON DELETE SET NULL;
 `).catch(err => logger.error('People planning_cycle_id migration failed', { error: err.message })));
 

@@ -144,11 +144,6 @@ const DISC_COLOURS: Record<string, string> = {
   'Commissioning':'#00737A',
   'Other':        '#8B93A3',
 };
-const DISC_LABEL_COLOR = (disc: string): string => {
-  const c = DISC_COLOURS[disc] ?? '#5A657B';
-  return c === '#FDB90D' ? '#C59000' : c;
-};
-
 function regionColor(name: string): string {
   if (!name || name === 'Unassigned') return '#AAAAAA';
   const hash = name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
@@ -160,7 +155,7 @@ function regionColor(name: string): string {
 // ---------------------------------------------------------------------------
 
 type ColKey = 'name' | 'level' | 'discipline' | 'contract_type' | 'fte' | 'profile' | 'login_email' | 'status'
-           | 'manager' | 'hire_date' | 'region' | 'cost_centre' | 'job_profile' | 'job_title';
+           | 'manager' | 'hire_date' | 'end_date' | 'region' | 'cost_centre' | 'job_profile' | 'job_title';
 
 const COL_DEFS: { key: ColKey; label: string; get: (p: Person) => string }[] = [
   { key: 'name',          label: 'Name',            get: p => p.name },
@@ -172,7 +167,8 @@ const COL_DEFS: { key: ColKey; label: string; get: (p: Person) => string }[] = [
   { key: 'login_email',   label: 'Login Email',     get: p => p.login_email ?? '' },
   { key: 'status',        label: 'Status',          get: p => p.is_active ? 'Active' : 'Inactive' },
   { key: 'manager',       label: 'Manager',         get: p => p.hiring_manager ?? '' },
-  { key: 'hire_date',     label: 'Hire Date',       get: p => p.confirmed_start_date ? new Date(p.confirmed_start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' },
+  { key: 'hire_date',     label: 'Start Date',      get: p => p.confirmed_start_date ? new Date(p.confirmed_start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' },
+  { key: 'end_date',      label: 'End Date',        get: p => p.end_date ? new Date(p.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '' },
   { key: 'region',        label: 'Region',          get: p => p.region_names ?? '' },
   { key: 'cost_centre',   label: 'Cost Centre',     get: p => p.cost_centre ?? '' },
   { key: 'job_profile',   label: 'Job Profile',     get: p => p.tbh_job_profile ?? '' },
@@ -196,13 +192,14 @@ interface FormState {
   platform_access_enabled: boolean;
   hiring_manager: string;
   job_title: string;
+  end_date: string;
 }
 
 const emptyForm: FormState = {
   name: '', contracted_fte: '1', workday_jr_id: '',
   level_id: '', discipline_id: '', contract_type_id: '', system_profile: '',
   login_email: '', app_role: '', platform_access_enabled: false,
-  hiring_manager: '', job_title: '',
+  hiring_manager: '', job_title: '', end_date: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -433,6 +430,7 @@ export default function People() {
       platform_access_enabled: p.platform_access_enabled ?? false,
       hiring_manager: p.hiring_manager ?? '',
       job_title: p.job_title ?? '',
+      end_date: p.end_date ? p.end_date.slice(0, 10) : '',
     });
     setNameError('');
     setPwForm({ password: '', confirm: '' });
@@ -465,6 +463,7 @@ export default function People() {
         platform_access_enabled: form.platform_access_enabled,
         hiring_manager: form.hiring_manager.trim() || null,
         job_title: form.job_title.trim() || null,
+        end_date: form.end_date || null,
       };
       if (editTarget) {
         await peopleApi.update(editTarget.id, body);
@@ -592,17 +591,20 @@ export default function People() {
         </div>
         {/* Row 2: discipline breakdown */}
         {!loading && disciplineStats.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid #E0E3E8', padding: '6px 16px', gap: 20, flexWrap: 'wrap' as const }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.1em', flexShrink: 0 }}>By Discipline</span>
-            {disciplineStats.map(([disc, count]) => (
-              <div key={disc} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <span style={{ fontSize: 17, fontWeight: 800, color: DISC_LABEL_COLOR(disc), lineHeight: 1 }}>{count}</span>
-                <div style={{ marginTop: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{disc}</span>
-                  <span style={{ fontSize: 7, color: '#9BA4B5', whiteSpace: 'nowrap' }}>· count</span>
+          <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid #E0E3E8', padding: '5px 12px', gap: 6, flexWrap: 'wrap' as const, background: '#F8F9FB' }}>
+            <span style={{ fontSize: 8, fontWeight: 700, color: '#5A657B', textTransform: 'uppercase' as const, letterSpacing: '0.1em', whiteSpace: 'nowrap', marginRight: 4, flexShrink: 0 }}>By Discipline</span>
+            {disciplineStats.map(([disc, count]) => {
+              const bg = DISC_COLOURS[disc] ?? '#5A657B';
+              const light = disc === 'Construction' ? '#EEF4FD' : disc === 'Design' ? '#EEF8F2' : disc === 'Commercial' ? '#FFF9E6' : disc === 'Commissioning' ? '#E6F5F6' : '#F0F2F5';
+              return (
+                <div key={disc} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: light, borderRadius: 4, border: `1px solid ${bg}40`, flexShrink: 0 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: bg, flexShrink: 0 }} />
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{disc}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: bg, whiteSpace: 'nowrap' }}>{count}</span>
+                  <span style={{ fontSize: 8, color: '#9BA4B5' }}>people</span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -837,6 +839,22 @@ export default function People() {
                       placeholder="e.g. Senior Engineer"
                     />
                   </div>
+                </div>
+
+                <div style={S.formRow}>
+                  <div style={S.fieldGroup}>
+                    <label style={S.label}>End Date</label>
+                    <input
+                      type="date"
+                      style={S.input}
+                      value={form.end_date}
+                      onChange={e => setField('end_date', e.target.value)}
+                    />
+                    <span style={{ fontSize: 11, color: '#999', marginTop: 3, display: 'block' }}>
+                      Leave blank if person is still employed
+                    </span>
+                  </div>
+                  <div style={S.fieldGroup} />
                 </div>
 
                 <div style={S.fieldGroup}>
@@ -1321,7 +1339,7 @@ function PersonRow({ person: p, onEdit, onDelete, onPermDelete, selected, onTogg
             {p.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
           </div>
           <div>
-            <div style={{ fontWeight: 600, color: '#111111' }}>{p.name}</div>
+            <div style={{ fontWeight: 600, color: p.end_date && new Date(p.end_date) < new Date() ? '#AD050C' : '#111111' }}>{p.name}</div>
             {p.workday_jr_id && (
               <div style={{ fontSize: 10, color: '#888888', marginTop: 1 }}>{p.workday_jr_id}</div>
             )}
@@ -1381,6 +1399,27 @@ function PersonRow({ person: p, onEdit, onDelete, onPermDelete, selected, onTogg
         {p.confirmed_start_date
           ? <span style={{ fontSize: 12, color: '#374151' }}>{new Date(p.confirmed_start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
           : <span style={{ color: '#AAAAAA' }}>-</span>}
+      </td>
+
+      <td style={S.td}>
+        {(() => {
+          if (!p.end_date) return <span style={{ color: '#AAAAAA' }}>-</span>;
+          const isLeft = new Date(p.end_date) < new Date();
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 12, color: isLeft ? '#AD050C' : '#374151' }}>
+                {new Date(p.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              {isLeft && (
+                <span style={{
+                  display: 'inline-block', padding: '1px 6px', borderRadius: 10,
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                  background: '#FEF0F0', color: '#AD050C', border: '1px solid #F5C0BB',
+                }}>LEFT</span>
+              )}
+            </div>
+          );
+        })()}
       </td>
 
       <td style={S.td}>

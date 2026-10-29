@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../hooks/useAuth';
+import { peopleApi } from '../services/api';
 import equinixFortressRed from '../assets/equinix-fortress-red.svg';
 
 const ROLES = [
@@ -22,14 +23,27 @@ export default function Login() {
   const [name, setName] = useState('');
   const [role, setRole] = useState(ROLES[0]);
   const [nameError, setNameError] = useState('');
+  const [checking, setChecking] = useState(false);
 
-  function handleContinue() {
+  async function handleContinue() {
     if (!name.trim()) {
       setNameError('Please enter your name');
       return;
     }
     const trimmed = name.trim();
     const email = trimmed.toLowerCase().replace(/\s+/g, '.') + '@equinix.com';
+    setChecking(true);
+    try {
+      const { allowed, reason } = await peopleApi.checkAccess(email);
+      if (!allowed) {
+        setNameError(reason ?? 'Access denied. Please contact Workforce Planning.');
+        return;
+      }
+    } catch {
+      // API unavailable — allow login (fail open so a backend blip doesn't lock everyone out)
+    } finally {
+      setChecking(false);
+    }
     login({ name: trimmed, email, role });
     navigate('/dashboard', { replace: true });
   }
@@ -135,21 +149,23 @@ export default function Login() {
         <button
           type="button"
           onClick={handleContinue}
+          disabled={checking}
           style={{
             display: 'block',
             width: '100%',
             padding: '13px 0',
-            background: '#E91C24',
+            background: checking ? '#C41820' : '#E91C24',
             color: '#FFFFFF',
             border: 'none',
             borderRadius: 6,
             fontSize: 15,
             fontWeight: 700,
-            cursor: 'pointer',
+            cursor: checking ? 'not-allowed' : 'pointer',
             letterSpacing: '0.02em',
+            opacity: checking ? 0.8 : 1,
           }}
         >
-          Continue →
+          {checking ? 'Checking…' : 'Continue →'}
         </button>
       </div>
     </div>

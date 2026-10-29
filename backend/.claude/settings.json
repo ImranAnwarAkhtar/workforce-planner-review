@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npx --prefix C:\\\\Projects\\\\workforce-planner\\\\frontend tsc --noEmit 2>&1)",
+      "PowerShell(& \"C:\\\\Projects\\\\workforce-planner\\\\frontend\\\\node_modules\\\\.bin\\\\tsc\" --noEmit --project \"C:\\\\Projects\\\\workforce-planner\\\\frontend\\\\tsconfig.json\" 2>&1)",
+      "PowerShell(node \"C:\\\\Projects\\\\workforce-planner\\\\frontend\\\\node_modules\\\\typescript\\\\bin\\\\tsc\" --noEmit --project \"C:\\\\Projects\\\\workforce-planner\\\\frontend\\\\tsconfig.json\" 2>&1)",
+      "PowerShell($env:REACT_APP_API_URL = \"https://workforce-planner-production.up.railway.app\"; node \"C:\\\\Projects\\\\workforce-planner\\\\frontend\\\\node_modules\\\\.bin\\\\react-scripts.js\" build 2>&1 | Select-Object -Last 20)",
+      "Read(//c/Projects/workforce-planner/frontend/node_modules/.bin/**)",
+      "PowerShell($env:REACT_APP_API_URL = \"https://workforce-planner-production.up.railway.app\"; & \"C:\\\\Projects\\\\workforce-planner\\\\frontend\\\\node_modules\\\\.bin\\\\react-scripts.cmd\" build 2>&1 | Select-Object -Last 20)",
+      "PowerShell(git -C C:\\\\Projects\\\\workforce-planner status)",
+      "PowerShell(git -C C:\\\\Projects\\\\workforce-planner add backend/routes/projects.js frontend/src/pages/Allocations.tsx frontend/src/services/api.ts backend/public/)",
+      "PowerShell(git -C C:\\\\Projects\\\\workforce-planner push origin master 2>&1)",
+      "PowerShell(git -C C:\\\\Projects\\\\workforce-planner add backend/server.js backend/seed.sql backend/public/)",
+      "PowerShell(git -C C:\\\\Projects\\\\workforce-planner status --short)",
+      "Bash(npm audit *)",
+      "Bash(python3 -c ' *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Projects\\workforce-planner\\frontend\\src\\services",
+      "C:\\Projects\\workforce-planner",
+      "C:\\Projects\\workforce-planner\\frontend\\build"
+    ]
+  }
+}

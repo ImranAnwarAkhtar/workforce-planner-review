@@ -40,6 +40,7 @@ router.get('/', requireAuth, async (req, res) => {
     `SELECT pe.id, pe.name, pe.contracted_fte, pe.is_active, pe.workday_jr_id, pe.notes,
             pe.system_profile, pe.email, pe.created_at, pe.updated_at,
             pe.login_email, pe.app_role, pe.platform_access_enabled, pe.last_login,
+            pe.end_date,
             pe.contract_type_id, pe.hiring_manager, pe.dept_head, pe.job_title,
             ct.code AS contract_type_code, ct.description AS contract_type_description,
             ct.colour_hex, ct.category AS contract_category,
@@ -191,6 +192,8 @@ router.put('/:id', requireAuth, requireRole(...WRITER_ROLES), async (req, res) =
   if (dept_head               !== undefined) { sets.push(`dept_head = $${i++}`);               params.push(dept_head || null); }
   if (hiring_manager          !== undefined) { sets.push(`hiring_manager = $${i++}`);          params.push(hiring_manager || null); }
   if (job_title               !== undefined) { sets.push(`job_title = $${i++}`);               params.push(job_title || null); }
+  const { end_date } = req.body;
+  if (end_date !== undefined) { sets.push(`end_date = $${i++}`); params.push(end_date || null); }
 
   const client = await pool.connect();
   try {
@@ -273,6 +276,26 @@ router.delete('/:id', requireAuth, requireRole(ROLES.PMO), async (req, res) => {
   if (!rows.length) return res.status(404).json({ error: 'Person not found' });
   await req.auditLog({ actionType: 'DELETE', resourceType: 'person', resourceId: rows[0].id });
   res.status(204).end();
+});
+
+// Public endpoint — no auth required, only checks access eligibility
+router.get('/check-access/:email', async (req, res) => {
+  const { email } = req.params;
+  const { rows } = await pool.query(
+    `SELECT platform_access_enabled, end_date FROM people WHERE LOWER(login_email) = LOWER($1) LIMIT 1`,
+    [email]
+  );
+  if (!rows.length) {
+    return res.json({ allowed: true, reason: null });
+  }
+  const person = rows[0];
+  if (person.platform_access_enabled === false) {
+    return res.json({ allowed: false, reason: 'Platform access has not been enabled for this account.' });
+  }
+  if (person.end_date && new Date(person.end_date) < new Date()) {
+    return res.json({ allowed: false, reason: `Access ended on ${new Date(person.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. Please contact Workforce Planning.` });
+  }
+  return res.json({ allowed: true, reason: null });
 });
 
 module.exports = router;

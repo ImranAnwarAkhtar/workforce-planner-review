@@ -2329,6 +2329,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   const [startersCombined, setStartersCombined] = useState(false);
   const [taCardSplit, setTaCardSplit] = useState<'source' | 'discipline' | 'region'>('source');
   const [taCardCombined, setTaCardCombined] = useState(false);
+  const [showTerminations, setShowTerminations] = useState(false);
 
   useEffect(() => {
     tbhCodesApi.list({ limit: 500 }).then(data => { setRows(data); setLoading(false); }).catch(() => setLoading(false));
@@ -2538,6 +2539,58 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
     return <span style={{ background: bg, color, fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap' }}>{label}</span>;
   }
 
+  // Termination data: TBH rows where replaced_emp_name is non-empty (someone left)
+  // Use jr_id_added_at if available, else created_at, as proxy for when the person left
+  const terminations = rows.filter(r => r.replaced_emp_name && r.replaced_emp_name.trim());
+
+  function getTermDate(r: TbhCode): string {
+    const raw = (r as any).jr_id_added_at || (r as any).created_at;
+    return raw ? String(raw).slice(0, 10) : '';
+  }
+
+  function buildTermBuckets(periods: { key: string; label: string }[]): { month: string; count: number; pct: number | null }[] {
+    const counts = periods.map(({ label, key }) => ({
+      month: label,
+      count: terminations.filter(r => { const d = getTermDate(r); return d.startsWith(key); }).length,
+    }));
+    return counts.map((c, i) => ({
+      ...c,
+      pct: i === 0 || counts[i - 1].count === 0 ? null
+        : parseFloat((((c.count - counts[i - 1].count) / counts[i - 1].count) * 100).toFixed(1)),
+    }));
+  }
+
+  const termMonthlyBuckets = (() => {
+    const periods = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
+      return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: d.toLocaleString('en-GB', { month: 'short', year: '2-digit' }) };
+    });
+    return buildTermBuckets(periods);
+  })();
+
+  const termQuarterlyBuckets = (() => {
+    const currentQtr = Math.floor(today.getMonth() / 3);
+    const periods = Array.from({ length: 8 }, (_, i) => {
+      const qOff = currentQtr - 3 + i;
+      const qIdx = ((qOff % 4) + 4) % 4;
+      const yr = today.getFullYear() + Math.floor(qOff < 0 ? (qOff - 3) / 4 : qOff / 4);
+      const startMonth = qIdx * 3;
+      const months = [0, 1, 2].map(o => { const d = new Date(yr, startMonth + o, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
+      return { key: months[0].slice(0, 4) + '-Q' + (qIdx + 1), label: `Q${qIdx + 1} '${String(yr).slice(2)}`, months };
+    });
+    const counts = periods.map(p => ({
+      month: p.label,
+      count: terminations.filter(r => { const d = getTermDate(r); return (p as any).months.some((m: string) => d.startsWith(m)); }).length,
+    }));
+    return counts.map((c, i) => ({
+      ...c,
+      pct: i === 0 || counts[i - 1].count === 0 ? null
+        : parseFloat((((c.count - counts[i - 1].count) / counts[i - 1].count) * 100).toFixed(1)),
+    }));
+  })();
+
+  const activeTermData = startersView === 'month' ? termMonthlyBuckets : termQuarterlyBuckets;
+
   const cardStyle: React.CSSProperties = { background: '#FFF', border: `1px solid ${C.border}`, borderRadius: 8 };
   const sL: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 };
   const TH: React.CSSProperties = { padding: '6px 10px', fontSize: 9, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', textAlign: 'left', borderBottom: '2px solid #E0E3E8', background: '#F7F8FA' };
@@ -2590,6 +2643,13 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
                   <ViewToggle view={startersView} onChange={setStartersView} />
                 </>
               )}
+              <button onClick={() => { setShowTerminations(v => !v); if (!showTerminations) setStartersCombined(false); }} style={{
+                padding: '3px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                fontSize: 10, fontWeight: 700,
+                background: showTerminations ? '#AD050C' : '#F0F1F3',
+                color: showTerminations ? '#FFF' : '#555',
+                transition: 'all 0.15s',
+              }}>Terminations %</button>
               <button onClick={() => setStartersCombined(v => !v)} style={{
                 padding: '3px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
                 fontSize: 10, fontWeight: 700,
@@ -2600,9 +2660,61 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
             </div>
           </div>
           <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>
-            {startersCombined ? 'Region × quarter · stacked by discipline' : startersView === 'month' ? 'Next 6 months' : 'Current + next 4 quarters'} · {startersCombined ? '' : `by hire ${startersSplit === 'source' ? 'source & type' : startersSplit === 'discipline' ? 'discipline' : 'region'}`}
+            {showTerminations ? `Rolling termination % change · ${startersView === 'month' ? 'last 12 months' : 'last 8 quarters'}` : startersCombined ? 'Region × quarter · stacked by discipline' : startersView === 'month' ? 'Next 6 months' : 'Current + next 4 quarters'} · {showTerminations ? 'vs prior period' : startersCombined ? '' : `by hire ${startersSplit === 'source' ? 'source & type' : startersSplit === 'discipline' ? 'discipline' : 'region'}`}
           </div>
-          {startersCombined ? (
+          {showTerminations ? (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={activeTermData} margin={{ top: 18, right: 16, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 9, fill: C.muted }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} width={32}
+                    tickFormatter={(v: number) => `${v}%`} />
+                  <Tooltip
+                    content={(props: any) => {
+                      if (!props.active || !props.payload?.length) return null;
+                      const d = props.payload[0]?.payload;
+                      return (
+                        <div style={{ background: '#FFF', border: '1px solid #E0E3E8', borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>
+                          <div style={{ fontWeight: 700, marginBottom: 4 }}>{props.label}</div>
+                          <div style={{ color: '#AD050C' }}>Terminations: {d?.count ?? 0}</div>
+                          <div style={{ color: d?.pct === null ? '#9CA3AF' : d?.pct >= 0 ? '#AD050C' : '#059669' }}>
+                            Δ%: {d?.pct === null ? 'n/a (first period)' : `${d.pct > 0 ? '+' : ''}${d.pct}%`}
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <ReferenceLine y={0} stroke="#D1D5DB" strokeDasharray="4 2" />
+                  <Line dataKey="pct" name="Δ% vs prior period" stroke="#AD050C" strokeWidth={2}
+                    dot={(props: any) => {
+                      const { cx, cy, value } = props;
+                      if (value === null || value === undefined) return <g key={`dot-${cx}-${cy}`} />;
+                      return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={value >= 0 ? '#AD050C' : '#059669'} stroke="#FFF" strokeWidth={1.5} />;
+                    }}
+                    connectNulls={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, marginTop: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#555' }}>
+                  <span style={{ width: 12, height: 3, background: '#AD050C', borderRadius: 2, display: 'inline-block' }} />
+                  Termination % change vs prior period
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', display: 'inline-block' }} />
+                  <span style={{ color: '#059669' }}>Decrease</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#AD050C', display: 'inline-block' }} />
+                  <span style={{ color: '#AD050C' }}>Increase</span>
+                </div>
+                <span style={{ fontSize: 10, color: C.muted, marginLeft: 'auto' }}>
+                  {terminations.length} total replacement{terminations.length !== 1 ? 's' : ''} · hover for count
+                </span>
+              </div>
+            </>
+          ) : startersCombined ? (
             <>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={combinedChartData} margin={{ top: 18, right: 8, bottom: 48, left: 0 }}>

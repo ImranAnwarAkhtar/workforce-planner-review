@@ -190,6 +190,7 @@ export interface Person {
   dept_head: string | null;
   hiring_manager: string | null;
   job_title: string | null;
+  end_date: string | null;
   // From linked TBH code
   confirmed_start_date: string | null;
   cost_centre: string | null;
@@ -227,6 +228,7 @@ export interface CreatePersonBody {
   dept_head?: string | null;
   hiring_manager?: string | null;
   job_title?: string | null;
+  end_date?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -281,6 +283,9 @@ export const peopleApi = {
 
   bulkDeletePermanent: (ids: number[]) =>
     client.post<{ data: { deleted: number } }>('/people/bulk-delete', { ids }).then(r => r.data.data),
+
+  checkAccess: (email: string) =>
+    client.get<{ allowed: boolean; reason: string | null }>(`/people/check-access/${encodeURIComponent(email)}`).then(r => r.data),
 };
 
 // ---------------------------------------------------------------------------

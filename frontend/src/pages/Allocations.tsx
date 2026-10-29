@@ -218,7 +218,8 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
         }).catch(() => [] as CountryAllocation[]),
         gearingApi.list().catch(() => [] as GearingConstant[]),
       ]);
-      setAllPeople(ppl);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      setAllPeople(ppl.filter(p => !p.end_date || new Date(p.end_date) >= today));
       setProjects(projs);
       setCountryAllocs(allocs);
       setGearingConstants(gc);
