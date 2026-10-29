@@ -2289,10 +2289,10 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
           ) : (
             <>
               <ResponsiveContainer width="100%" height={150}>
-                <LineChart data={activeTermData} margin={{ top: 18, right: 16, bottom: 4, left: 0 }}>
+                <LineChart data={activeTermData} margin={{ top: 28, right: 16, bottom: 4, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 9, fill: C.muted }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} width={32} tickFormatter={(v: number) => `${v}%`} />
+                  <YAxis hide axisLine={false} tickLine={false} />
                   <Tooltip
                     content={(props: any) => {
                       if (!props.active || !props.payload?.length) return null;
@@ -2316,7 +2316,22 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
                       return <circle key={`t-${cx}`} cx={cx} cy={cy} r={4} fill={value >= 0 ? '#AD050C' : '#059669'} stroke="#FFF" strokeWidth={1.5} />;
                     }}
                     connectNulls={false}
-                  />
+                  >
+                    <LabelList dataKey="pct" position="top"
+                      content={(props: any) => {
+                        const { x, y, value } = props;
+                        if (value === null || value === undefined) return null;
+                        const label = `${value > 0 ? '+' : ''}${value}%`;
+                        return (
+                          <text x={x} y={(y ?? 0) - 6} textAnchor="middle"
+                            fill={value >= 0 ? '#AD050C' : '#059669'}
+                            fontSize={9} fontWeight={700}>
+                            {label}
+                          </text>
+                        );
+                      }}
+                    />
+                  </Line>
                 </LineChart>
               </ResponsiveContainer>
               <div style={{ display: 'flex', gap: 16, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' as const }}>
