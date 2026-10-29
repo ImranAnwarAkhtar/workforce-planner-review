@@ -1862,6 +1862,8 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   const [forecastChartView, setForecastChartView] = useState<'source' | 'type'>('source');
   const [showForecastTerminations, setShowForecastTerminations] = useState(false);
 
+  const regionSuffix = selectedRegions.length === 0 ? '' : ` — ${selectedRegions.join(', ')}`;
+
   const STAGE_COLORS: Record<string, string> = {
     'Filled': '#E91C24', 'Open': '#C71B36', 'In Progress': '#A61B49',
     'Offer Extended': '#841A5B', 'On Hold': '#631A6E', 'Cancelled': '#411980', 'Not Raised': '#8B93A3',
@@ -2039,7 +2041,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
 
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
           <div style={{ marginBottom: 10 }}>
-            <div style={sectionLabel}>TBH Roles by Hire Status</div>
+            <div style={sectionLabel}>TBH Roles by Hire Status{regionSuffix}</div>
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Sorted by volume</div>
           </div>
           {(() => {
@@ -2120,7 +2122,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
         {/* TBH Hires by Region — horizontal bar chart */}
         <div style={{ ...cardStyle, padding: '14px 10px 14px 10px' }}>
           <div style={{ marginBottom: 10 }}>
-            <div style={sectionLabel}>TBH Hires by Region</div>
+            <div style={sectionLabel}>TBH Hires by Region{regionSuffix}</div>
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Total TBH roles by region</div>
           </div>
           <ResponsiveContainer width="100%" height={Math.max(180, regionBarData.length * 30)}>
@@ -2152,7 +2154,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
             <div>
-              <div style={sectionLabel}>Avg Hire Time</div>
+              <div style={sectionLabel}>Avg Hire Time{regionSuffix}</div>
               <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Filled roles · from open to accepted</div>
             </div>
             <ViewToggle view={hireView} onChange={setHireView} />
@@ -2199,7 +2201,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
         {/* Overdue tile */}
         <div style={{ ...cardStyle, padding: '14px 16px', ...(overdueCount > 0 ? { background: 'rgba(233,28,36,0.03)', borderColor: 'rgba(233,28,36,0.25)' } : {}) }}>
           <div style={{ marginBottom: 10 }}>
-            <div style={sectionLabel}>Roles Overdue</div>
+            <div style={sectionLabel}>Roles Overdue{regionSuffix}</div>
           </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
             {/* Left: big number + label */}
@@ -2247,7 +2249,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
       <div style={{ ...cardStyle, padding: '14px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <div>
-            <div style={sectionLabel}>{forecastView === 'month' ? 'Monthly' : 'Quarterly'} Hire Forecast</div>
+            <div style={sectionLabel}>{forecastView === 'month' ? 'Monthly' : 'Quarterly'} Hire Forecast{regionSuffix}</div>
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
               {forecastChartView === 'source'
                 ? `Unfilled roles by estimated hire ${forecastView} · Growth (Net New) · Conversion · Replacement (Backfill)`
@@ -2433,6 +2435,8 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   const [taCardSplit, setTaCardSplit] = useState<'source' | 'discipline' | 'region'>('source');
   const [taCardCombined, setTaCardCombined] = useState(false);
   const [showTerminations, setShowTerminations] = useState(false);
+
+  const regionSuffix = selectedRegions.length === 0 ? '' : ` — ${selectedRegions.join(', ')}`;
 
   useEffect(() => {
     tbhCodesApi.list({ limit: 500 }).then(data => { setRows(data); setLoading(false); }).catch(() => setLoading(false));
@@ -2725,7 +2729,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
         {/* Starters by month */}
         <div style={{ ...cardStyle, padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-            <div style={sL}>Confirmed Starters by {startersCombined ? 'Region & Quarter' : startersView === 'month' ? 'Month' : 'Quarter'}</div>
+            <div style={sL}>Confirmed Starters by {startersCombined ? 'Region & Quarter' : startersView === 'month' ? 'Month' : 'Quarter'}{regionSuffix}</div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               {!startersCombined && (
                 <>
@@ -2978,7 +2982,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
         {/* Talent Acquired */}
         <div style={{ ...cardStyle, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={sL}>Talent Acquired</div>
+            <div style={sL}>Talent Acquired{regionSuffix}</div>
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
               {!taCardCombined && (
                 <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
@@ -3101,7 +3105,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
       {/* Row 3 — Upcoming starters table */}
       <div style={{ ...cardStyle, padding: '14px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-          <div style={sL}>Upcoming Starters</div>
+          <div style={sL}>Upcoming Starters{regionSuffix}</div>
           <span style={{ fontSize: 10, color: C.muted }}>{tableRows.length} confirmed start{tableRows.length !== 1 ? 's' : ''}</span>
         </div>
         {tableRows.length === 0 ? (
