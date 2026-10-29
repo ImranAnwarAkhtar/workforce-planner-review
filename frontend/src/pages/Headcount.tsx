@@ -243,7 +243,7 @@ export default function Headcount() {
   function RecordRow({ r }: { r: Person }) {
     const isRequested = r.contract_type_code === 'R FTE' || r.contract_type_code === 'R CON';
     const isApproved  = r.contract_type_code === 'A FTE' || r.contract_type_code === 'A CON';
-    const allowedConversion = r.contract_type_code === 'A FTE' ? ['FTE', 'SNR'] : ['CON'];
+    const allowedConversion = r.contract_type_code === 'A FTE' ? ['FTE', 'VP'] : ['CON'];
 
     return (
       <tr style={{ borderBottom: '1px solid #F0F0F0' }}>
@@ -604,7 +604,7 @@ export default function Headcount() {
             <Field label="Contract type *">
               <select style={INP} value={convertForm.new_contract_type_code}
                 onChange={e => setConvertForm(prev => ({ ...prev, new_contract_type_code: e.target.value }))}>
-                {(convertTarget.contract_type_code === 'A FTE' ? ['FTE', 'SNR'] : ['CON'])
+                {(convertTarget.contract_type_code === 'A FTE' ? ['FTE', 'VP'] : ['CON'])
                   .map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </Field>

@@ -576,6 +576,25 @@ _startupMigs.push((async () => {
   }
 })());
 
+// Rename SNR level → Vice President (VP) and SNR contract type → VP
+_startupMigs.push((async () => {
+  try {
+    await pool.query(`
+      UPDATE levels SET level_name = 'Vice President', short_code = 'VP'
+      WHERE short_code = 'SNR'
+        AND NOT EXISTS (SELECT 1 FROM levels WHERE short_code = 'VP');
+    `);
+    await pool.query(`
+      UPDATE contract_types SET code = 'VP', description = 'Vice President'
+      WHERE code = 'SNR'
+        AND NOT EXISTS (SELECT 1 FROM contract_types WHERE code = 'VP');
+    `);
+    logger.info('SNR→VP rename migration complete');
+  } catch (err) {
+    logger.error('SNR→VP rename migration failed', { error: err.message });
+  }
+})());
+
 // Disciplines code column
 _startupMigs.push((async () => {
   try {

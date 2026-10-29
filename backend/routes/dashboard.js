@@ -158,7 +158,8 @@ function buildPipelineByCountryRows(rows) {
 }
 
 function buildHeadcountRows(hcRows) {
-  const VP_DIR = new Set(['VP', 'Dr']);
+  const VP_DIR_CONTRACT = new Set(['VP', 'Dr', 'SNR']);
+  const VP_DIR_LEVEL    = new Set(['VP', 'Dr', 'S Dr']);
   const byRegion = {};
   for (const row of hcRows) {
     const key = row.region_name;
@@ -173,7 +174,9 @@ function buildHeadcountRows(hcRows) {
     const r = byRegion[key];
     const n = Number(row.headcount);
     const code = row.contract_code;
-    if (VP_DIR.has(code))       r.exist_vp_dir  += n;
+    const isVpDir = VP_DIR_CONTRACT.has(code) ||
+                    (row.category === 'existing' && VP_DIR_LEVEL.has(row.level_code));
+    if (isVpDir)               r.exist_vp_dir  += n;
     else if (code === 'CON')    r.exist_con      += n;
     else if (code === 'A FTE')  r.appr_fte       += n;
     else if (code === 'A CON>FTE') r.appr_con_fte += n;
@@ -241,8 +244,9 @@ function buildGearingRows(projsByRegion, gearingConsts, peopleByDiscRegion, allR
 }
 
 function buildSummary(projRow, hcRows) {
-  const perm       = hcRows.filter(r => r.category === 'existing' && !['VP','Dr','CON'].includes(r.contract_code)).reduce((s, r) => s + Number(r.headcount), 0)
-                   + hcRows.filter(r => ['VP','Dr'].includes(r.contract_code)).reduce((s, r) => s + Number(r.headcount), 0);
+  const VP_DIR_CODES = ['VP', 'Dr', 'SNR'];
+  const perm       = hcRows.filter(r => r.category === 'existing' && !['CON', ...VP_DIR_CODES].includes(r.contract_code)).reduce((s, r) => s + Number(r.headcount), 0)
+                   + hcRows.filter(r => VP_DIR_CODES.includes(r.contract_code)).reduce((s, r) => s + Number(r.headcount), 0);
   const contingent = hcRows.filter(r => r.contract_code === 'CON').reduce((s, r) => s + Number(r.headcount), 0);
   const appr_fte   = hcRows.filter(r => r.contract_code === 'A FTE').reduce((s, r) => s + Number(r.headcount), 0);
   const appr_con   = hcRows.filter(r => ['A CON', 'A CON>FTE'].includes(r.contract_code)).reduce((s, r) => s + Number(r.headcount), 0);
@@ -279,13 +283,14 @@ async function fetchShared() {
     `),
     pool.query(`
       SELECT r.name AS region_name, r.sort_order, ct.code AS contract_code,
-             ct.category, COUNT(*)::int AS headcount
+             ct.category, COALESCE(l.short_code, '') AS level_code, COUNT(*)::int AS headcount
       FROM people pe
       JOIN person_regions pr  ON pr.person_id  = pe.id
       JOIN regions r           ON r.id          = pr.region_id
       JOIN contract_types ct  ON pe.contract_type_id = ct.id
+      LEFT JOIN levels l       ON pe.level_id   = l.id
       WHERE pe.is_active = TRUE
-      GROUP BY r.name, r.sort_order, ct.code, ct.category
+      GROUP BY r.name, r.sort_order, ct.code, ct.category, l.short_code
       ORDER BY r.sort_order
     `),
     pool.query(`

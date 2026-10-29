@@ -52,14 +52,14 @@ const TAG: React.CSSProperties = {
 function classifyPerson(p: Person): keyof Metrics {
   const cc  = (p.contract_type_code ?? '').trim();
   const lc  = (p.level_code ?? '').trim();
-  const isSeniorLevel = ['VP', 'S Dr', 'Dr'].includes(lc);
+  const isSeniorLevel = ['VP', 'S Dr', 'Dr', 'SNR'].includes(lc);
 
   if (cc === 'A FTE') return 'aFte';
   if (cc === 'A CON') return 'aCon';
   if (cc === 'R CON') return 'rCon';
   if (cc.startsWith('R ')) return 'rFte';
   if (cc === 'CON') return 'con';
-  if (isSeniorLevel || cc === 'VP' || cc === 'Dr') return 'snr';
+  if (isSeniorLevel || cc === 'VP' || cc === 'Dr' || cc === 'SNR') return 'snr';
   return 'fte';
 }
 
@@ -390,7 +390,7 @@ export default function Summary() {
 
                   <tr>
                     <td style={TD_LABEL}>VP / Director</td>
-                    <td style={{ ...TD, textAlign: 'left', paddingLeft: 8 }}><span style={TAG}>SNR</span></td>
+                    <td style={{ ...TD, textAlign: 'left', paddingLeft: 8 }}><span style={TAG}>VP + Dir</span></td>
                     {cols.map(c => numCell(c.m.snr, `snr-${c.label}`))}
                   </tr>
 

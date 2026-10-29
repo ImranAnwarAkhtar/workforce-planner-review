@@ -162,7 +162,7 @@ router.put('/:id/tbh', requireAuth, requireRole(...WP_ROLES), async (req, res) =
 });
 
 // PUT /api/headcount/:id/convert — convert to named hire (WP + PMO only)
-// A FTE → FTE or SNR   |   A CON → CON
+// A FTE → FTE or VP   |   A CON → CON
 router.put('/:id/convert', requireAuth, requireRole(...WP_ROLES), async (req, res) => {
   const { name, new_contract_type_code, notes, workday_jr_id } = req.body;
 
@@ -183,7 +183,7 @@ router.put('/:id/convert', requireAuth, requireRole(...WP_ROLES), async (req, re
   }
 
   const allowedConversions = {
-    'A FTE': ['FTE', 'SNR'],
+    'A FTE': ['FTE', 'VP'],
     'A CON': ['CON'],
   };
   if (!allowedConversions[currentCode].includes(new_contract_type_code)) {

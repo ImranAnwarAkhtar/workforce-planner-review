@@ -26,7 +26,6 @@ const DISCIPLINE_COLOURS: Record<string, { bg: string; text: string; light: stri
 
 const CONTRACT_PILL: Record<string, { bg: string; color: string; border: string }> = {
   'FTE':      { bg: '#F0F0F0', color: '#333333', border: '#C8C8C8' },
-  'SNR':      { bg: '#F0F0F0', color: '#333333', border: '#C8C8C8' },
   'VP':       { bg: '#E8EAF6', color: '#3949AB', border: '#9FA8DA' },
   'Dr':       { bg: '#EDE7F6', color: '#512DA8', border: '#B39DDB' },
   'CON':      { bg: '#FFF8E1', color: '#E65100', border: '#FDB90D' },
