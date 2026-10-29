@@ -2604,7 +2604,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
           </div>
           {startersCombined ? (
             <>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={combinedChartData} margin={{ top: 18, right: 8, bottom: 48, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 8, fill: C.muted }} tickLine={false} angle={-40} textAnchor="end" interval={0} />
@@ -2791,23 +2791,36 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
             </div>
           </div>
           {taCardCombined ? (
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={combinedTaData} margin={{ top: 14, right: 4, bottom: 28, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                <XAxis dataKey="region" tick={{ fontSize: 8, fill: C.muted }} tickLine={false} angle={-30} textAnchor="end" interval={0} />
-                <YAxis tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} width={20} />
-                <Tooltip contentStyle={{ fontSize: 10 }} />
-                <Bar dataKey="External" stackId="t" fill="#086AE3" radius={[0,0,0,0]}>
-                  <LabelList dataKey="External" position="center" style={{ fontSize: 8, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
-                </Bar>
-                <Bar dataKey="Internal" stackId="t" fill="#411980" radius={[0,0,0,0]}>
-                  <LabelList dataKey="Internal" position="center" style={{ fontSize: 8, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
-                </Bar>
-                <Bar dataKey="Conversion" stackId="t" fill="#841A5B" radius={[2,2,0,0]}>
-                  <LabelList dataKey="Conversion" position="center" style={{ fontSize: 8, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div style={{ overflowY: 'auto', maxHeight: 260, paddingRight: 4 }}>
+              {combinedTaData.map(({ region, External, Internal, Conversion }) => {
+                const total = External + Internal + Conversion;
+                return (
+                  <div key={region} style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5, paddingBottom: 3, borderBottom: '1px solid #F0F0F0' }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>{region}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#374151' }}>{total}</span>
+                    </div>
+                    {([['External', External, '#086AE3'], ['Internal', Internal, '#411980'], ['Conversion', Conversion, '#841A5B']] as [string, number, string][]).map(([lbl, cnt, col]) => {
+                      const pct = total > 0 ? Math.round((cnt / total) * 100) : 0;
+                      return (
+                        <div key={lbl} style={{ marginBottom: 5 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 2 }}>
+                            <span style={{ color: '#374151', fontWeight: 600 }}>{lbl}</span>
+                            <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                              <span style={{ color: col, fontWeight: 700 }}>{cnt}</span>
+                              <span style={{ color: col, fontWeight: 500, fontSize: 9, opacity: 0.85 }}>{pct}%</span>
+                            </span>
+                          </div>
+                          <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3 }}>
+                            <div style={{ height: '100%', borderRadius: 3, background: col, width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
           ) : taCardSplit === 'source' ? (
             ([['External', externalCount, '#086AE3'], ['Internal', internalCount, '#411980'], ['Conversion', conversionCount, '#841A5B']] as [string, number, string][]).map(([lbl, cnt, col]) => {
               const pct = starters.length > 0 ? Math.round((cnt / starters.length) * 100) : 0;
