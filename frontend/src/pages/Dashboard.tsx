@@ -1860,6 +1860,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   const [hireView, setHireView] = useState<'month' | 'quarter'>('quarter');
   const [forecastView, setForecastView] = useState<'month' | 'quarter'>('month');
   const [forecastChartView, setForecastChartView] = useState<'source' | 'type'>('source');
+  const [showForecastTerminations, setShowForecastTerminations] = useState(false);
 
   const STAGE_COLORS: Record<string, string> = {
     'Filled': '#E91C24', 'Open': '#C71B36', 'In Progress': '#A61B49',
@@ -1928,6 +1929,34 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
   const forecastSorted = Object.entries(forecastByCategory)
     .map(([month, v]) => ({ month, label: fmtMonth(month), Growth: v.Growth, Conversion: v.Conversion, Replacement: v.Replacement, total: v.Growth + v.Conversion + v.Replacement, dummy: 0 }))
     .sort((a, b) => a.month.localeCompare(b.month));
+
+  // Termination rolling % change — Replacement/Backfill counts as termination proxy
+  const termMonthlyData = forecastSorted.map((d, i, arr) => ({
+    month: d.label,
+    count: d.Replacement,
+    pct: i === 0 || arr[i - 1].Replacement === 0 ? null
+      : parseFloat((((d.Replacement - arr[i - 1].Replacement) / arr[i - 1].Replacement) * 100).toFixed(1)),
+  }));
+
+  const termQuarterlyData = (() => {
+    const qtrs: Record<string, { label: string; count: number }> = {};
+    for (const d of forecastSorted) {
+      const [y, m] = d.month.split('-').map(Number);
+      const q = Math.floor((m - 1) / 3);
+      const key = `${y}-Q${q + 1}`;
+      if (!qtrs[key]) qtrs[key] = { label: `Q${q + 1} '${String(y).slice(2)}`, count: 0 };
+      qtrs[key].count += d.Replacement;
+    }
+    const sorted = Object.entries(qtrs).sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+    return sorted.map((d, i) => ({
+      month: d.label,
+      count: d.count,
+      pct: i === 0 || sorted[i - 1].count === 0 ? null
+        : parseFloat((((d.count - sorted[i - 1].count) / sorted[i - 1].count) * 100).toFixed(1)),
+    }));
+  })();
+
+  const activeTermData = forecastView === 'month' ? termMonthlyData : termQuarterlyData;
 
   const total = sorted.reduce((s, r) => s + r.count, 0);
   const overdueCount = filteredOverdue.length;
@@ -2226,24 +2255,83 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
-              {(['source', 'type'] as const).map(v => (
-                <button key={v} onClick={() => setForecastChartView(v)} style={{
-                  padding: '2px 9px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                  fontSize: 10, fontWeight: 700,
-                  background: forecastChartView === v ? '#FFF' : 'transparent',
-                  color: forecastChartView === v ? '#374151' : '#9CA3AF',
-                  boxShadow: forecastChartView === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                  transition: 'all 0.15s',
-                }}>
-                  {v === 'source' ? 'Source' : 'Type'}
-                </button>
-              ))}
-            </div>
+            {!showForecastTerminations && (
+              <>
+                <div style={{ display: 'flex', background: '#F0F1F3', borderRadius: 6, padding: 2, gap: 1 }}>
+                  {(['source', 'type'] as const).map(v => (
+                    <button key={v} onClick={() => setForecastChartView(v)} style={{
+                      padding: '2px 9px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                      fontSize: 10, fontWeight: 700,
+                      background: forecastChartView === v ? '#FFF' : 'transparent',
+                      color: forecastChartView === v ? '#374151' : '#9CA3AF',
+                      boxShadow: forecastChartView === v ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.15s',
+                    }}>
+                      {v === 'source' ? 'Source' : 'Type'}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <ViewToggle view={forecastView} onChange={setForecastView} />
+            <button onClick={() => setShowForecastTerminations(v => !v)} style={{
+              padding: '3px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+              fontSize: 10, fontWeight: 700,
+              background: showForecastTerminations ? '#AD050C' : '#F0F1F3',
+              color: showForecastTerminations ? '#FFF' : '#555',
+              transition: 'all 0.15s',
+            }}>Terminations %</button>
           </div>
         </div>
-        {forecastChartView === 'source' ? (
+        {showForecastTerminations ? (
+          activeTermData.length === 0 ? (
+            <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No replacement data — add TBH codes with estimated hire dates</div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={150}>
+                <LineChart data={activeTermData} margin={{ top: 18, right: 16, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 9, fill: C.muted }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: C.muted }} axisLine={false} tickLine={false} width={32} tickFormatter={(v: number) => `${v}%`} />
+                  <Tooltip
+                    content={(props: any) => {
+                      if (!props.active || !props.payload?.length) return null;
+                      const d = props.payload[0]?.payload;
+                      return (
+                        <div style={{ background: '#FFF', border: '1px solid #E0E3E8', borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>
+                          <div style={{ fontWeight: 700, marginBottom: 4 }}>{props.label}</div>
+                          <div style={{ color: '#AD050C' }}>Replacements: {d?.count ?? 0}</div>
+                          <div style={{ color: d?.pct === null ? '#9CA3AF' : d?.pct >= 0 ? '#AD050C' : '#059669' }}>
+                            Δ%: {d?.pct === null ? 'n/a' : `${d.pct > 0 ? '+' : ''}${d.pct}%`}
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <ReferenceLine y={0} stroke="#D1D5DB" strokeDasharray="4 2" />
+                  <Line dataKey="pct" name="Δ% terminations" stroke="#AD050C" strokeWidth={2}
+                    dot={(props: any) => {
+                      const { cx, cy, value } = props;
+                      if (value === null || value === undefined) return <g key={`t-${cx}`} />;
+                      return <circle key={`t-${cx}`} cx={cx} cy={cy} r={4} fill={value >= 0 ? '#AD050C' : '#059669'} stroke="#FFF" strokeWidth={1.5} />;
+                    }}
+                    connectNulls={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' as const }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#555' }}>
+                  <span style={{ width: 12, height: 3, background: '#AD050C', borderRadius: 2, display: 'inline-block' }} />
+                  Rolling % change in replacements (backfill hires)
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <span style={{ fontSize: 10, color: '#AD050C', fontWeight: 600 }}>● Increase</span>
+                  <span style={{ fontSize: 10, color: '#059669', fontWeight: 600 }}>● Decrease</span>
+                </div>
+              </div>
+            </>
+          )
+        ) : forecastChartView === 'source' ? (
           activeForecastData.length === 0 ? (
             <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>No forecast data — add estimated hire dates in Talent Acquisition</div>
           ) : (
