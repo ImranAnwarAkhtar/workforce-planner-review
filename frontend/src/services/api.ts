@@ -756,6 +756,8 @@ export interface TbhCode {
   manager_name: string | null;
   target_hire_date: string | null;
   jr_id: string | null;
+  jr_id_added_at: string | null;
+  comp_ratio: number | null;
   req_status: string | null;
   ta_contact: string | null;
   candidate_name: string | null;

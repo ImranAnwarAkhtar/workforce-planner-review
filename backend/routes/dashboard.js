@@ -23,7 +23,7 @@ function computeQuarterlyAvgHireDays(rows) {
   const buckets = {};
   for (const row of rows) {
     if (row.req_status !== 'Filled') continue;
-    const created = parseTbhCreationDate(row.tbh_id);
+    const created = row.jr_id_added_at ? new Date(row.jr_id_added_at) : parseTbhCreationDate(row.tbh_id);
     if (!created || !row.estimated_hire_date) continue;
     const hireDate = new Date(row.estimated_hire_date);
     const days = Math.round((hireDate - created) / (1000 * 60 * 60 * 24));
@@ -47,7 +47,7 @@ function computeMonthlyAvgHireDays(rows) {
   const buckets = {};
   for (const row of rows) {
     if (row.req_status !== 'Filled') continue;
-    const created = parseTbhCreationDate(row.tbh_id);
+    const created = row.jr_id_added_at ? new Date(row.jr_id_added_at) : parseTbhCreationDate(row.tbh_id);
     if (!created || !row.estimated_hire_date) continue;
     const hireDate = new Date(row.estimated_hire_date);
     const days = Math.round((hireDate - created) / (1000 * 60 * 60 * 24));
@@ -68,7 +68,7 @@ function computeMonthlyAvgHireDays(rows) {
 function computeAvgHireDays(rows) {
   const buckets = { all: {} };
   for (const row of rows) {
-    const created = parseTbhCreationDate(row.tbh_id);
+    const created = row.jr_id_added_at ? new Date(row.jr_id_added_at) : parseTbhCreationDate(row.tbh_id);
     if (!created || !row.estimated_hire_date) continue;
     const hireDate = new Date(row.estimated_hire_date);
     const days = Math.round((hireDate - created) / (1000 * 60 * 60 * 24));
@@ -319,7 +319,7 @@ async function fetchShared() {
       ORDER BY count DESC
     `),
     pool.query(`
-      SELECT tbh_id, req_status, estimated_hire_date, funding_year
+      SELECT tbh_id, req_status, estimated_hire_date, funding_year, jr_id_added_at
       FROM tbh_codes
       WHERE estimated_hire_date IS NOT NULL
     `),
@@ -337,7 +337,7 @@ async function fetchShared() {
              r.name AS region_name, t.estimated_hire_date::text,
              (CURRENT_DATE - t.estimated_hire_date)::int AS days_overdue,
              t.funding_year,
-             t.created_at::date::text AS date_opened
+             COALESCE(t.jr_id_added_at::date::text, t.created_at::date::text) AS date_opened
       FROM tbh_codes t
       LEFT JOIN regions r ON t.region_id = r.id
       WHERE t.estimated_hire_date < CURRENT_DATE

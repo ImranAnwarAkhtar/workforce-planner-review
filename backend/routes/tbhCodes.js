@@ -75,6 +75,7 @@ router.get('/', requireAuth, async (req, res) => {
             t.wfp_comments, t.funding_year, t.hire_type, t.region_id, t.project_type,
             t.legal_entity, t.location_code, t.cost_centre, t.job_profile,
             t.replaced_emp_name, t.manager_name, t.target_hire_date, t.jr_id,
+            t.jr_id_added_at, t.comp_ratio,
             t.req_status, t.ta_contact, t.candidate_name, t.estimated_hire_date,
             t.confirmed_start_date, t.hire_source, t.hire_source_details,
             t.ta_status_comments, t.tbh_description, t.fp_and_a_approver_notes,
@@ -240,29 +241,33 @@ router.post('/', requireAuth, requireRole(...WRITE_ROLES), async (req, res) => {
     target_hire_date, jr_id, req_status, ta_contact, candidate_name,
     estimated_hire_date, ta_status_comments, tbh_description,
     fp_and_a_approver_notes, fp_and_a_notes,
-    confirmed_start_date, hire_source, hire_source_details,
+    confirmed_start_date, hire_source, hire_source_details, comp_ratio,
   } = req.body;
   if (!tbh_id) return res.status(400).json({ error: 'tbh_id is required' });
+
+  const jr_id_added_at = (jr_id && String(jr_id).trim()) ? new Date().toISOString() : null;
 
   const { rows } = await pool.query(
     `INSERT INTO tbh_codes
        (tbh_id, old_tbh, in_summary, status_query, pmo_comments, wfp_comments,
         funding_year, hire_type, region_id, project_type, legal_entity,
         location_code, cost_centre, job_profile, replaced_emp_name, manager_name,
-        target_hire_date, jr_id, req_status, ta_contact, candidate_name,
+        target_hire_date, jr_id, jr_id_added_at, req_status, ta_contact, candidate_name,
         estimated_hire_date, ta_status_comments, tbh_description,
         fp_and_a_approver_notes, fp_and_a_notes,
-        confirmed_start_date, hire_source, hire_source_details)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+        confirmed_start_date, hire_source, hire_source_details, comp_ratio)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
      RETURNING *`,
     [tbh_id, old_tbh ?? null, in_summary ?? null, status_query ?? null, pmo_comments ?? null,
      wfp_comments ?? null, funding_year ?? null, hire_type ?? null, region_id ?? null,
      project_type ?? null, legal_entity ?? null, location_code ?? null, cost_centre ?? null,
      job_profile ?? null, replaced_emp_name ?? null, manager_name ?? null,
-     target_hire_date ?? null, jr_id ?? null, req_status ?? null, ta_contact ?? null,
+     target_hire_date ?? null, jr_id ?? null, jr_id_added_at,
+     req_status ?? null, ta_contact ?? null,
      candidate_name ?? null, estimated_hire_date ?? null, ta_status_comments ?? null,
      tbh_description ?? null, fp_and_a_approver_notes ?? null, fp_and_a_notes ?? null,
-     confirmed_start_date ?? null, hire_source ?? null, hire_source_details ?? null]
+     confirmed_start_date ?? null, hire_source ?? null, hire_source_details ?? null,
+     comp_ratio ? parseFloat(comp_ratio) : null]
   );
   await req.auditLog({ actionType: 'CREATE', resourceType: 'tbh_code', resourceId: rows[0].id, newValue: rows[0] });
   await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'tbh_codes', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
@@ -278,7 +283,7 @@ router.put('/:id', requireAuth, requireRole(...WRITE_ROLES), async (req, res) =>
     'estimated_hire_date','ta_status_comments','tbh_description',
     'fp_and_a_approver_notes','fp_and_a_notes',
     'confirmed_start_date','hire_source','hire_source_details','pipeline_stage',
-    'planning_cycle_id',
+    'planning_cycle_id','comp_ratio',
   ];
   const sets = [];
   const params = [];
@@ -289,6 +294,10 @@ router.put('/:id', requireAuth, requireRole(...WRITE_ROLES), async (req, res) =>
       sets.push(`${f} = $${i++}`);
       params.push(req.body[f]);
     }
+  }
+  // Auto-lock jr_id_added_at when jr_id is set for the first time (COALESCE keeps existing value)
+  if (req.body.jr_id !== undefined && req.body.jr_id !== null && req.body.jr_id !== '') {
+    sets.push(`jr_id_added_at = COALESCE(jr_id_added_at, NOW())`);
   }
   if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
 

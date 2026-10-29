@@ -2358,7 +2358,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
   const startingNext30 = starters.filter(r => r.confirmed_start_date! >= todayStr && r.confirmed_start_date! <= next30End).length;
   const startingNext90 = starters.filter(r => r.confirmed_start_date! >= todayStr && r.confirmed_start_date! <= next90End).length;
   const externalCount    = starters.filter(r => r.hire_source === 'External').length;
-  const internalCount    = starters.filter(r => r.hire_source === 'Internal').length;
+  const internalCount    = starters.filter(r => r.hire_source === 'Internal (within GDC)' || r.hire_source === 'Internal (outside GDC)').length;
   const conversionCount  = starters.filter(r => r.hire_type === 'Conversion').length;
 
   // Monthly bar chart — next 6 months
@@ -2371,7 +2371,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
     monthlyData.push({
       month: label,
       External:   bucket.filter(r => r.hire_source === 'External').length,
-      Internal:   bucket.filter(r => r.hire_source === 'Internal').length,
+      Internal:   bucket.filter(r => r.hire_source === 'Internal (within GDC)' || r.hire_source === 'Internal (outside GDC)').length,
       Conversion: bucket.filter(r => r.hire_type === 'Conversion').length,
       Other:      bucket.filter(r => !r.hire_source && r.hire_type !== 'Conversion').length,
     });
@@ -2393,7 +2393,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
       return {
         month: `Q${qtrIdx + 1} '${String(yr).slice(2)}`,
         External:   bucket.filter(r => r.hire_source === 'External').length,
-        Internal:   bucket.filter(r => r.hire_source === 'Internal').length,
+        Internal:   bucket.filter(r => r.hire_source === 'Internal (within GDC)' || r.hire_source === 'Internal (outside GDC)').length,
         Conversion: bucket.filter(r => r.hire_type === 'Conversion').length,
         Other:      bucket.filter(r => !r.hire_source && r.hire_type !== 'Conversion').length,
       };
@@ -2512,7 +2512,7 @@ function OnboardingTab({ regionNamesAll = [], selectedRegions = [], yearRange = 
     return {
       region,
       External:   bucket.filter(r => r.hire_source === 'External').length,
-      Internal:   bucket.filter(r => r.hire_source === 'Internal').length,
+      Internal:   bucket.filter(r => r.hire_source === 'Internal (within GDC)' || r.hire_source === 'Internal (outside GDC)').length,
       Conversion: bucket.filter(r => r.hire_type === 'Conversion').length,
     };
   });

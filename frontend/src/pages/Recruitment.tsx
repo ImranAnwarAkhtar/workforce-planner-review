@@ -142,10 +142,10 @@ const REC_COL_DEFS: ColDef<TbhCode>[] = [
   { key: 'replaced_emp_name',       label: 'Replaced Emp Name',               get: t => t.replaced_emp_name ?? '' },
   { key: 'jr_id',                   label: 'Job Req ID',                      get: t => t.jr_id ?? '' },
   { key: 'ta_contact',              label: 'TA Contact',                      get: t => t.ta_contact ?? '' },
+  { key: 'comp_ratio',              label: 'Comp Ratio',                      get: t => t.comp_ratio != null ? String(t.comp_ratio) : '' },
   { key: 'candidate_name',          label: 'Final Candidate',                 get: t => t.candidate_name ?? '' },
   { key: 'estimated_hire_date',     label: 'TA (Est.) Hire Date',             get: t => t.estimated_hire_date ?? '' },
   { key: 'confirmed_start_date',    label: 'Confirmed Start Date',            get: t => t.confirmed_start_date ?? '' },
-  { key: 'hire_source_details',     label: 'Hire Source Details - Co/Dept',   get: t => t.hire_source_details ?? '' },
   { key: 'target_hire_date',        label: 'Hire Date',                       get: t => t.target_hire_date ?? '' },
   { key: 'fp_and_a_approver_notes', label: 'Note from FP&A Approver',         get: t => t.fp_and_a_approver_notes ?? '' },
   { key: 'fp_and_a_notes',          label: 'Note from FP&A',                  get: t => t.fp_and_a_notes ?? '' },
@@ -163,9 +163,10 @@ interface FormState {
   region_id: string; project_type: string; legal_entity: string; location_code: string;
   cost_centre: string; job_profile: string; replaced_emp_name: string; manager_name: string;
   target_hire_date: string; jr_id: string; req_status: string; ta_contact: string;
-  candidate_name: string; estimated_hire_date: string; ta_status_comments: string;
-  tbh_description: string; fp_and_a_approver_notes: string; fp_and_a_notes: string;
-  confirmed_start_date: string; hire_source: string; hire_source_details: string;
+  comp_ratio: string; candidate_name: string; estimated_hire_date: string;
+  ta_status_comments: string; tbh_description: string;
+  fp_and_a_approver_notes: string; fp_and_a_notes: string;
+  confirmed_start_date: string; hire_source: string;
 }
 
 const emptyForm: FormState = {
@@ -173,10 +174,11 @@ const emptyForm: FormState = {
   funding_year: String(new Date().getFullYear()),
   hire_type: 'Net New', region_id: '', project_type: '', legal_entity: '', location_code: '',
   cost_centre: '', job_profile: '', replaced_emp_name: '', manager_name: '',
-  target_hire_date: '', jr_id: '', req_status: 'Open', ta_contact: '', candidate_name: '',
+  target_hire_date: '', jr_id: '', req_status: 'Open', ta_contact: '',
+  comp_ratio: '', candidate_name: '',
   estimated_hire_date: '', ta_status_comments: '', tbh_description: '',
   fp_and_a_approver_notes: '', fp_and_a_notes: '',
-  confirmed_start_date: '', hire_source: '', hire_source_details: '',
+  confirmed_start_date: '', hire_source: '',
 };
 
 function tbhToForm(t: TbhCode): FormState {
@@ -190,11 +192,12 @@ function tbhToForm(t: TbhCode): FormState {
     cost_centre: t.cost_centre ?? '', job_profile: t.job_profile ?? '', replaced_emp_name: t.replaced_emp_name ?? '',
     manager_name: t.manager_name ?? '', target_hire_date: t.target_hire_date ? t.target_hire_date.slice(0, 10) : '',
     jr_id: t.jr_id ?? '', req_status: t.req_status ?? 'Open', ta_contact: t.ta_contact ?? '',
+    comp_ratio: t.comp_ratio != null ? String(t.comp_ratio) : '',
     candidate_name: t.candidate_name ?? '', estimated_hire_date: t.estimated_hire_date ? t.estimated_hire_date.slice(0, 10) : '',
     ta_status_comments: t.ta_status_comments ?? '', tbh_description: t.tbh_description ?? '',
     fp_and_a_approver_notes: t.fp_and_a_approver_notes ?? '', fp_and_a_notes: t.fp_and_a_notes ?? '',
     confirmed_start_date: t.confirmed_start_date ? t.confirmed_start_date.slice(0, 10) : '',
-    hire_source: t.hire_source ?? '', hire_source_details: t.hire_source_details ?? '',
+    hire_source: t.hire_source ?? '',
   };
 }
 
@@ -316,7 +319,7 @@ export default function Recruitment() {
         fp_and_a_notes:           form.fp_and_a_notes           || null,
         confirmed_start_date:     form.confirmed_start_date     || null,
         hire_source:              form.hire_source              || null,
-        hire_source_details:      form.hire_source_details      || null,
+        comp_ratio:               form.comp_ratio               ? parseFloat(form.comp_ratio) : null,
       };
       if (editTarget) await tbhCodesApi.update(editTarget.id, body);
       else            await tbhCodesApi.create(body);
@@ -530,11 +533,12 @@ export default function Recruitment() {
                     {!hiddenCols.has('hire_source') && (
                       <td title={t.hire_source ?? ''} style={TD}>
                         {t.hire_source
-                          ? <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap',
-                              background: t.hire_source === 'External' ? '#EBF3FF' : t.hire_source === 'Internal' ? '#F0EDFF' : t.hire_source === 'Conversion' ? '#F9EEF5' : '#F3F4F6',
-                              color:      t.hire_source === 'External' ? '#086AE3' : t.hire_source === 'Internal' ? '#411980' : t.hire_source === 'Conversion' ? '#841A5B' : '#374151' }}>
-                              {t.hire_source}
-                            </span>
+                          ? (() => {
+                              const hs = t.hire_source;
+                              const bg = hs === 'External' ? '#EBF3FF' : hs.startsWith('Internal (within') ? '#F0EDFF' : hs.startsWith('Internal (outside') ? '#EEF1FF' : hs === 'Conversion' ? '#F9EEF5' : hs === 'Promotion' ? '#ECFDF5' : '#F3F4F6';
+                              const cl = hs === 'External' ? '#086AE3' : hs.startsWith('Internal (within') ? '#411980' : hs.startsWith('Internal (outside') ? '#3730A3' : hs === 'Conversion' ? '#841A5B' : hs === 'Promotion' ? '#059669' : '#374151';
+                              return <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap', background: bg, color: cl }}>{hs}</span>;
+                            })()
                           : <span style={{ color: '#9CA3AF' }}>—</span>}
                       </td>
                     )}
@@ -572,6 +576,11 @@ export default function Recruitment() {
                     {!hiddenCols.has('ta_contact') && (
                       <td title={t.ta_contact ?? ''} style={{ ...TD, maxWidth: 140 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.ta_contact ?? '—'}</span></td>
                     )}
+                    {!hiddenCols.has('comp_ratio') && (
+                      <td title={t.comp_ratio != null ? String(t.comp_ratio) : ''} style={{ ...TD, textAlign: 'right' }}>
+                        <span style={{ fontSize: 11, color: '#374151', whiteSpace: 'nowrap' }}>{t.comp_ratio != null ? t.comp_ratio.toFixed(2) : '—'}</span>
+                      </td>
+                    )}
                     {!hiddenCols.has('candidate_name') && (
                       <td title={t.candidate_name ?? ''} style={{ ...TD, maxWidth: 180 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.candidate_name ?? '—'}</span></td>
                     )}
@@ -580,9 +589,6 @@ export default function Recruitment() {
                     )}
                     {!hiddenCols.has('confirmed_start_date') && (
                       <td title={fmtDate(t.confirmed_start_date) ?? ''} style={TD}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(t.confirmed_start_date) ?? '—'}</span></td>
-                    )}
-                    {!hiddenCols.has('hire_source_details') && (
-                      <td title={t.hire_source_details ?? ''} style={{ ...TD, maxWidth: 200 }}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{t.hire_source_details ?? '—'}</span></td>
                     )}
                     {!hiddenCols.has('target_hire_date') && (
                       <td title={fmtDate(t.target_hire_date) ?? ''} style={TD}><span style={{ fontSize: 10, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(t.target_hire_date) ?? '—'}</span></td>
@@ -690,34 +696,39 @@ export default function Recruitment() {
 
             <div style={row2}>
               <div>
-                <label style={labelSt}>Candidate Name</label>
-                <input style={inputSt} value={form.candidate_name} onChange={e => sf('candidate_name', e.target.value)} />
-              </div>
-              <div>
                 <label style={labelSt}>JR ID (Workday)</label>
                 <input style={inputSt} value={form.jr_id} onChange={e => sf('jr_id', e.target.value)} />
+              </div>
+              <div>
+                <label style={labelSt}>Confirmed Start Date</label>
+                <input type="date" style={inputSt} value={form.confirmed_start_date} onChange={e => sf('confirmed_start_date', e.target.value)} />
               </div>
             </div>
 
             <div style={row2}>
               <div>
-                <label style={labelSt}>Confirmed Start Date</label>
-                <input type="date" style={inputSt} value={form.confirmed_start_date} onChange={e => sf('confirmed_start_date', e.target.value)} />
-              </div>
-              <div>
                 <label style={labelSt}>Hire Source</label>
                 <select style={inputSt} value={form.hire_source} onChange={e => sf('hire_source', e.target.value)}>
                   <option value="">— select —</option>
                   <option value="External">External</option>
-                  <option value="Internal">Internal</option>
+                  <option value="Internal (within GDC)">Internal (within GDC)</option>
+                  <option value="Internal (outside GDC)">Internal (outside GDC)</option>
                   <option value="Conversion">Conversion</option>
+                  <option value="Promotion">Promotion</option>
                 </select>
               </div>
+              <div>{/* spacer */}</div>
             </div>
 
-            <div style={{ marginBottom: 8 }}>
-              <label style={labelSt}>Hire Source Details - Co/Dept</label>
-              <input style={inputSt} value={form.hire_source_details} onChange={e => sf('hire_source_details', e.target.value)} placeholder="e.g. Company / Department" />
+            <div style={row2}>
+              <div>
+                <label style={labelSt}>Comp Ratio</label>
+                <input type="number" step="0.01" min="0" max="9.99" style={inputSt} value={form.comp_ratio} onChange={e => sf('comp_ratio', e.target.value)} placeholder="e.g. 1.05" />
+              </div>
+              <div>
+                <label style={labelSt}>Candidate Name</label>
+                <input style={inputSt} value={form.candidate_name} onChange={e => sf('candidate_name', e.target.value)} />
+              </div>
             </div>
 
             <div style={{ marginBottom: 8 }}>
