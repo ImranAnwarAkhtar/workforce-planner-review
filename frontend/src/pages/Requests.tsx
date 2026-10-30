@@ -9,7 +9,7 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 
-const REQUEST_TYPES = ['New Hire', 'Backfill', 'Conversion', 'Contractor Extension', 'Contractor to Perm'];
+const REQUEST_TYPES_DEFAULT = ['Net New', 'Backfill', 'Conversion', 'Contractor Extension', 'Contractor to Perm'];
 const STAGE_LABELS  = ['Submitted', 'Dept Review', 'Commercial Review', 'Final Approval'];
 
 // ---------------------------------------------------------------------------
@@ -150,7 +150,7 @@ interface FormState {
   hiring_manager_id: string; hub_lead_id: string;
 }
 const emptyForm: FormState = {
-  request_type: 'New Hire', discipline_id: '', level_id: '', contract_type_id: '',
+  request_type: 'Net New', discipline_id: '', level_id: '', contract_type_id: '',
   region_id: '', country_id: '', project_id: '', justification: '',
   hiring_manager_id: '', hub_lead_id: '',
 };
@@ -187,6 +187,8 @@ export default function HireRequests() {
   const [approvalForm, setApprovalForm] = useState({ tbh_code: '', candidate_name: '', confirmed_start_date: '', position_notes: '' });
   const [approving, setApproving] = useState(false);
 
+  const [requestTypes, setRequestTypes] = useState<string[]>(REQUEST_TYPES_DEFAULT);
+
   useEffect(() => {
     Promise.all([
       refDataApi.disciplines().catch(() => [] as Discipline[]),
@@ -194,8 +196,10 @@ export default function HireRequests() {
       refDataApi.contractTypes().catch(() => [] as ContractType[]),
       refDataApi.regions().catch(() => [] as Region[]),
       refDataApi.countries().catch(() => [] as Country[]),
-    ]).then(([d, l, c, r, co]) => {
+      refDataApi.refListByName('request_type').catch(() => [] as { value: string }[]),
+    ]).then(([d, l, c, r, co, rt]) => {
       setDisciplines(d); setLevels(l); setContractTypes(c); setRegions(r); setCountries(co);
+      if (rt.length > 0) setRequestTypes(rt.map((e: { value: string }) => e.value));
     });
   }, []);
 
@@ -494,7 +498,7 @@ export default function HireRequests() {
               <div>
                 <label style={LABEL}>Request Type *</label>
                 <select style={SELECT} value={form.request_type} onChange={e => setField('request_type', e.target.value)}>
-                  {REQUEST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {requestTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
 

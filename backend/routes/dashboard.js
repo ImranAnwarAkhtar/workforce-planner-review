@@ -158,7 +158,7 @@ function buildPipelineByCountryRows(rows) {
 }
 
 function buildHeadcountRows(hcRows) {
-  const VP_DIR_CONTRACT = new Set(['VP', 'Dr', 'SNR']);
+  const VP_DIR_CONTRACT = new Set(['VP', 'Dr']);
   const VP_DIR_LEVEL    = new Set(['VP', 'Dr', 'S Dr']);
   const byRegion = {};
   for (const row of hcRows) {
@@ -167,7 +167,7 @@ function buildHeadcountRows(hcRows) {
       byRegion[key] = {
         region_name: key, sort_order: Number(row.sort_order),
         exist_vp_dir: 0, exist_fte: 0, exist_con: 0,
-        appr_fte: 0, appr_con_fte: 0,
+        appr_fte: 0, appr_con: 0, appr_con_fte: 0,
         req_fte: 0, req_con_fte: 0, req_con: 0,
       };
     }
@@ -179,6 +179,7 @@ function buildHeadcountRows(hcRows) {
     if (isVpDir)               r.exist_vp_dir  += n;
     else if (code === 'CON')    r.exist_con      += n;
     else if (code === 'A FTE')  r.appr_fte       += n;
+    else if (code === 'A CON')  r.appr_con       += n;
     else if (code === 'A CON>FTE') r.appr_con_fte += n;
     else if (code === 'R FTE')  r.req_fte        += n;
     else if (code === 'R CON>FTE') r.req_con_fte  += n;
@@ -187,8 +188,8 @@ function buildHeadcountRows(hcRows) {
   }
   return Object.values(byRegion).map(r => ({
     ...r,
-    existing_heads: r.exist_vp_dir + r.exist_fte + r.exist_con + r.appr_fte + r.appr_con_fte,
-    total_heads:    r.exist_vp_dir + r.exist_fte + r.exist_con + r.appr_fte + r.appr_con_fte +
+    existing_heads: r.exist_vp_dir + r.exist_fte + r.exist_con + r.appr_fte + r.appr_con + r.appr_con_fte,
+    total_heads:    r.exist_vp_dir + r.exist_fte + r.exist_con + r.appr_fte + r.appr_con + r.appr_con_fte +
                     r.req_fte + r.req_con_fte + r.req_con,
   }))
   .filter(r => r.total_heads > 0)
@@ -244,9 +245,12 @@ function buildGearingRows(projsByRegion, gearingConsts, peopleByDiscRegion, allR
 }
 
 function buildSummary(projRow, hcRows) {
-  const VP_DIR_CODES = ['VP', 'Dr', 'SNR'];
-  const perm       = hcRows.filter(r => r.category === 'existing' && !['CON', ...VP_DIR_CODES].includes(r.contract_code)).reduce((s, r) => s + Number(r.headcount), 0)
-                   + hcRows.filter(r => VP_DIR_CODES.includes(r.contract_code)).reduce((s, r) => s + Number(r.headcount), 0);
+  const VP_DIR_CONTRACT = new Set(['VP', 'Dr']);
+  const VP_DIR_LEVEL    = new Set(['VP', 'Dr', 'S Dr']);
+  const isVpDir = r => VP_DIR_CONTRACT.has(r.contract_code) ||
+                       (r.category === 'existing' && VP_DIR_LEVEL.has(r.level_code ?? ''));
+  const perm       = hcRows.filter(r => r.category === 'existing' && r.contract_code !== 'CON' && !isVpDir(r)).reduce((s, r) => s + Number(r.headcount), 0)
+                   + hcRows.filter(r => isVpDir(r)).reduce((s, r) => s + Number(r.headcount), 0);
   const contingent = hcRows.filter(r => r.contract_code === 'CON').reduce((s, r) => s + Number(r.headcount), 0);
   const appr_fte   = hcRows.filter(r => r.contract_code === 'A FTE').reduce((s, r) => s + Number(r.headcount), 0);
   const appr_con   = hcRows.filter(r => ['A CON', 'A CON>FTE'].includes(r.contract_code)).reduce((s, r) => s + Number(r.headcount), 0);

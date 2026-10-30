@@ -27,7 +27,7 @@ async function fetchBudgetData(cycleId = null) {
       SELECT
         COUNT(*) FILTER (WHERE ct.category = 'existing')::int   AS exist_total,
         COUNT(*) FILTER (WHERE ct.code = 'CON')::int            AS exist_con,
-        COUNT(*) FILTER (WHERE ct.code IN ('FTE','VP','SNR'))::int AS exist_fte,
+        COUNT(*) FILTER (WHERE ct.code IN ('FTE','VP','Dr'))::int AS exist_fte,
         COUNT(*) FILTER (WHERE ct.code = 'A FTE')::int         AS appr_fte,
         COUNT(*) FILTER (WHERE ct.code = 'A CON')::int         AS appr_con,
         COUNT(*) FILTER (WHERE ct.code = 'R FTE')::int         AS req_fte,
@@ -172,7 +172,7 @@ async function fetchBudgetData(cycleId = null) {
     const reg = row.region;
     if (!byRegionType[reg]) byRegionType[reg] = { region: reg, sort_order: row.sort_order, snr: 0, fte: 0, con: 0, appr_fte: 0, req_fte: 0, req_con_fte: 0, req_con: 0 };
     const r = byRegionType[reg];
-    if (row.contract_code === 'VP' || row.contract_code === 'SNR') r.snr += row.headcount;
+    if (row.contract_code === 'VP' || row.contract_code === 'Dr') r.snr += row.headcount;
     else if (row.contract_code === 'FTE')    r.fte      += row.headcount;
     else if (row.contract_code === 'CON')    r.con      += row.headcount;
     else if (row.contract_code === 'A FTE')  r.appr_fte += row.headcount;
