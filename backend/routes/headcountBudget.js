@@ -482,7 +482,7 @@ router.get('/report', requireAuth, async (req, res) => {
   const htSlide = addContentSlide('Headcount Summary — By Head Type', `Planning Cycle: ${cycleLabel}`);
   const htHeaderRow = [
     hdrCell('Region'),
-    hdrCell('VP / Dir', { align: 'center' }),
+    hdrCell('Senior Staff', { align: 'center' }),
     hdrCell('FTE',          { align: 'center' }),
     hdrCell('Contingent',   { align: 'center' }),
     hdrCell('Approved FTE', { align: 'center' }),

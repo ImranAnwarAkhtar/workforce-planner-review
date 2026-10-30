@@ -1063,19 +1063,26 @@ function PeopleTab({ yearA, yearB, dataA, dataB, allRegionNames, regionCodeMap }
     const r = data.headcount.find(h => h.region_name === rn);
     return {
       region: rc(rn),
-      'VP/Dir':     r?.exist_vp_dir ?? 0,
-      'FTE':        r?.exist_fte    ?? 0,
-      'Contingent': r?.exist_con    ?? 0,
-      'Appr FTE':   r?.appr_fte     ?? 0,
-      'Req FTE':    r?.req_fte      ?? 0,
-      'Req CON':    r?.req_con      ?? 0,
+      'Senior Staff': r?.exist_vp_dir ?? 0,
+      'FTE':          r?.exist_fte    ?? 0,
+      'Contingent':   r?.exist_con    ?? 0,
+      'Appr FTE':     r?.appr_fte     ?? 0,
+      'Req FTE':      r?.req_fte      ?? 0,
+      'Req CON':      r?.req_con      ?? 0,
     };
   });
 
-  // Area chart data — same headcount for both years currently (no year tagging yet)
+  // Area chart data — explicit field mapping (VP/Dir, FTE and Contingent use prefixed field names)
+  const AREA_KEYS: Array<[string, string]> = [
+    ['Senior Staff', 'exist_vp_dir'],
+    ['FTE',          'exist_fte'],
+    ['Contingent',   'exist_con'],
+    ['Appr FTE',     'appr_fte'],
+    ['Req FTE',      'req_fte'],
+  ];
   const areaData = [
-    { year: String(yearA), ...Object.fromEntries(['VP/Dir','FTE','Contingent','Appr FTE','Req FTE'].map(k => [k, dataA.headcount.reduce((s, r) => s + ((r as any)[k.replace('/','_').replace(' ','_').toLowerCase()] ?? 0), 0)])) },
-    { year: String(yearB), ...Object.fromEntries(['VP/Dir','FTE','Contingent','Appr FTE','Req FTE'].map(k => [k, dataB.headcount.reduce((s, r) => s + ((r as any)[k.replace('/','_').replace(' ','_').toLowerCase()] ?? 0), 0)])) },
+    { year: String(yearA), ...Object.fromEntries(AREA_KEYS.map(([k, f]) => [k, dataA.headcount.reduce((s, r) => s + ((r as any)[f] ?? 0), 0)])) },
+    { year: String(yearB), ...Object.fromEntries(AREA_KEYS.map(([k, f]) => [k, dataB.headcount.reduce((s, r) => s + ((r as any)[f] ?? 0), 0)])) },
   ];
 
   const totalA = dataA.headcount.reduce((s, r) => s + r.total_heads, 0);
@@ -1116,7 +1123,7 @@ function PeopleTab({ yearA, yearB, dataA, dataB, allRegionNames, regionCodeMap }
                     );
                   }} />
                 <Tooltip contentStyle={{ fontSize: 11 }} />
-                <Bar dataKey="VP/Dir"     stackId="a" fill={C.vpDir}  ><LabelList dataKey="VP/Dir"     position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} /></Bar>
+                <Bar dataKey="Senior Staff" stackId="a" fill={C.vpDir}  ><LabelList dataKey="Senior Staff" position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} /></Bar>
                 <Bar dataKey="FTE"        stackId="a" fill={C.fte}    ><LabelList dataKey="FTE"        position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} /></Bar>
                 <Bar dataKey="Contingent" stackId="a" fill={C.con}    ><LabelList dataKey="Contingent" position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} /></Bar>
                 <Bar dataKey="Appr FTE"   stackId="a" fill={C.apprFte}><LabelList dataKey="Appr FTE"   position="center" style={{ fontSize: 10, fill: '#FFF', fontWeight: 700 }} formatter={(v: any) => v > 0 ? v : ''} /></Bar>
@@ -1126,7 +1133,7 @@ function PeopleTab({ yearA, yearB, dataA, dataB, allRegionNames, regionCodeMap }
             </ResponsiveContainer>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, justifyContent: 'center' }}>
-            {[['VP/Dir',C.vpDir],['FTE',C.fte],['Contingent',C.con],['Appr FTE',C.apprFte],['Req FTE',C.reqFte],['Req CON',C.reqCon]].map(([l,c]) => (
+            {[['Senior Staff',C.vpDir],['FTE',C.fte],['Contingent',C.con],['Appr FTE',C.apprFte],['Req FTE',C.reqFte],['Req CON',C.reqCon]].map(([l,c]) => (
               <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                 <div style={{ width: 8, height: 8, borderRadius: 1, background: c }} />
                 <span style={{ fontSize: 9, color: C.muted }}>{l}</span>
@@ -1160,7 +1167,7 @@ function PeopleTab({ yearA, yearB, dataA, dataB, allRegionNames, regionCodeMap }
               </thead>
               <tbody>
                 {[
-                  { key: 'exist_vp_dir',   label: 'Exist VP / Director', color: C.vpDir,   bold: false },
+                  { key: 'exist_vp_dir',   label: 'Senior Staff',        color: C.vpDir,   bold: false },
                   { key: 'exist_fte',      label: 'Exist FTE',           color: '#444',    bold: false },
                   { key: 'exist_con',      label: 'Exist Contingent',    color: C.con,     bold: false },
                   { key: 'appr_fte',       label: 'Approved TBH FTE',    color: C.apprFte, bold: false },
@@ -1199,7 +1206,7 @@ function PeopleTab({ yearA, yearB, dataA, dataB, allRegionNames, regionCodeMap }
         <SectionTitle>Total Headcount: {yearA} vs {yearB} Comparison</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: 12 }}>
           {[
-            { label: 'Exist VP/Dir',   vA: dataA.headcount.reduce((s,r)=>s+r.exist_vp_dir,0), vB: dataB.headcount.reduce((s,r)=>s+r.exist_vp_dir,0), color: C.vpDir   },
+            { label: 'Senior Staff',   vA: dataA.headcount.reduce((s,r)=>s+r.exist_vp_dir,0), vB: dataB.headcount.reduce((s,r)=>s+r.exist_vp_dir,0), color: C.vpDir   },
             { label: 'Exist FTE',      vA: dataA.headcount.reduce((s,r)=>s+r.exist_fte,0),     vB: dataB.headcount.reduce((s,r)=>s+r.exist_fte,0),     color: C.fte     },
             { label: 'Contingent',     vA: dataA.headcount.reduce((s,r)=>s+r.exist_con,0),     vB: dataB.headcount.reduce((s,r)=>s+r.exist_con,0),     color: C.con     },
             { label: 'Approved FTE',   vA: dataA.headcount.reduce((s,r)=>s+r.appr_fte,0),      vB: dataB.headcount.reduce((s,r)=>s+r.appr_fte,0),      color: C.apprFte },

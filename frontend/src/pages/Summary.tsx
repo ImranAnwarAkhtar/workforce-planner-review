@@ -389,8 +389,8 @@ export default function Summary() {
                   </tr>
 
                   <tr>
-                    <td style={TD_LABEL}>VP / Director</td>
-                    <td style={{ ...TD, textAlign: 'left', paddingLeft: 8 }}><span style={TAG}>VP + Dir</span></td>
+                    <td style={TD_LABEL}>Senior Staff</td>
+                    <td style={{ ...TD, textAlign: 'left', paddingLeft: 8 }}><span style={TAG}>Senior Staff</span></td>
                     {cols.map(c => numCell(c.m.snr, `snr-${c.label}`))}
                   </tr>
 

@@ -315,7 +315,7 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
           <KpiTile value={`${kpis.contingent_pct}%`} label="Contingent Workforce" sub="Of existing headcount" color="#00737A" />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-          <KpiTile value={kpis.exist_fte.toString()} label="Existing FTE" sub="FTE + VP / Director" color="#374151" />
+          <KpiTile value={kpis.exist_fte.toString()} label="Existing FTE" sub="FTE + Senior Staff" color="#374151" />
           <KpiTile value={kpis.exist_con.toString()} label="Existing Contingent" sub="Active contractors" color="#374151" />
           <KpiTile value={kpis.appr_fte.toString()} label="Approved TBH" sub="Positions in pipeline" color="#086AE3" />
           <KpiTile value={kpis.req_con_fte.toString()} label="Con→FTE Conversions" sub="Requested conversions" color="#33A85C" />
@@ -448,7 +448,7 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <SectionHeader title="Headcount Summary — By Head Type" desc="Regional breakdown by employment category." />
           <button style={S.exportBtn} onClick={() => downloadCSV('headcount_by_type.csv',
-            ['Region', 'VP / Dir', 'FTE', 'Contingent', 'Approved TBH', 'Req FTE', 'Req Contingent', 'Con→FTE', 'Total'],
+            ['Region', 'Senior Staff', 'FTE', 'Contingent', 'Approved TBH', 'Req FTE', 'Req Contingent', 'Con→FTE', 'Total'],
             hbt.map(r => [r.region, r.snr, r.fte, r.con, r.appr_fte, r.req_fte, r.req_con, r.req_con_fte, r.snr + r.fte + r.con + r.appr_fte + r.req_fte + r.req_con + r.req_con_fte])
           )}>↓ Export CSV</button>
         </div>
@@ -457,7 +457,7 @@ function BudgetDataTab({ data }: { data: BudgetData }) {
             <thead>
               <tr>
                 <th style={S.th}>Region</th>
-                <th style={S.thC}>VP / Dir</th>
+                <th style={S.thC}>Senior Staff</th>
                 <th style={S.thC}>FTE</th>
                 <th style={S.thC}>Contingent</th>
                 <th style={S.thC}>Appr TBH</th>
