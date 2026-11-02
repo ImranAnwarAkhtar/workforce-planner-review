@@ -374,7 +374,7 @@ export default function Recruitment() {
         {/* Per-status counts */}
         {reqStatuses.map(s => (
           <div key={s} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '6px 10px', borderRight: '1px solid #E0E3E8', flex: '1 1 auto', minWidth: 0 }}>
-            <span style={{ fontSize: 19, fontWeight: 700, color: STATUS_BANNER_COLOR[s], lineHeight: 1 }}>
+            <span style={{ fontSize: 19, fontWeight: 700, color: STATUS_BANNER_COLOR[s] ?? '#9CA3AF', lineHeight: 1 }}>
               {statusCounts[s] ?? 0}
             </span>
             <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -413,7 +413,7 @@ export default function Recruitment() {
           <span style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Status:</span>
           <button onClick={() => setStatusFilter('')} style={{ padding: '3px 9px', borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: statusFilter === '' ? '1.5px solid #374151' : '1px solid #E0E0E0', background: statusFilter === '' ? '#374151' : '#F9FAFB', color: statusFilter === '' ? '#FFFFFF' : '#555' }}>All</button>
           {reqStatuses.map(s => {
-            const m = STATUS_META[s];
+            const m = statusMeta(s);
             const active = statusFilter === s;
             return (
               <button key={s} onClick={() => setStatusFilter(active ? '' : s)} style={{ padding: '3px 9px', borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: active ? `1.5px solid ${m.color}` : `1px solid ${m.border}`, background: active ? m.color : m.bg, color: active ? '#FFFFFF' : m.color }}>

@@ -784,6 +784,7 @@ export interface TbhCode {
   contract_type_code: string | null;
   is_in_plan: boolean;
   created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface TbhCodesQuery {

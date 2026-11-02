@@ -58,40 +58,44 @@ const router = Router();
 
 
 router.get('/', requireAuth, async (req, res) => {
-  const { region_id, funding_year, req_status, limit = 100, offset = 0 } = req.query;
-  const conditions = [];
-  const params = [];
-  let i = 1;
+  try {
+    const { region_id, funding_year, req_status, limit = 100, offset = 0 } = req.query;
+    const conditions = [];
+    const params = [];
+    let i = 1;
 
-  if (region_id)    { conditions.push(`t.region_id = $${i++}`);    params.push(parseInt(region_id, 10)); }
-  if (funding_year) { conditions.push(`t.funding_year = $${i++}`); params.push(parseInt(funding_year, 10)); }
-  if (req_status)   { conditions.push(`t.req_status = $${i++}`);   params.push(req_status); }
+    if (region_id)    { conditions.push(`t.region_id = $${i++}`);    params.push(parseInt(region_id, 10)); }
+    if (funding_year) { conditions.push(`t.funding_year = $${i++}`); params.push(parseInt(funding_year, 10)); }
+    if (req_status)   { conditions.push(`t.req_status = $${i++}`);   params.push(req_status); }
 
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  params.push(parseInt(limit, 10), parseInt(offset, 10));
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(parseInt(limit, 10), parseInt(offset, 10));
 
-  const { rows } = await pool.query(
-    `SELECT t.id, t.tbh_id, t.old_tbh, t.in_summary, t.status_query, t.pmo_comments,
-            t.wfp_comments, t.funding_year, t.hire_type, t.region_id, t.project_type,
-            t.legal_entity, t.location_code, t.cost_centre, t.job_profile,
-            t.replaced_emp_name, t.manager_name, t.target_hire_date, t.jr_id,
-            t.jr_id_added_at, t.comp_ratio,
-            t.req_status, t.ta_contact, t.candidate_name, t.estimated_hire_date,
-            t.confirmed_start_date, t.hire_source, t.hire_source_details,
-            t.ta_status_comments, t.tbh_description, t.fp_and_a_approver_notes,
-            t.fp_and_a_notes, t.pipeline_stage, t.planning_cycle_id, t.created_at, t.updated_at,
-            r.name AS region_name,
-            pc.name AS planning_cycle_name,
-            EXISTS (SELECT 1 FROM people pe WHERE pe.tbh_code_id = t.id AND pe.is_active = TRUE) AS is_in_plan
-     FROM tbh_codes t
-     LEFT JOIN regions r ON t.region_id = r.id
-     LEFT JOIN planning_cycles pc ON t.planning_cycle_id = pc.id
-     ${where}
-     ORDER BY t.funding_year DESC NULLS LAST, t.tbh_id ASC
-     LIMIT $${i} OFFSET $${i + 1}`,
-    params
-  );
-  res.json({ data: rows });
+    const { rows } = await pool.query(
+      `SELECT t.id, t.tbh_id, t.old_tbh, t.in_summary, t.status_query, t.pmo_comments,
+              t.wfp_comments, t.funding_year, t.hire_type, t.region_id, t.project_type,
+              t.legal_entity, t.location_code, t.cost_centre, t.job_profile,
+              t.replaced_emp_name, t.manager_name, t.target_hire_date, t.jr_id,
+              t.jr_id_added_at, t.comp_ratio,
+              t.req_status, t.ta_contact, t.candidate_name, t.estimated_hire_date,
+              t.confirmed_start_date, t.hire_source, t.hire_source_details,
+              t.ta_status_comments, t.tbh_description, t.fp_and_a_approver_notes,
+              t.fp_and_a_notes, t.pipeline_stage, t.planning_cycle_id, t.created_at, t.updated_at,
+              r.name AS region_name,
+              pc.name AS planning_cycle_name,
+              EXISTS (SELECT 1 FROM people pe WHERE pe.tbh_code_id = t.id AND pe.is_active = TRUE) AS is_in_plan
+       FROM tbh_codes t
+       LEFT JOIN regions r ON t.region_id = r.id
+       LEFT JOIN planning_cycles pc ON t.planning_cycle_id = pc.id
+       ${where}
+       ORDER BY t.funding_year DESC NULLS LAST, t.tbh_id ASC
+       LIMIT $${i} OFFSET $${i + 1}`,
+      params
+    );
+    res.json({ data: rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load TBH codes', detail: err.message });
+  }
 });
 
 // ── Excel import (upsert by tbh_id) ─────────────────────────────────────────

@@ -1,17 +1,19 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 
 export const ROUTE_LABELS: Record<string, string> = {
-  '/dashboard':       'Dashboard',
-  '/projects':        'Projects',
-  '/allocations':     'Allocations',
-  '/summary':         'Resource Summary',
-  '/people':          'People',
-  '/headcount':       'Headcount Requests',
-  '/requests':        'Hire Requests',
-  '/change-requests': 'Change Requests',
-  '/recruitment':     'Talent Acquisition',
-  '/admin':           'Admin',
-  '/import':          'Import Data',
+  '/dashboard':        'Dashboard',
+  '/projects':         'Projects',
+  '/project-list':     'Project List',
+  '/allocations':      'Allocations',
+  '/summary':          'Resource Summary',
+  '/people':           'People',
+  '/headcount':        'Headcount Requests',
+  '/headcount-budget': 'Headcount Budget',
+  '/requests':         'Hire Requests',
+  '/change-requests':  'Change Requests',
+  '/recruitment':      'Talent Acquisition',
+  '/admin':            'Admin',
+  '/import':           'Import Data',
 };
 
 export interface AppTab {
