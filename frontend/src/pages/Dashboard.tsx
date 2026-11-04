@@ -2215,18 +2215,21 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
             <div style={{ flexShrink: 0, minWidth: 80 }}>
               <div style={{ fontSize: 18, fontWeight: 900, color: overdueCount > 0 ? '#E91C24' : '#8B93A3', lineHeight: 1, marginBottom: 6 }}>{overdueCount}</div>
               <div style={{ fontSize: 10, color: overdueCount > 0 ? '#C71B36' : C.muted, lineHeight: 1.4 }}>
-                {overdueCount === 0 ? 'No overdue roles' : `role${overdueCount !== 1 ? 's' : ''} past estimated hire date`}
+                {overdueCount === 0 ? 'No overdue roles' : `role${overdueCount !== 1 ? 's' : ''} past hire date`}
               </div>
+              {overdueCount > 0 && (
+                <div style={{ fontSize: 9, color: '#9BA4B5', marginTop: 4, lineHeight: 1.3 }}>50+ days since JR added</div>
+              )}
             </div>
-            {/* Right: full scrollable overdue table */}
+            {/* Right: scrollable overdue list */}
             {overdueCount > 0 && (
-              <div style={{ flex: 1, borderLeft: '1px solid rgba(233,28,36,0.18)', paddingLeft: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, borderLeft: '1px solid rgba(233,28,36,0.18)', paddingLeft: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Overdue roles</div>
-                <div style={{ overflowY: 'auto', maxHeight: 180, overflowX: 'auto' }}>
+                <div style={{ overflowY: 'auto', maxHeight: 160, overflowX: 'auto', flex: 1 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
                     <thead style={{ position: 'sticky', top: 0, background: '#F7F8FA', zIndex: 1 }}>
                       <tr style={{ borderBottom: '2px solid #E0E3E8' }}>
-                        {['TBH ID','Date Opened','Est. Hire Date','Status','Hire Type','Region','Overdue'].map(h => (
+                        {['TBH ID','JR Added','Est. Hire Date','Status','Hire Type','Region','Days Open'].map(h => (
                           <th key={h} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 9, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -2236,7 +2239,7 @@ function HireStatusTab({ tbhStatus, tbhAvgHireDays, tbhQuarterlyAvgHireDays, tbh
                         <tr key={r.tbh_id} style={{ background: i % 2 === 0 ? '#FFF' : '#FAFAFA', borderBottom: '1px solid #F0F0F0' }}>
                           <td style={{ padding: '5px 10px', fontSize: 10, color: '#E91C24', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.tbh_id}</td>
                           <td style={{ padding: '5px 10px', fontSize: 10, color: '#555', whiteSpace: 'nowrap' }}>{r.date_opened ?? '—'}</td>
-                          <td style={{ padding: '5px 10px', fontSize: 10, color: '#333', whiteSpace: 'nowrap' }}>{r.estimated_hire_date}</td>
+                          <td style={{ padding: '5px 10px', fontSize: 10, color: '#333', whiteSpace: 'nowrap' }}>{r.estimated_hire_date ?? '—'}</td>
                           <td style={{ padding: '5px 10px', fontSize: 10, color: '#333', whiteSpace: 'nowrap' }}>{r.req_status ?? '—'}</td>
                           <td style={{ padding: '5px 10px', fontSize: 10, color: '#333', whiteSpace: 'nowrap' }}>{r.hire_type ?? '—'}</td>
                           <td style={{ padding: '5px 10px', fontSize: 10, color: '#333', whiteSpace: 'nowrap' }}>{r.region_name ?? '—'}</td>

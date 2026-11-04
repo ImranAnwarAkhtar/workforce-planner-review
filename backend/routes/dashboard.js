@@ -344,15 +344,16 @@ async function fetchShared() {
     pool.query(`
       SELECT t.tbh_id, t.req_status, t.hire_type,
              r.name AS region_name, t.estimated_hire_date::text,
-             (CURRENT_DATE - t.estimated_hire_date)::int AS days_overdue,
+             (CURRENT_DATE - t.jr_id_added_at::date)::int AS days_overdue,
              t.funding_year,
-             COALESCE(t.jr_id_added_at::date::text, t.created_at::date::text) AS date_opened
+             t.jr_id_added_at::date::text AS date_opened
       FROM tbh_codes t
       LEFT JOIN regions r ON t.region_id = r.id
-      WHERE t.estimated_hire_date < CURRENT_DATE
-        AND (t.req_status IS NULL OR t.req_status != 'Filled')
-      ORDER BY t.estimated_hire_date ASC
-      LIMIT 50
+      WHERE t.jr_id_added_at IS NOT NULL
+        AND (CURRENT_DATE - t.jr_id_added_at::date) >= 50
+        AND (t.req_status IS NULL OR t.req_status NOT IN ('Filled', 'Closed'))
+      ORDER BY t.jr_id_added_at ASC
+      LIMIT 100
     `),
     pool.query(`
       SELECT TO_CHAR(DATE_TRUNC('month', t.estimated_hire_date), 'YYYY-MM') AS month,
