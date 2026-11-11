@@ -648,6 +648,56 @@ router.get('/cycle-pipeline-metrics/:cycleId', requireAuth, async (req, res) => 
   }});
 });
 
+// ── Cycle Stage Snapshots ─────────────────────────────────────────────────────
+
+const { saveSnapshot } = require('../db/snapshotHelper');
+
+router.get('/cycle-snapshots/:cycleId', requireAuth, async (req, res) => {
+  const cycleId = Number(req.params.cycleId);
+  const { rows } = await pool.query(
+    `SELECT s.id, s.stage_key, s.snapped_at, s.trigger_type,
+            u.email AS snapped_by_email, u.name AS snapped_by_name
+     FROM cycle_stage_snapshots s
+     LEFT JOIN users u ON u.id = s.snapped_by
+     WHERE s.planning_cycle_id = $1
+     ORDER BY s.snapped_at`,
+    [cycleId]
+  );
+  res.json({ data: rows });
+});
+
+router.get('/cycle-snapshots/:cycleId/:stageKey', requireAuth, async (req, res) => {
+  const cycleId = Number(req.params.cycleId);
+  const { stageKey } = req.params;
+  const { rows } = await pool.query(
+    `SELECT s.*, u.email AS snapped_by_email, u.name AS snapped_by_name
+     FROM cycle_stage_snapshots s
+     LEFT JOIN users u ON u.id = s.snapped_by
+     WHERE s.planning_cycle_id = $1 AND s.stage_key = $2`,
+    [cycleId, stageKey]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'No snapshot for this stage' });
+  res.json({ data: rows[0] });
+});
+
+router.post('/cycle-snapshots/:cycleId/:stageKey', requireAuth, async (req, res) => {
+  const cycleId  = Number(req.params.cycleId);
+  const { stageKey } = req.params;
+  try {
+    await saveSnapshot(cycleId, stageKey, req.user.id, req.body.trigger_type ?? 'manual');
+    const { rows } = await pool.query(
+      `SELECT s.*, u.email AS snapped_by_email, u.name AS snapped_by_name
+       FROM cycle_stage_snapshots s
+       LEFT JOIN users u ON u.id = s.snapped_by
+       WHERE s.planning_cycle_id = $1 AND s.stage_key = $2`,
+      [cycleId, stageKey]
+    );
+    res.json({ data: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: 'Snapshot failed: ' + err.message });
+  }
+});
+
 // ── Metros ────────────────────────────────────────────────────────────────────
 
 router.get('/metros', requireAuth, async (req, res) => {

@@ -3,6 +3,7 @@ const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, ROLES } = require('../middleware/rbac');
 const { fireEventAlerts } = require('./alerts');
+const { saveSnapshot } = require('../db/snapshotHelper');
 
 const router = Router();
 
@@ -176,6 +177,13 @@ router.put('/:id', requireAuth, requireRole(...WP_ONLY), async (req, res) => {
 
   if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
 
+  // Read old status before updating so we can snapshot the stage being left
+  let oldStatus = null;
+  if (status !== undefined) {
+    const { rows: before } = await pool.query('SELECT status FROM planning_cycles WHERE id = $1', [req.params.id]);
+    oldStatus = before[0]?.status ?? null;
+  }
+
   params.push(req.params.id);
   const { rows } = await pool.query(
     `UPDATE planning_cycles SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`,
@@ -183,11 +191,16 @@ router.put('/:id', requireAuth, requireRole(...WP_ONLY), async (req, res) => {
   );
   if (!rows.length) return res.status(404).json({ error: 'Planning cycle not found' });
   await req.auditLog({ actionType: 'UPDATE', resourceType: 'planning_cycle', resourceId: rows[0].id, newValue: rows[0] });
-  if (req.body.status !== undefined) {
+  if (status !== undefined) {
     fireEventAlerts('cycle_stage_changed', {
       cycle_name: rows[0].name, cycle_id: rows[0].id,
       new_status: rows[0].status, changed_by_name: req.user.name,
     }).catch(() => {});
+
+    // Auto-snapshot the stage being left (best-effort, non-blocking)
+    if (oldStatus && oldStatus !== status) {
+      saveSnapshot(rows[0].id, oldStatus, req.user?.id, 'auto_advance').catch(() => {});
+    }
   }
   res.json({ data: rows[0] });
 });

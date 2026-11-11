@@ -547,6 +547,20 @@ _startupMigs.push((async () => {
       END $$;
     `);
 
+    // Stage snapshots table (one snapshot per cycle×stage, overwritten on retake)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cycle_stage_snapshots (
+        id                SERIAL PRIMARY KEY,
+        planning_cycle_id INTEGER NOT NULL REFERENCES planning_cycles(id) ON DELETE CASCADE,
+        stage_key         VARCHAR(50) NOT NULL,
+        snapped_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        snapped_by        INTEGER REFERENCES users(id),
+        trigger_type      VARCHAR(20) NOT NULL DEFAULT 'manual',
+        data              JSONB NOT NULL DEFAULT '{}',
+        UNIQUE(planning_cycle_id, stage_key)
+      );
+    `);
+
     logger.info('Cycle progress tables + stage migration complete');
   } catch (err) {
     logger.error('Cycle progress migration failed', { error: err.message });

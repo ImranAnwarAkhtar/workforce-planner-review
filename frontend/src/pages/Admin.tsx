@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { refDataApi, metrosApi, countriesApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, cycleProgressApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type Metro, type Country, type PlanningCycle, type CycleApprover, type CycleStageAccess, type CycleChecklistItem, type CycleRegionSignoff, type CyclePipelineMetrics, type GearingConstant, type AlertConfig, type AlertLog, type Person, type RefListEntry } from '../services/api';
+import { refDataApi, metrosApi, countriesApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, cycleProgressApi, cycleSnapshotApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type Metro, type Country, type PlanningCycle, type CycleApprover, type CycleStageAccess, type CycleChecklistItem, type CycleRegionSignoff, type CyclePipelineMetrics, type CycleSnapshot, type GearingConstant, type AlertConfig, type AlertLog, type Person, type RefListEntry } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import axios from 'axios';
 
@@ -1412,6 +1412,12 @@ function PlanningCyclesTab() {
   const [newApproverRole, setNewApproverRole] = useState('');
   const [newApproverName, setNewApproverName] = useState('');
 
+  // Snapshot state
+  const [snapshot, setSnapshot]           = useState<CycleSnapshot | null>(null);
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [snapshotSaving, setSnapshotSaving]   = useState(false);
+  const [snapshotError, setSnapshotError]     = useState(false);
+
   // Auto-expand the active cycle on first load
   useEffect(() => {
     if (cycles.length > 0 && expandedCycleId === null) {
@@ -1436,12 +1442,49 @@ function PlanningCyclesTab() {
     } finally { setProgressLoading(false); }
   }
 
+  async function loadSnapshotForStage(cycleId: number, stageKey: string) {
+    setSnapshotLoading(true);
+    setSnapshot(null);
+    setSnapshotError(false);
+    try {
+      const s = await cycleSnapshotApi.get(cycleId, stageKey);
+      setSnapshot(s);
+    } catch {
+      setSnapshot(null); // 404 = no snapshot yet
+      setSnapshotError(false); // not an error, just not taken yet
+    } finally {
+      setSnapshotLoading(false);
+    }
+  }
+
+  async function handleTakeSnapshot(cycleId: number, stageKey: string) {
+    setSnapshotSaving(true);
+    try {
+      const s = await cycleSnapshotApi.create(cycleId, stageKey, 'manual');
+      setSnapshot(s);
+    } catch { /* non-fatal */ } finally {
+      setSnapshotSaving(false);
+    }
+  }
+
+  function isCompletedStage(cycle: PlanningCycle, stageKey: string): boolean {
+    return STAGE_ORDER_KEYS.indexOf(stageKey as StageKey) < STAGE_ORDER_KEYS.indexOf(cycle.status as StageKey);
+  }
+
   function expandCycle(cycleId: number, stageKey: string) {
     if (expandedCycleId === cycleId && selectedStage === stageKey) {
-      setExpandedCycleId(null); setSelectedStage(null); return;
+      setExpandedCycleId(null); setSelectedStage(null); setSnapshot(null); return;
     }
+    const isSameCycle = expandedCycleId === cycleId;
     setExpandedCycleId(cycleId); setSelectedStage(stageKey);
-    if (expandedCycleId !== cycleId) loadProgress(cycleId);
+    if (!isSameCycle) loadProgress(cycleId);
+
+    const cycle = cycles.find(c => c.id === cycleId);
+    if (cycle && isCompletedStage(cycle, stageKey)) {
+      loadSnapshotForStage(cycleId, stageKey);
+    } else {
+      setSnapshot(null);
+    }
   }
 
   async function handleStageChange(id: number, newStatus: string) {
@@ -1591,9 +1634,14 @@ function PlanningCyclesTab() {
                     cursor: 'pointer', fontSize: 13, fontWeight: 700, flexShrink: 0,
                     boxShadow: isSelected ? `0 0 0 4px ${s.color}30` : ss === 'active' ? `0 2px 10px ${s.color}50` : 'none',
                   }}
+                  title={ss === 'complete' ? 'View stage snapshot' : undefined}
                 >
                   {ss === 'complete' ? '✓' : (i + 1)}
                 </button>
+                {/* Snapshot indicator dot on completed nodes */}
+                {ss === 'complete' && (
+                  <div style={{ position: 'absolute', bottom: 1, right: '50%', transform: 'translateX(14px)', width: 10, height: 10, borderRadius: '50%', background: '#D97706', border: '2px solid #FFF', zIndex: 2 }} title="Snapshot available" />
+                )}
               </div>
 
               {/* Below area */}
@@ -1613,10 +1661,50 @@ function PlanningCyclesTab() {
     const currentIdx = STAGE_ORDER_KEYS.indexOf(cycle.status as StageKey);
     const stageIdx   = STAGE_ORDER_KEYS.indexOf(stageKey as StageKey);
     const isActive   = stageIdx === currentIdx;
+    const isCompleted = stageIdx < currentIdx;
     const nextKey    = currentIdx < STAGE_ORDER_KEYS.length - 1 ? STAGE_ORDER_KEYS[currentIdx + 1] : null;
 
-    if (progressLoading) return <div style={{ padding: '24px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Loading…</div>;
+    if (progressLoading && !isCompleted) {
+      return <div style={{ padding: '24px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Loading…</div>;
+    }
 
+    // ── Completed stage: show snapshot view ────────────────────────────────
+    if (isCompleted) {
+      return (
+        <div>
+          {/* Snapshot banner */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ padding: '3px 12px', borderRadius: 20, background: stage?.bg ?? '#F3F4F6', color: stage?.color ?? '#374151', fontSize: 12, fontWeight: 700 }}>
+                {stage?.label ?? stageKey}
+              </span>
+              <span style={{ fontSize: 11, color: '#16A34A' }}>✓ Completed</span>
+              {snapshot && (
+                <span style={{ fontSize: 11, color: '#6B7280', background: '#FEF3C7', border: '1px solid #FDE68A', padding: '2px 8px', borderRadius: 6 }}>
+                  📸 Snapshot — {new Date(snapshot.snapped_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {snapshot.snapped_by_name && ` · ${snapshot.snapped_by_name}`}
+                  {snapshot.trigger_type === 'auto_advance' && ' · auto'}
+                </span>
+              )}
+            </div>
+            <button onClick={() => handleTakeSnapshot(cycle.id, stageKey)} disabled={snapshotSaving}
+              style={{ padding: '5px 12px', border: '1px solid #D1D5DB', borderRadius: 6, background: '#FFF', color: '#374151', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: snapshotSaving ? 0.6 : 1 }}>
+              {snapshotSaving ? 'Saving…' : snapshot ? '↺ Re-snapshot' : '📸 Take Snapshot'}
+            </button>
+          </div>
+
+          {snapshotLoading && <div style={{ textAlign: 'center', padding: 20, color: '#9CA3AF', fontSize: 13 }}>Loading snapshot…</div>}
+          {!snapshotLoading && !snapshot && (
+            <div style={{ textAlign: 'center', padding: 20, background: '#FFFBEB', border: '1px dashed #FDE68A', borderRadius: 8, color: '#92400E', fontSize: 12 }}>
+              No snapshot saved for this stage yet. Click "Take Snapshot" to capture the current state retroactively.
+            </div>
+          )}
+          {!snapshotLoading && snapshot && renderSnapshotView(stageKey, snapshot.data)}
+        </div>
+      );
+    }
+
+    // ── Active / upcoming stage: live data view ────────────────────────────
     return (
       <div>
         {/* Panel header */}
@@ -1626,17 +1714,22 @@ function PlanningCyclesTab() {
               {stage?.label ?? stageKey}
             </span>
             {isActive   && <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>● Current Stage</span>}
-            {stageIdx < currentIdx && <span style={{ fontSize: 11, color: '#10B981' }}>✓ Completed</span>}
-            {stageIdx > currentIdx && <span style={{ fontSize: 11, color: '#9CA3AF' }}>Upcoming</span>}
+            {!isActive  && <span style={{ fontSize: 11, color: '#9CA3AF' }}>Upcoming</span>}
           </div>
-          {isActive && nextKey && (
-            <button
-              onClick={() => handleStageChange(cycle.id, nextKey)}
-              style={{ padding: '6px 14px', background: stage?.color ?? '#374151', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            >
-              Advance → {CYCLE_STAGES[nextKey]?.label}
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {isActive && (
+              <button onClick={() => handleTakeSnapshot(cycle.id, stageKey)} disabled={snapshotSaving}
+                style={{ padding: '5px 12px', border: '1px solid #D1D5DB', borderRadius: 6, background: '#FFF', color: '#374151', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: snapshotSaving ? 0.6 : 1 }}>
+                {snapshotSaving ? 'Saving…' : '📸 Snapshot'}
+              </button>
+            )}
+            {isActive && nextKey && (
+              <button onClick={() => handleStageChange(cycle.id, nextKey)}
+                style={{ padding: '6px 14px', background: stage?.color ?? '#374151', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                Advance → {CYCLE_STAGES[nextKey]?.label}
+              </button>
+            )}
+          </div>
         </div>
 
         {stageKey === 'admin_setup'       && renderChecklist(cycle.id, 'admin_setup')}
@@ -1646,6 +1739,121 @@ function PlanningCyclesTab() {
         {stageKey === 'global_approval'   && renderGlobalApprovers(cycle.id)}
         {stageKey === 'closed' && (
           <div style={{ textAlign: 'center', padding: '24px 0', color: '#9CA3AF', fontSize: 13 }}>This planning cycle is closed.</div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Snapshot read-only view ──────────────────────────────────────────────────
+  function renderSnapshotView(stageKey: string, data: CycleSnapshot['data']) {
+    const panelBg: React.CSSProperties = { background: '#FFFEF5', borderRadius: 8, border: '1px solid #FEF3C7', padding: '12px 14px' };
+
+    // Show different sections depending on what stage it is
+    const checklist = (data.checklist ?? []).filter(i => i.stage_key === stageKey);
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Pipeline metrics (shown for pipeline_planning stage snapshot) */}
+        {stageKey === 'pipeline_planning' && data.pipeline && (
+          <div style={panelBg}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Pipeline at Snapshot</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
+              {[
+                { label: 'Total Projects', val: data.pipeline.total, color: '#0057B7' },
+                { label: 'Weighting Updated', val: data.pipeline.updated, color: '#16A34A' },
+                { label: 'Remaining', val: data.pipeline.total - data.pipeline.updated, color: '#D97706' },
+              ].map(({ label, val, color }) => (
+                <div key={label} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color }}>{val}</div>
+                  <div style={{ fontSize: 10, color: '#6B7280' }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            {Object.keys(data.pipeline.by_type).length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
+                {Object.entries(data.pipeline.by_type).map(([type, count]) => (
+                  <span key={type} style={{ padding: '2px 8px', background: '#F3F4F6', borderRadius: 5, fontSize: 11, color: '#374151' }}>{type}: {count}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Checklist items (admin_setup, resource_planning) */}
+        {checklist.length > 0 && (
+          <div style={panelBg}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Checklist at Snapshot</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {checklist.map(item => (
+                <div key={item.item_key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 3, border: `2px solid ${item.is_checked ? '#16A34A' : '#D1D5DB'}`, background: item.is_checked ? '#16A34A' : '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {item.is_checked && <span style={{ color: '#FFF', fontSize: 9, fontWeight: 700 }}>✓</span>}
+                  </div>
+                  <span style={{ fontSize: 12, color: item.is_checked ? '#16A34A' : '#6B7280', textDecoration: item.is_checked ? 'none' : 'none', flex: 1 }}>{item.label}</span>
+                  {item.checked_at && <span style={{ fontSize: 10, color: '#9CA3AF' }}>{new Date(item.checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Region signoffs (regional_review) */}
+        {stageKey === 'regional_review' && (data.region_signoffs ?? []).length > 0 && (
+          <div style={panelBg}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Region Sign-offs at Snapshot</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(data.region_signoffs ?? []).map(r => (
+                <div key={r.region_name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: r.signed_off_at ? '#16A34A' : '#D1D5DB', display: 'inline-block' }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{r.region_name}</span>
+                  </div>
+                  {r.signed_off_at && <span style={{ fontSize: 10, color: '#9CA3AF' }}>{new Date(r.signed_off_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+                  {!r.signed_off_at && <span style={{ fontSize: 10, color: '#D97706' }}>Not signed off</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Approvers (global_approval) */}
+        {stageKey === 'global_approval' && (data.approvers ?? []).length > 0 && (
+          <div style={panelBg}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Approvals at Snapshot</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(data.approvers ?? []).map((ap, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${ap.is_approved ? '#16A34A' : '#D1D5DB'}`, background: ap.is_approved ? '#16A34A' : '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {ap.is_approved && <span style={{ color: '#FFF', fontSize: 9, fontWeight: 700 }}>✓</span>}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    {ap.role_title && <div style={{ fontSize: 10, color: '#6B7280', fontWeight: 600 }}>{ap.role_title}</div>}
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{ap.approver_name}</div>
+                  </div>
+                  {ap.approved_at && <span style={{ fontSize: 10, color: '#9CA3AF' }}>{new Date(ap.approved_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Headcount summary (shown for all completed stages if data available) */}
+        {(data.headcount_by_discipline ?? []).length > 0 && (
+          <div style={panelBg}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Headcount at Snapshot</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
+              {(data.headcount_by_discipline ?? []).map(hc => (
+                <span key={hc.discipline} style={{ padding: '3px 10px', background: '#FFF', border: '1px solid #FDE68A', borderRadius: 6, fontSize: 11, color: '#374151' }}>
+                  {hc.discipline ?? 'Unassigned'}: <strong>{hc.headcount}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Fallback if no meaningful data */}
+        {!data.pipeline && checklist.length === 0 && (data.region_signoffs ?? []).length === 0 && (data.approvers ?? []).length === 0 && (data.headcount_by_discipline ?? []).length === 0 && (
+          <div style={{ textAlign: 'center', padding: 16, color: '#9CA3AF', fontSize: 12 }}>Snapshot saved — no detailed data available for this stage.</div>
         )}
       </div>
     );

@@ -170,6 +170,64 @@ export const cycleProgressApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Cycle Stage Snapshots
+// ---------------------------------------------------------------------------
+
+export interface CycleSnapshotData {
+  pipeline?: {
+    total: number;
+    updated: number;
+    by_type: Record<string, number>;
+    avg_weight: number;
+  };
+  checklist?: Array<{
+    stage_key: string;
+    item_key: string;
+    label: string;
+    is_checked: boolean;
+    checked_at: string | null;
+  }>;
+  region_signoffs?: Array<{
+    region_name: string;
+    code: string;
+    signed_off_at: string | null;
+  }>;
+  approvers?: Array<{
+    role_title: string | null;
+    approver_name: string;
+    is_approved: boolean;
+    approved_at: string | null;
+  }>;
+  headcount_by_discipline?: Array<{
+    discipline: string;
+    headcount: number;
+  }>;
+}
+
+export interface CycleSnapshot {
+  id: number;
+  planning_cycle_id: number;
+  stage_key: string;
+  snapped_at: string;
+  snapped_by: number | null;
+  snapped_by_email: string | null;
+  snapped_by_name: string | null;
+  trigger_type: 'manual' | 'auto_advance';
+  data: CycleSnapshotData;
+}
+
+export const cycleSnapshotApi = {
+  list: (cycleId: number) =>
+    client.get<ListResponse<Omit<CycleSnapshot, 'data'>>>(`/admin/cycle-snapshots/${cycleId}`).then(r => r.data.data),
+
+  get: (cycleId: number, stageKey: string) =>
+    client.get<ItemResponse<CycleSnapshot>>(`/admin/cycle-snapshots/${cycleId}/${stageKey}`).then(r => r.data.data),
+
+  create: (cycleId: number, stageKey: string, trigger_type?: string) =>
+    client.post<ItemResponse<CycleSnapshot>>(`/admin/cycle-snapshots/${cycleId}/${stageKey}`, { trigger_type }).then(r => r.data.data),
+};
+
+// ---------------------------------------------------------------------------
 // Cycle Stage Access
 // ---------------------------------------------------------------------------
 
