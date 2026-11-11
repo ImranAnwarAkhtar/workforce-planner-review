@@ -27,6 +27,61 @@ router.get('/countries', requireAuth, async (req, res) => {
   res.json({ data: rows });
 });
 
+// ── Countries CRUD ────────────────────────────────────────────────────────────
+
+router.post('/countries', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANNING), async (req, res) => {
+  const { name, code, region_id, is_emerging_market, sort_order } = req.body;
+  if (!name || !code || !region_id) return res.status(400).json({ error: 'name, code, and region_id are required' });
+  const { rows } = await pool.query(
+    `INSERT INTO countries (name, code, region_id, is_emerging_market, sort_order)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [name.trim(), code.trim().toUpperCase(), parseInt(region_id, 10), is_emerging_market ?? false, parseInt(sort_order, 10) || 0]
+  );
+  const full = await pool.query(
+    `SELECT c.*, r.name AS region_name FROM countries c JOIN regions r ON c.region_id = r.id WHERE c.id = $1`,
+    [rows[0].id]
+  );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'CREATE', tableName: 'countries', recordId: rows[0].id, newValues: rows[0], ipAddress: req.ip });
+  res.status(201).json({ data: full.rows[0] });
+});
+
+router.put('/countries/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANNING), async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, code, region_id, is_emerging_market, sort_order } = req.body;
+  const fields = [], vals = [];
+  if (name               !== undefined) { fields.push(`name = $${vals.length+1}`);               vals.push(name.trim()); }
+  if (code               !== undefined) { fields.push(`code = $${vals.length+1}`);               vals.push(code.trim().toUpperCase()); }
+  if (region_id          !== undefined) { fields.push(`region_id = $${vals.length+1}`);          vals.push(parseInt(region_id, 10)); }
+  if (is_emerging_market !== undefined) { fields.push(`is_emerging_market = $${vals.length+1}`); vals.push(Boolean(is_emerging_market)); }
+  if (sort_order         !== undefined) { fields.push(`sort_order = $${vals.length+1}`);         vals.push(parseInt(sort_order, 10) || 0); }
+  if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
+  vals.push(id);
+  const { rows } = await pool.query(
+    `UPDATE countries SET ${fields.join(', ')} WHERE id = $${vals.length} RETURNING *`, vals
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Country not found' });
+  const full = await pool.query(
+    `SELECT c.*, r.name AS region_name FROM countries c JOIN regions r ON c.region_id = r.id WHERE c.id = $1`,
+    [id]
+  );
+  await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'UPDATE', tableName: 'countries', recordId: id, newValues: rows[0], ipAddress: req.ip });
+  res.json({ data: full.rows[0] });
+});
+
+router.delete('/countries/:id', requireAuth, requireRole(ROLES.PMO, ROLES.WORKFORCE_PLANNING), async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const { rows } = await pool.query('DELETE FROM countries WHERE id = $1 RETURNING id', [id]);
+    if (!rows.length) return res.status(404).json({ error: 'Country not found' });
+    await writeAudit({ userId: req.user.id, userEmail: req.user.email, action: 'DELETE', tableName: 'countries', recordId: id, ipAddress: req.ip });
+    res.json({ data: { id } });
+  } catch (err) {
+    if (err.code === '23503') return res.status(409).json({ error: 'Cannot delete — country is referenced by other records' });
+    throw err;
+  }
+});
+
 router.get('/disciplines', requireAuth, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM disciplines ORDER BY name ASC');
   res.json({ data: rows });

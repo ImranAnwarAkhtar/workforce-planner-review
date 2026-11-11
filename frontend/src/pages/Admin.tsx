@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { refDataApi, metrosApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type Metro, type PlanningCycle, type CycleApprover, type CycleStageAccess, type GearingConstant, type AlertConfig, type AlertLog, type Person, type RefListEntry } from '../services/api';
+import { refDataApi, metrosApi, countriesApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type Metro, type Country, type PlanningCycle, type CycleApprover, type CycleStageAccess, type GearingConstant, type AlertConfig, type AlertLog, type Person, type RefListEntry } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import axios from 'axios';
 
@@ -823,6 +823,232 @@ function MetrosTab() {
           </table>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CountriesTab
+// ---------------------------------------------------------------------------
+
+function CountriesTab() {
+  const blankC = { name: '', code: '', region_id: '' as string | number, is_emerging_market: false, sort_order: '0' };
+  const [data, setData]           = useState<Country[]>([]);
+  const [regions, setRegions]     = useState<Region[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [creating, setCreating]   = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [saving, setSaving]       = useState(false);
+  const [form, setForm]           = useState(blankC);
+  const [editForm, setEditForm]   = useState(blankC);
+  const [filterRegion, setFilterRegion] = useState<string>('');
+
+  function load() {
+    setLoading(true);
+    Promise.all([countriesApi.list(), refDataApi.regions()])
+      .then(([countries, regs]) => { setData(countries); setRegions(regs); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleCreate() {
+    if (!form.name.trim() || !form.code.trim() || !form.region_id) {
+      toast.error('Name, code, and region are required'); return;
+    }
+    setSaving(true);
+    try {
+      await countriesApi.create({
+        name: form.name.trim(),
+        code: form.code.trim().toUpperCase(),
+        region_id: Number(form.region_id),
+        is_emerging_market: form.is_emerging_market,
+        sort_order: parseInt(String(form.sort_order)) || 0,
+      });
+      load(); setCreating(false); setForm(blankC);
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleUpdate(id: number) {
+    setSaving(true);
+    try {
+      await countriesApi.update(id, {
+        name: String(editForm.name).trim(),
+        code: String(editForm.code).trim().toUpperCase(),
+        region_id: editForm.region_id !== '' ? Number(editForm.region_id) : undefined,
+        is_emerging_market: editForm.is_emerging_market,
+        sort_order: parseInt(String(editForm.sort_order)) || 0,
+      });
+      load(); setEditingId(null);
+    } catch (e: unknown) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function handleDelete(id: number) {
+    setSaving(true);
+    try {
+      await countriesApi.delete(id);
+      load(); setDeletingId(null);
+    } catch (e: unknown) { toast.error(errMsg(e)); setDeletingId(null); } finally { setSaving(false); }
+  }
+
+  const saveBtn: React.CSSProperties = { padding: '5px 12px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' };
+  const delConfirmBtn: React.CSSProperties = { padding: '4px 10px', background: '#AD050C', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
+  const inpSm: React.CSSProperties = { width: '100%', padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 13 };
+  const emBadge: React.CSSProperties = { display: 'inline-block', padding: '1px 7px', borderRadius: 8, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', fontSize: 11, fontWeight: 600 };
+  const nonEmBadge: React.CSSProperties = { display: 'inline-block', padding: '1px 7px', borderRadius: 8, background: '#F3F4F6', color: '#6B7280', border: '1px solid #D1D5DB', fontSize: 11 };
+
+  const filtered = filterRegion ? data.filter(c => c.region_id === Number(filterRegion)) : data;
+
+  // Group by region for display
+  const regionOrder = regions.map(r => r.id);
+  const byRegion: Record<number, Country[]> = {};
+  filtered.forEach(c => {
+    if (!byRegion[c.region_id]) byRegion[c.region_id] = [];
+    byRegion[c.region_id].push(c);
+  });
+  const sortedRegionIds = Object.keys(byRegion).map(Number).sort((a, b) => {
+    const ai = regionOrder.indexOf(a), bi = regionOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <p style={{ fontSize: 13, color: '#666', margin: 0, maxWidth: 580, lineHeight: 1.55 }}>
+          Manage countries linked to regions. The emerging market flag identifies countries that use the <strong>EM</strong> gearing ratio divisor in workforce calculations.
+        </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} style={{ padding: '6px 10px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, color: '#333' }}>
+            <option value="">All Regions</option>
+            {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+          <button onClick={() => { setCreating(true); setEditingId(null); setDeletingId(null); }}
+            style={{ padding: '7px 14px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ New Country</button>
+        </div>
+      </div>
+
+      {creating && (
+        <div style={{ ...card, marginBottom: 16, padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 12 }}>New Country</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 90px 1fr 120px 60px', gap: 12, marginBottom: 12, alignItems: 'end' }}>
+            <div>
+              <label style={lbl}>Name *</label>
+              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Australia" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Code *</label>
+              <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="AUS" maxLength={3} style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Region *</label>
+              <select value={form.region_id} onChange={e => setForm(f => ({ ...f, region_id: e.target.value }))} style={inp}>
+                <option value="">— select —</option>
+                {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={lbl}>Emerging Market</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', paddingTop: 6 }}>
+                <input type="checkbox" checked={form.is_emerging_market} onChange={e => setForm(f => ({ ...f, is_emerging_market: e.target.checked }))} />
+                <span style={{ color: form.is_emerging_market ? '#92400E' : '#6B7280' }}>{form.is_emerging_market ? 'Yes' : 'No'}</span>
+              </label>
+            </div>
+            <div>
+              <label style={lbl}>Sort</label>
+              <input type="number" value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))} style={inp} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => { setCreating(false); setForm(blankC); }} style={btnSecondary}>Cancel</button>
+            <button onClick={handleCreate} disabled={saving || !form.name.trim() || !form.code.trim() || !form.region_id}
+              style={{ padding: '7px 16px', background: tk.accent, color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: (!form.name.trim() || !form.code.trim() || !form.region_id) ? 0.6 : 1 }}>
+              {saving ? 'Saving…' : 'Create'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={card}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr>
+          <th style={th}>Name</th><th style={th}>Code</th><th style={th}>Region</th><th style={th}>Emerging Market</th><th style={{ ...th, width: 60 }}>Sort</th><th style={{ ...th, width: 180 }}>Actions</th>
+        </tr></thead><tbody><LoadingRows cols={6} /></tbody></table></div>
+      ) : filtered.length === 0 ? (
+        <div style={{ ...card, padding: 24, textAlign: 'center', color: '#555', fontSize: 13 }}>No countries found</div>
+      ) : sortedRegionIds.map(rid => {
+        const reg = regions.find(r => r.id === rid);
+        const countries = byRegion[rid];
+        return (
+          <div key={rid} style={{ ...card, marginBottom: 16 }}>
+            <div style={{ padding: '10px 14px', background: '#F3F4F6', borderBottom: '1px solid #E5E5E5', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>{reg?.name ?? 'Unknown'}</span>
+              <span style={{ padding: '1px 7px', borderRadius: 8, background: '#E4E6EA', color: '#555', border: '1px solid #C8CCD4', fontSize: 11 }}>{reg?.code ?? ''}</span>
+              <span style={{ fontSize: 12, color: '#888', marginLeft: 4 }}>{countries.length} {countries.length === 1 ? 'country' : 'countries'}</span>
+              <span style={{ fontSize: 11, color: '#B45309', marginLeft: 4 }}>{countries.filter(c => c.is_emerging_market).length} EM</span>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                <th style={th}>Name</th>
+                <th style={{ ...th, width: 80 }}>Code</th>
+                <th style={{ ...th, width: 160 }}>Emerging Market</th>
+                <th style={{ ...th, width: 60 }}>Sort</th>
+                <th style={{ ...th, width: 180 }}>Actions</th>
+              </tr></thead>
+              <tbody>
+                {countries.map(c => {
+                  if (editingId === c.id) return (
+                    <tr key={c.id} style={{ background: '#FAFAFA' }}>
+                      <td style={td}><input value={String(editForm.name)} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={inpSm} /></td>
+                      <td style={td}><input value={String(editForm.code)} onChange={e => setEditForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} maxLength={3} style={{ ...inpSm, width: 60 }} /></td>
+                      <td style={td}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={Boolean(editForm.is_emerging_market)} onChange={e => setEditForm(f => ({ ...f, is_emerging_market: e.target.checked }))} />
+                          <span style={{ color: editForm.is_emerging_market ? '#92400E' : '#6B7280' }}>{editForm.is_emerging_market ? 'Yes — EM' : 'No'}</span>
+                        </label>
+                      </td>
+                      <td style={td}><input type="number" value={String(editForm.sort_order)} onChange={e => setEditForm(f => ({ ...f, sort_order: e.target.value }))} style={{ ...inpSm, width: 60 }} /></td>
+                      <td style={td}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => handleUpdate(c.id)} disabled={saving} style={saveBtn}>{saving ? '…' : 'Save'}</button>
+                          <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                  return (
+                    <tr key={c.id}>
+                      <td style={{ ...td, color: '#111', fontWeight: 500 }}>{c.name}</td>
+                      <td style={td}><span style={{ fontFamily: 'monospace', fontSize: 12, background: '#F3F4F6', padding: '1px 6px', borderRadius: 3 }}>{c.code}</span></td>
+                      <td style={td}>
+                        {c.is_emerging_market
+                          ? <span style={emBadge}>EM Market</span>
+                          : <span style={nonEmBadge}>Standard</span>}
+                      </td>
+                      <td style={td}>{c.sort_order}</td>
+                      <td style={td}>
+                        {deletingId === c.id ? (
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <span style={{ fontSize: 12, color: '#AD050C' }}>Delete?</span>
+                            <button onClick={() => handleDelete(c.id)} disabled={saving} style={delConfirmBtn}>{saving ? '…' : 'Yes'}</button>
+                            <button onClick={() => setDeletingId(null)} style={{ ...btnSecondary, padding: '4px 8px', fontSize: 11 }}>No</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button onClick={() => { setEditingId(c.id); setEditForm({ name: c.name, code: c.code, region_id: c.region_id, is_emerging_market: c.is_emerging_market, sort_order: String(c.sort_order) }); setDeletingId(null); }}
+                              style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Edit</button>
+                            <button onClick={() => { setDeletingId(c.id); setEditingId(null); }}
+                              style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12, color: '#AD050C', borderColor: '#FBBDBA' }}>Delete</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2719,7 +2945,7 @@ function RefListsTab() {
 // ---------------------------------------------------------------------------
 
 
-const TABS = ['Planning Cycles', 'Cycle Stages', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'Metros', 'User Access', 'Gearing Ratios', 'Alerts', 'Reference Lists'] as const;
+const TABS = ['Planning Cycles', 'Cycle Stages', 'Disciplines', 'Levels', 'Contract Types', 'Regions', 'Metros', 'Countries', 'User Access', 'Gearing Ratios', 'Alerts', 'Reference Lists'] as const;
 type Tab = typeof TABS[number];
 
 export default function Admin() {
@@ -2752,6 +2978,7 @@ export default function Admin() {
       {activeTab === 'Contract Types' && <ContractTypesTab />}
       {activeTab === 'Regions'        && <RegionsTab />}
       {activeTab === 'Metros'         && <MetrosTab />}
+      {activeTab === 'Countries'      && <CountriesTab />}
       {activeTab === 'User Access'     && <UserAccessTab />}
       {activeTab === 'Gearing Ratios'   && <GearingRatiosTab />}
       {activeTab === 'Alerts'            && <AlertsTab />}

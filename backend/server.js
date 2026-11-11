@@ -511,6 +511,29 @@ _startupMigs.push((async () => {
   }
 })());
 
+// Seed APAC countries
+_startupMigs.push(pool.query(`
+  INSERT INTO countries (name, code, region_id, is_emerging_market, sort_order)
+  SELECT v.name, v.code, r.id, v.em, v.sort_order
+  FROM (VALUES
+    ('Australia',    'AUS', FALSE,  1),
+    ('China',        'CHN', FALSE,  2),
+    ('Hong Kong',    'HKG', FALSE,  3),
+    ('Japan',        'JPN', FALSE,  4),
+    ('New Zealand',  'NZL', FALSE,  5),
+    ('Singapore',    'SGP', FALSE,  6),
+    ('South Korea',  'KOR', FALSE,  7),
+    ('Taiwan',       'TWN', FALSE,  8),
+    ('India',        'IND', TRUE,   9),
+    ('Indonesia',    'IDN', TRUE,  10),
+    ('Malaysia',     'MYS', TRUE,  11),
+    ('Philippines',  'PHL', TRUE,  12),
+    ('Thailand',     'THA', TRUE,  13)
+  ) AS v(name, code, em, sort_order)
+  JOIN regions r ON r.code = 'APAC'
+  ON CONFLICT (code) DO NOTHING;
+`).catch(err => logger.error('APAC countries seed failed', { error: err.message })));
+
 // Project comments table
 _startupMigs.push((async () => {
   try {

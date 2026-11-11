@@ -831,7 +831,7 @@ export interface Discipline { id: number; name: string; code: string | null }
 export interface Level { id: number; level_name: string; short_code: string; level_number: number | null }
 export interface ContractType { id: number; code: string; description: string; colour_hex: string | null; category: string | null }
 export interface Region  { id: number; name: string; code: string; sort_order: number }
-export interface Country { id: number; name: string; code: string; region_id: number; region_name: string }
+export interface Country { id: number; name: string; code: string; region_id: number; region_name: string; is_emerging_market: boolean; sort_order: number }
 
 export interface Metro {
   id: number;
@@ -861,6 +861,25 @@ export const refDataApi = {
     client.get<ListResponse<RefListEntry>>('/admin/ref-lists').then((r) =>
       r.data.data.filter((e) => e.list_name === name).sort((a, b) => a.sort_order - b.sort_order)
     ),
+};
+
+// ---------------------------------------------------------------------------
+// Countries admin CRUD
+// ---------------------------------------------------------------------------
+
+export const countriesApi = {
+  list: (region_id?: number) =>
+    client.get<ListResponse<Country>>('/admin/countries', { params: region_id ? { region_id } : undefined })
+      .then((r) => r.data.data),
+
+  create: (body: { name: string; code: string; region_id: number; is_emerging_market?: boolean; sort_order?: number }) =>
+    client.post<ItemResponse<Country>>('/admin/countries', body).then((r) => r.data.data),
+
+  update: (id: number, body: { name?: string; code?: string; region_id?: number; is_emerging_market?: boolean; sort_order?: number }) =>
+    client.put<ItemResponse<Country>>(`/admin/countries/${id}`, body).then((r) => r.data.data),
+
+  delete: (id: number) =>
+    client.delete(`/admin/countries/${id}`),
 };
 
 // ---------------------------------------------------------------------------
