@@ -558,7 +558,11 @@ router.get('/cycle-checklists/:cycleId', requireAuth, async (req, res) => {
   }
 
   const { rows } = await pool.query(
-    `SELECT * FROM cycle_checklist_items WHERE planning_cycle_id = $1 ORDER BY stage_key, id ASC`,
+    `SELECT cci.*, u.name AS checked_by_name
+     FROM cycle_checklist_items cci
+     LEFT JOIN users u ON u.id = cci.checked_by
+     WHERE cci.planning_cycle_id = $1
+     ORDER BY cci.stage_key, cci.id ASC`,
     [cycleId]
   );
   res.json({ data: rows });

@@ -132,6 +132,7 @@ export interface CycleChecklistItem {
   label: string;
   is_checked: boolean;
   checked_by: number | null;
+  checked_by_name: string | null;
   checked_at: string | null;
 }
 

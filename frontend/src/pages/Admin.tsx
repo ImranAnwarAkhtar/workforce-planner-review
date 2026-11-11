@@ -1790,7 +1790,11 @@ function PlanningCyclesTab() {
                     {item.is_checked && <span style={{ color: '#FFF', fontSize: 9, fontWeight: 700 }}>✓</span>}
                   </div>
                   <span style={{ fontSize: 12, color: item.is_checked ? '#16A34A' : '#6B7280', textDecoration: item.is_checked ? 'none' : 'none', flex: 1 }}>{item.label}</span>
-                  {item.checked_at && <span style={{ fontSize: 10, color: '#9CA3AF' }}>{new Date(item.checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>}
+                  {item.checked_at && (
+                    <span style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'right' as const }}>
+                      {new Date(item.checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -1875,7 +1879,12 @@ function PlanningCyclesTab() {
             <span style={{ fontSize: 13, fontWeight: 500, color: item.is_checked ? '#16A34A' : '#374151', textDecoration: item.is_checked ? 'line-through' : 'none', opacity: item.is_checked ? 0.75 : 1, flex: 1 }}>
               {item.label}
             </span>
-            {item.checked_at && <span style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0 }}>{new Date(item.checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>}
+            {item.checked_at && (
+              <span style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0, textAlign: 'right' as const }}>
+                {item.checked_by_name && <span style={{ color: '#6B7280', fontWeight: 600 }}>{item.checked_by_name} · </span>}
+                {new Date(item.checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
+            )}
           </div>
         ))}
       </div>
