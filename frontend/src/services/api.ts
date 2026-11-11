@@ -57,7 +57,7 @@ export interface PlanningCycle {
   name: string;
   start_date: string;
   end_date: string;
-  status: 'draft' | 'active' | 'under_review' | 'approved' | 'closed';
+  status: 'admin_setup' | 'pipeline_planning' | 'resource_planning' | 'regional_review' | 'global_approval' | 'closed';
   is_active: boolean;
   created_at: string;
 }
@@ -97,6 +97,10 @@ export interface CycleApprover {
   planning_cycle_id: number;
   approver_name: string;
   approver_email: string | null;
+  role_title: string | null;
+  sort_order: number;
+  is_approved: boolean;
+  approved_at: string | null;
   created_at: string;
 }
 
@@ -104,13 +108,65 @@ export const cycleApproversApi = {
   list: (cycleId: number) =>
     client.get<ListResponse<CycleApprover>>(`/planning-cycles/${cycleId}/approvers`).then(r => r.data.data),
 
-  add: (cycleId: number, approver_name: string, approver_email?: string) =>
+  add: (cycleId: number, approver_name: string, approver_email?: string, role_title?: string) =>
     client.post<ItemResponse<CycleApprover>>(`/planning-cycles/${cycleId}/approvers`, {
-      approver_name, approver_email: approver_email ?? null,
+      approver_name, approver_email: approver_email ?? null, role_title: role_title ?? null,
     }).then(r => r.data.data),
+
+  update: (cycleId: number, approverId: number, body: { role_title?: string; approver_name?: string; is_approved?: boolean; sort_order?: number }) =>
+    client.put<ItemResponse<CycleApprover>>(`/planning-cycles/${cycleId}/approvers/${approverId}`, body).then(r => r.data.data),
 
   remove: (cycleId: number, approverId: number) =>
     client.delete(`/planning-cycles/${cycleId}/approvers/${approverId}`),
+};
+
+// ---------------------------------------------------------------------------
+// Cycle Progress (checklist, region signoffs, pipeline metrics)
+// ---------------------------------------------------------------------------
+
+export interface CycleChecklistItem {
+  id: number;
+  planning_cycle_id: number;
+  stage_key: string;
+  item_key: string;
+  label: string;
+  is_checked: boolean;
+  checked_by: number | null;
+  checked_at: string | null;
+}
+
+export interface CycleRegionSignoff {
+  id: number | null;
+  planning_cycle_id: number;
+  region_id: number;
+  region_name: string;
+  signed_off_by: number | null;
+  signed_off_at: string | null;
+}
+
+export interface CyclePipelineMetrics {
+  total_projects: number;
+  updated_since_start: number;
+  by_type: Record<string, number>;
+  by_status: Record<string, number>;
+  avg_weight: number;
+}
+
+export const cycleProgressApi = {
+  getChecklist: (cycleId: number) =>
+    client.get<ListResponse<CycleChecklistItem>>(`/admin/cycle-checklists/${cycleId}`).then(r => r.data.data),
+
+  toggleChecklist: (cycleId: number, stageKey: string, itemKey: string, is_checked: boolean) =>
+    client.put<ItemResponse<CycleChecklistItem>>(`/admin/cycle-checklists/${cycleId}/${stageKey}/${itemKey}`, { is_checked }).then(r => r.data.data),
+
+  getRegionSignoffs: (cycleId: number) =>
+    client.get<ListResponse<CycleRegionSignoff>>(`/admin/cycle-region-signoffs/${cycleId}`).then(r => r.data.data),
+
+  toggleRegionSignoff: (cycleId: number, regionId: number, signed_off: boolean) =>
+    client.put<ItemResponse<CycleRegionSignoff>>(`/admin/cycle-region-signoffs/${cycleId}/${regionId}`, { signed_off }).then(r => r.data.data),
+
+  getPipelineMetrics: (cycleId: number) =>
+    client.get<ItemResponse<CyclePipelineMetrics>>(`/admin/cycle-pipeline-metrics/${cycleId}`).then(r => r.data.data),
 };
 
 // ---------------------------------------------------------------------------
@@ -135,21 +191,23 @@ export const cycleStageAccessApi = {
 };
 
 // Roles/profiles permitted to edit in each cycle stage (mirrors backend cycleAccess.js)
-// Both legacy role names and new profile names are listed for backward compatibility.
 export const STAGE_EDIT_ROLES: Record<string, string[]> = {
-  draft:        ['PMO', 'Senior PMO'],
-  active:       ['PMO', 'Senior PMO', 'PMO Team',
-                  'Workforce Planning', 'Administration',
-                  'Department Lead', 'Department Head',
-                  'Function Lead',   'Hub Lead',
-                  'Head of Department'],
-  under_review: ['PMO', 'Senior PMO', 'PMO Team',
-                  'Workforce Planning', 'Administration',
-                  'Department Lead', 'Department Head',
-                  'Function Lead',   'Hub Lead',
-                  'Head of Department', 'Head of Commercial'],
-  approved:     [],
-  closed:       [],
+  admin_setup:       ['PMO', 'Senior PMO', 'PMO Team'],
+  pipeline_planning: ['PMO', 'Senior PMO', 'PMO Team',
+                       'Workforce Planning', 'Administration',
+                       'Department Lead', 'Department Head',
+                       'Function Lead', 'Hub Lead', 'Head of Department'],
+  resource_planning: ['PMO', 'Senior PMO', 'PMO Team',
+                       'Workforce Planning', 'Administration',
+                       'Department Lead', 'Department Head',
+                       'Function Lead', 'Hub Lead', 'Head of Department'],
+  regional_review:   ['PMO', 'Senior PMO', 'PMO Team',
+                       'Workforce Planning', 'Administration',
+                       'Department Lead', 'Department Head',
+                       'Function Lead', 'Hub Lead',
+                       'Head of Department', 'Head of Commercial'],
+  global_approval:   [],
+  closed:            [],
 };
 
 // ---------------------------------------------------------------------------

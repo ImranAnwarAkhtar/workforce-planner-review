@@ -527,6 +527,127 @@ router.put('/cycle-stage-access/:stageKey', requireAuth, requireRole(ROLES.PMO, 
   res.json({ data: rows[0] });
 });
 
+// ── Cycle Progress (checklist, region signoffs, pipeline metrics) ─────────────
+
+const STAGE1_DEFAULTS = [
+  { item_key: 'disciplines_reviewed', label: 'All disciplines reviewed and confirmed' },
+  { item_key: 'regions_reviewed',     label: 'All regions reviewed and confirmed' },
+  { item_key: 'contract_types_ok',    label: 'Contract types and gearing ratios verified' },
+];
+
+router.get('/cycle-checklists/:cycleId', requireAuth, async (req, res) => {
+  const cycleId = Number(req.params.cycleId);
+
+  // Auto-seed Stage 1 defaults if not present
+  for (const item of STAGE1_DEFAULTS) {
+    await pool.query(
+      `INSERT INTO cycle_checklist_items (planning_cycle_id, stage_key, item_key, label)
+       VALUES ($1, 'admin_setup', $2, $3) ON CONFLICT (planning_cycle_id, stage_key, item_key) DO NOTHING`,
+      [cycleId, item.item_key, item.label]
+    );
+  }
+
+  // Auto-seed Stage 3 per-region defaults
+  const { rows: regions } = await pool.query('SELECT id, name FROM regions ORDER BY sort_order ASC');
+  for (const r of regions) {
+    await pool.query(
+      `INSERT INTO cycle_checklist_items (planning_cycle_id, stage_key, item_key, label)
+       VALUES ($1, 'resource_planning', $2, $3) ON CONFLICT (planning_cycle_id, stage_key, item_key) DO NOTHING`,
+      [cycleId, `region_${r.id}`, `${r.name} resource plan reviewed`]
+    );
+  }
+
+  const { rows } = await pool.query(
+    `SELECT * FROM cycle_checklist_items WHERE planning_cycle_id = $1 ORDER BY stage_key, id ASC`,
+    [cycleId]
+  );
+  res.json({ data: rows });
+});
+
+router.put('/cycle-checklists/:cycleId/:stageKey/:itemKey', requireAuth, async (req, res) => {
+  const cycleId = Number(req.params.cycleId);
+  const { stageKey, itemKey } = req.params;
+  const { is_checked } = req.body;
+  const { rows } = await pool.query(
+    `UPDATE cycle_checklist_items
+       SET is_checked = $1, checked_by = $2, checked_at = $3
+     WHERE planning_cycle_id = $4 AND stage_key = $5 AND item_key = $6
+     RETURNING *`,
+    [Boolean(is_checked), is_checked ? req.user.id : null, is_checked ? new Date() : null, cycleId, stageKey, itemKey]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Checklist item not found' });
+  res.json({ data: rows[0] });
+});
+
+router.get('/cycle-region-signoffs/:cycleId', requireAuth, async (req, res) => {
+  const cycleId = Number(req.params.cycleId);
+  const { rows } = await pool.query(
+    `SELECT r.id AS region_id, r.name AS region_name,
+            crs.id, crs.planning_cycle_id, crs.signed_off_by, crs.signed_off_at
+     FROM regions r
+     LEFT JOIN cycle_region_signoffs crs
+       ON crs.region_id = r.id AND crs.planning_cycle_id = $1
+     ORDER BY r.sort_order ASC`,
+    [cycleId]
+  );
+  res.json({ data: rows });
+});
+
+router.put('/cycle-region-signoffs/:cycleId/:regionId', requireAuth, async (req, res) => {
+  const cycleId  = Number(req.params.cycleId);
+  const regionId = Number(req.params.regionId);
+  const { signed_off } = req.body;
+
+  if (signed_off) {
+    const { rows } = await pool.query(
+      `INSERT INTO cycle_region_signoffs (planning_cycle_id, region_id, signed_off_by, signed_off_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (planning_cycle_id, region_id)
+         DO UPDATE SET signed_off_by = $3, signed_off_at = NOW()
+       RETURNING *`,
+      [cycleId, regionId, req.user.id]
+    );
+    res.json({ data: rows[0] });
+  } else {
+    await pool.query(
+      `UPDATE cycle_region_signoffs SET signed_off_by = NULL, signed_off_at = NULL
+       WHERE planning_cycle_id = $1 AND region_id = $2`,
+      [cycleId, regionId]
+    );
+    res.json({ data: { planning_cycle_id: cycleId, region_id: regionId, signed_off_by: null, signed_off_at: null } });
+  }
+});
+
+router.get('/cycle-pipeline-metrics/:cycleId', requireAuth, async (req, res) => {
+  const cycleId = Number(req.params.cycleId);
+  const { rows: cycleRows } = await pool.query('SELECT start_date FROM planning_cycles WHERE id = $1', [cycleId]);
+  if (!cycleRows.length) return res.status(404).json({ error: 'Cycle not found' });
+  const startDate = cycleRows[0].start_date;
+
+  const { rows } = await pool.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE region_id IS NOT NULL OR country_id IS NOT NULL OR id IS NOT NULL) AS total_projects,
+       COUNT(*) FILTER (WHERE updated_at >= $1) AS updated_since_start,
+       COUNT(*) FILTER (WHERE type = 'Retail') AS type_retail,
+       COUNT(*) FILTER (WHERE type = 'xScale') AS type_xscale,
+       COUNT(*) FILTER (WHERE type = 'EM')     AS type_em,
+       COUNT(*) FILTER (WHERE status = 'Approved') AS status_approved,
+       COUNT(*) FILTER (WHERE status = 'Seeded')   AS status_seeded,
+       COUNT(*) FILTER (WHERE status = 'Proposed') AS status_proposed,
+       ROUND(AVG(weight)::numeric, 2) AS avg_weight
+     FROM projects`,
+    [startDate]
+  );
+  const r = rows[0];
+  res.json({ data: {
+    total_projects:      Number(r.total_projects),
+    updated_since_start: Number(r.updated_since_start),
+    by_type: { Retail: Number(r.type_retail), xScale: Number(r.type_xscale), EM: Number(r.type_em) },
+    by_status: { Approved: Number(r.status_approved), Seeded: Number(r.status_seeded), Proposed: Number(r.status_proposed) },
+    avg_weight: Number(r.avg_weight),
+  }});
+});
+
 // ── Metros ────────────────────────────────────────────────────────────────────
 
 router.get('/metros', requireAuth, async (req, res) => {

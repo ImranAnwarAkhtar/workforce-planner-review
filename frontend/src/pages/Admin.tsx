@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { refDataApi, metrosApi, countriesApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type Metro, type Country, type PlanningCycle, type CycleApprover, type CycleStageAccess, type GearingConstant, type AlertConfig, type AlertLog, type Person, type RefListEntry } from '../services/api';
+import { refDataApi, metrosApi, countriesApi, planningCyclesApi, cycleApproversApi, cycleStageAccessApi, cycleProgressApi, gearingApi, alertsApi, peopleApi, type Discipline, type Level, type ContractType, type Region, type Metro, type Country, type PlanningCycle, type CycleApprover, type CycleStageAccess, type CycleChecklistItem, type CycleRegionSignoff, type CyclePipelineMetrics, type GearingConstant, type AlertConfig, type AlertLog, type Person, type RefListEntry } from '../services/api';
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 import axios from 'axios';
 
@@ -1341,20 +1341,34 @@ function UserAccessTab() {
 // ---------------------------------------------------------------------------
 
 const CYCLE_STAGES: Record<string, { label: string; bg: string; color: string }> = {
-  draft:        { label: 'Stage 1: Admin Setup',    bg: '#F3F4F6', color: '#374151' },
-  active:       { label: 'Stage 2: Planning',        bg: '#EFF6FF', color: '#1D4ED8' },
-  under_review: { label: 'Stage 3: Regional Review', bg: '#FFFBEB', color: '#D97706' },
-  approved:     { label: 'Stage 4: Global Approval', bg: '#ECFDF5', color: '#059669' },
-  closed:       { label: 'Closed',                   bg: '#F3F4F6', color: '#9CA3AF' },
+  admin_setup:       { label: 'Stage 1: Admin Setup',       bg: '#EFF6FF', color: '#0057B7' },
+  pipeline_planning: { label: 'Stage 2: Pipeline Planning', bg: '#F0FDF4', color: '#16A34A' },
+  resource_planning: { label: 'Stage 3: Resource Planning', bg: '#F5F3FF', color: '#7C3AED' },
+  regional_review:   { label: 'Stage 4: Regional Review',   bg: '#FFFBEB', color: '#D97706' },
+  global_approval:   { label: 'Stage 5: Global Approval',   bg: '#FFF1F2', color: '#E91C24' },
+  closed:            { label: 'Closed',                     bg: '#F3F4F6', color: '#9CA3AF' },
 };
+
+const STAGE_ORDER_KEYS = ['admin_setup', 'pipeline_planning', 'resource_planning', 'regional_review', 'global_approval', 'closed'] as const;
+type StageKey = typeof STAGE_ORDER_KEYS[number];
+
+const STAGE_TIMELINE_INFO: Array<{ key: StageKey; label: string; color: string; above: boolean }> = [
+  { key: 'admin_setup',       label: 'Admin Setup',       color: '#0057B7', above: true  },
+  { key: 'pipeline_planning', label: 'Pipeline Planning', color: '#16A34A', above: false },
+  { key: 'resource_planning', label: 'Resource Planning', color: '#7C3AED', above: true  },
+  { key: 'regional_review',   label: 'Regional Review',   color: '#D97706', above: false },
+  { key: 'global_approval',   label: 'Global Approval',   color: '#E91C24', above: true  },
+  { key: 'closed',            label: 'Closed',            color: '#9CA3AF', above: false },
+];
 
 // Roles that can edit at each stage
 const STAGE_ACCESS: Record<string, string[]> = {
-  draft:        ['PMO'],
-  active:       ['PMO', 'Workforce Planning', 'Dept Lead', 'Function Lead', 'Head of Dept'],
-  under_review: ['PMO', 'Workforce Planning', 'Dept Lead', 'Function Lead', 'Head of Dept', 'Head of Commercial'],
-  approved:     [],
-  closed:       [],
+  admin_setup:       ['PMO'],
+  pipeline_planning: ['PMO', 'Workforce Planning', 'Hub Lead'],
+  resource_planning: ['PMO', 'Workforce Planning', 'Hub Lead'],
+  regional_review:   ['PMO', 'Workforce Planning', 'Hub Lead', 'Head of Commercial'],
+  global_approval:   [],
+  closed:            [],
 };
 
 // Colour palette for role chips
@@ -1374,49 +1388,67 @@ const inp: React.CSSProperties = {
 
 function PlanningCyclesTab() {
   const { cycles, reloadCycles } = usePlanningCycle();
-  const [creating, setCreating]         = useState(false);
-  const [editingId, setEditingId]       = useState<number | null>(null);
-  const [saving, setSaving]             = useState(false);
-  const [stageSaving, setStageSaving]   = useState<number | null>(null);
-  const [approvers, setApprovers]       = useState<Record<number, CycleApprover[]>>({});
-  const [addingApproverFor, setAddingApproverFor] = useState<number | null>(null);
-  const [newApproverName, setNewApproverName]     = useState('');
-  const [newApproverEmail, setNewApproverEmail]   = useState('');
-  const [liveStageAccess, setLiveStageAccess] = useState<Record<string, string[]>>({});
 
+  // Form state
+  const [creating, setCreating]   = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [saving, setSaving]       = useState(false);
+  const [form, setForm]           = useState({ name: '', start_date: '', end_date: '', copy_from_cycle_id: '' });
+  const [editForm, setEditForm]   = useState({ name: '', start_date: '', end_date: '' });
+
+  // Timeline / detail state
+  const [expandedCycleId, setExpandedCycleId] = useState<number | null>(null);
+  const [selectedStage, setSelectedStage]     = useState<string | null>(null);
+
+  // Progress data for expanded cycle
+  const [checklist, setChecklist]           = useState<CycleChecklistItem[]>([]);
+  const [regionSignoffs, setRegionSignoffs] = useState<CycleRegionSignoff[]>([]);
+  const [pipelineMetrics, setPipelineMetrics] = useState<CyclePipelineMetrics | null>(null);
+  const [globalApprovers, setGlobalApprovers] = useState<CycleApprover[]>([]);
+  const [progressLoading, setProgressLoading] = useState(false);
+
+  // Add-approver inline form state
+  const [addingApprover, setAddingApprover]   = useState(false);
+  const [newApproverRole, setNewApproverRole] = useState('');
+  const [newApproverName, setNewApproverName] = useState('');
+
+  // Auto-expand the active cycle on first load
   useEffect(() => {
-    cycleStageAccessApi.list()
-      .then(rows => {
-        const map: Record<string, string[]> = {};
-        rows.forEach(r => { map[r.stage_key] = r.edit_roles; });
-        setLiveStageAccess(map);
-      })
-      .catch(() => {});
-  }, []);
-
-  const [form, setForm]         = useState({ name: '', start_date: '', end_date: '', copy_from_cycle_id: '' });
-  const [editForm, setEditForm] = useState({ name: '', start_date: '', end_date: '' });
-
-  async function loadApprovers(cycleList: PlanningCycle[]) {
-    const entries = await Promise.all(
-      cycleList.map(async c => {
-        try { return [c.id, await cycleApproversApi.list(c.id)] as [number, CycleApprover[]]; }
-        catch { return [c.id, []] as [number, CycleApprover[]]; }
-      })
-    );
-    setApprovers(Object.fromEntries(entries));
-  }
-
-  useEffect(() => {
-    if (cycles.length > 0) loadApprovers(cycles);
+    if (cycles.length > 0 && expandedCycleId === null) {
+      const active = cycles.find(c => c.is_active) ?? cycles[0];
+      if (active) { setExpandedCycleId(active.id); setSelectedStage(active.status); loadProgress(active.id); }
+    }
   }, [cycles]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function loadProgress(cycleId: number) {
+    setProgressLoading(true);
+    try {
+      const [cl, rs, pm, ap] = await Promise.all([
+        cycleProgressApi.getChecklist(cycleId).catch(() => [] as CycleChecklistItem[]),
+        cycleProgressApi.getRegionSignoffs(cycleId).catch(() => [] as CycleRegionSignoff[]),
+        cycleProgressApi.getPipelineMetrics(cycleId).catch(() => null),
+        cycleApproversApi.list(cycleId).catch(() => [] as CycleApprover[]),
+      ]);
+      setChecklist(cl as CycleChecklistItem[]);
+      setRegionSignoffs(rs as CycleRegionSignoff[]);
+      setPipelineMetrics(pm as CyclePipelineMetrics | null);
+      setGlobalApprovers(ap as CycleApprover[]);
+    } finally { setProgressLoading(false); }
+  }
+
+  function expandCycle(cycleId: number, stageKey: string) {
+    if (expandedCycleId === cycleId && selectedStage === stageKey) {
+      setExpandedCycleId(null); setSelectedStage(null); return;
+    }
+    setExpandedCycleId(cycleId); setSelectedStage(stageKey);
+    if (expandedCycleId !== cycleId) loadProgress(cycleId);
+  }
+
   async function handleStageChange(id: number, newStatus: string) {
-    setStageSaving(id);
     try {
       await planningCyclesApi.update(id, { status: newStatus as PlanningCycle['status'] });
       reloadCycles();
-    } finally { setStageSaving(null); }
+    } catch { /* interceptor shows toast */ }
   }
 
   function startEdit(c: PlanningCycle) {
@@ -1428,13 +1460,8 @@ function PlanningCyclesTab() {
     if (!form.name || !form.start_date || !form.end_date) return;
     setSaving(true);
     try {
-      await planningCyclesApi.create({
-        name: form.name, start_date: form.start_date, end_date: form.end_date,
-        copy_from_cycle_id: form.copy_from_cycle_id ? parseInt(form.copy_from_cycle_id, 10) : null,
-      });
-      reloadCycles();
-      setCreating(false);
-      setForm({ name: '', start_date: '', end_date: '', copy_from_cycle_id: '' });
+      await planningCyclesApi.create({ name: form.name, start_date: form.start_date, end_date: form.end_date, copy_from_cycle_id: form.copy_from_cycle_id ? parseInt(form.copy_from_cycle_id, 10) : null });
+      reloadCycles(); setCreating(false); setForm({ name: '', start_date: '', end_date: '', copy_from_cycle_id: '' });
     } finally { setSaving(false); }
   }
 
@@ -1442,198 +1469,421 @@ function PlanningCyclesTab() {
     setSaving(true);
     try {
       await planningCyclesApi.update(id, { name: editForm.name, start_date: editForm.start_date, end_date: editForm.end_date });
-      reloadCycles();
-      setEditingId(null);
+      reloadCycles(); setEditingId(null);
     } finally { setSaving(false); }
+  }
+
+  async function handleChecklistToggle(cycleId: number, stageKey: string, itemKey: string, current: boolean) {
+    try {
+      const updated = await cycleProgressApi.toggleChecklist(cycleId, stageKey, itemKey, !current);
+      setChecklist(prev => prev.map(i => (i.stage_key === stageKey && i.item_key === itemKey) ? updated : i));
+    } catch { /* non-fatal */ }
+  }
+
+  async function handleRegionSignoff(cycleId: number, regionId: number, currentlySigned: boolean) {
+    try {
+      const updated = await cycleProgressApi.toggleRegionSignoff(cycleId, regionId, !currentlySigned);
+      setRegionSignoffs(prev => prev.map(r => r.region_id === regionId ? { ...r, ...updated } : r));
+    } catch { /* non-fatal */ }
+  }
+
+  async function handleApproverToggle(cycleId: number, approverId: number, current: boolean) {
+    try {
+      const updated = await cycleApproversApi.update(cycleId, approverId, { is_approved: !current });
+      setGlobalApprovers(prev => prev.map(a => a.id === approverId ? updated : a));
+    } catch { /* non-fatal */ }
   }
 
   async function handleAddApprover(cycleId: number) {
     if (!newApproverName.trim()) return;
     try {
-      await cycleApproversApi.add(cycleId, newApproverName.trim(), newApproverEmail.trim() || undefined);
-      setNewApproverName(''); setNewApproverEmail(''); setAddingApproverFor(null);
-      const data = await cycleApproversApi.list(cycleId);
-      setApprovers(prev => ({ ...prev, [cycleId]: data }));
-    } catch { /* toast shown by axios interceptor */ }
+      const created = await cycleApproversApi.add(cycleId, newApproverName.trim(), undefined, newApproverRole.trim() || undefined);
+      setGlobalApprovers(prev => [...prev, created]);
+      setAddingApprover(false); setNewApproverRole(''); setNewApproverName('');
+    } catch { /* non-fatal */ }
   }
 
   async function handleRemoveApprover(cycleId: number, approverId: number) {
     try {
       await cycleApproversApi.remove(cycleId, approverId);
-      const data = await cycleApproversApi.list(cycleId);
-      setApprovers(prev => ({ ...prev, [cycleId]: data }));
-    } catch { /* toast shown by axios interceptor */ }
+      setGlobalApprovers(prev => prev.filter(a => a.id !== approverId));
+    } catch { /* non-fatal */ }
   }
 
   function fmtPeriod(c: PlanningCycle) {
     const fmt = (d: string) => new Date(d.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    return `${fmt(c.start_date)} - ${fmt(c.end_date)}`;
+    return `${fmt(c.start_date)} – ${fmt(c.end_date)}`;
   }
 
+  // ── Milestone timeline renderer ──────────────────────────────────────────────
+  function renderTimeline(cycle: PlanningCycle) {
+    const currentIdx = STAGE_ORDER_KEYS.indexOf(cycle.status as StageKey);
+    const isThisCycleExpanded = expandedCycleId === cycle.id;
+
+    function stageState(key: string): 'complete' | 'active' | 'pending' {
+      const idx = STAGE_ORDER_KEYS.indexOf(key as StageKey);
+      if (idx < currentIdx) return 'complete';
+      if (idx === currentIdx) return 'active';
+      return 'pending';
+    }
+
+    function getProgressLabel(key: string): string {
+      if (!isThisCycleExpanded) return '';
+      switch (key) {
+        case 'admin_setup': { const its = checklist.filter(i => i.stage_key === 'admin_setup'); return its.length ? `${its.filter(i => i.is_checked).length}/${its.length} items` : ''; }
+        case 'pipeline_planning': return pipelineMetrics ? `${pipelineMetrics.updated_since_start}/${pipelineMetrics.total_projects} updated` : '';
+        case 'resource_planning': { const its = checklist.filter(i => i.stage_key === 'resource_planning'); return its.length ? `${its.filter(i => i.is_checked).length}/${its.length} regions` : ''; }
+        case 'regional_review': return regionSignoffs.length ? `${regionSignoffs.filter(r => r.signed_off_at).length}/${regionSignoffs.length} signed off` : '';
+        case 'global_approval': return globalApprovers.length ? `${globalApprovers.filter(a => a.is_approved).length}/${globalApprovers.length} approved` : '';
+        default: return '';
+      }
+    }
+
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', minWidth: 580, padding: '4px 0 8px' }}>
+        {STAGE_TIMELINE_INFO.map((s, i) => {
+          const ss = stageState(s.key);
+          const isSelected = isThisCycleExpanded && selectedStage === s.key;
+          const circBg = ss === 'complete' ? s.color : '#FFF';
+          const circBorder = ss === 'pending' ? '#D1D5DB' : s.color;
+          const circText = ss === 'complete' ? '#FFF' : ss === 'active' ? s.color : '#9CA3AF';
+          const leftLineColor = i > 0 ? (stageState(STAGE_TIMELINE_INFO[i-1].key) === 'pending' ? '#E5E7EB' : STAGE_TIMELINE_INFO[i-1].color) : 'transparent';
+          const rightLineColor = ss === 'pending' ? '#E5E7EB' : s.color;
+          const progLabel = getProgressLabel(s.key);
+
+          const labelBlock = (
+            <div
+              onClick={() => expandCycle(cycle.id, s.key)}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '4px 2px', cursor: 'pointer' }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, color: ss === 'pending' ? '#C4C4C4' : '#374151', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                {i < 5 ? `Stage ${i + 1}` : ''}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: ss === 'pending' ? '#9CA3AF' : '#1F2937', textAlign: 'center', lineHeight: 1.3 }}>
+                {s.label}
+              </div>
+              {progLabel && (
+                <div style={{ fontSize: 10, fontWeight: 600, color: s.color, background: `${s.color}18`, borderRadius: 8, padding: '1px 7px', whiteSpace: 'nowrap' }}>
+                  {progLabel}
+                </div>
+              )}
+              {isSelected && <div style={{ width: 24, height: 2, background: s.color, borderRadius: 1, marginTop: 2 }} />}
+            </div>
+          );
+
+          return (
+            <div key={s.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {/* Above area */}
+              <div style={{ height: 90, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 6 }}>
+                {s.above && labelBlock}
+              </div>
+
+              {/* Node on line */}
+              <div style={{ position: 'relative', width: '100%', height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {i > 0 && <div style={{ position: 'absolute', left: 0, right: '50%', top: '50%', height: 3, background: leftLineColor, transform: 'translateY(-50%)' }} />}
+                {i < 5 && <div style={{ position: 'absolute', left: '50%', right: 0, top: '50%', height: 3, background: rightLineColor, transform: 'translateY(-50%)' }} />}
+                <button
+                  onClick={() => expandCycle(cycle.id, s.key)}
+                  style={{
+                    position: 'relative', zIndex: 1, width: 42, height: 42, borderRadius: '50%',
+                    border: `3px solid ${circBorder}`, background: circBg, color: circText,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', fontSize: 13, fontWeight: 700, flexShrink: 0,
+                    boxShadow: isSelected ? `0 0 0 4px ${s.color}30` : ss === 'active' ? `0 2px 10px ${s.color}50` : 'none',
+                  }}
+                >
+                  {ss === 'complete' ? '✓' : (i + 1)}
+                </button>
+              </div>
+
+              {/* Below area */}
+              <div style={{ height: 90, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', paddingTop: 6 }}>
+                {!s.above && labelBlock}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Stage detail panel renderer ──────────────────────────────────────────────
+  function renderStageDetail(cycle: PlanningCycle, stageKey: string) {
+    const stage = CYCLE_STAGES[stageKey];
+    const currentIdx = STAGE_ORDER_KEYS.indexOf(cycle.status as StageKey);
+    const stageIdx   = STAGE_ORDER_KEYS.indexOf(stageKey as StageKey);
+    const isActive   = stageIdx === currentIdx;
+    const nextKey    = currentIdx < STAGE_ORDER_KEYS.length - 1 ? STAGE_ORDER_KEYS[currentIdx + 1] : null;
+
+    if (progressLoading) return <div style={{ padding: '24px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Loading…</div>;
+
+    return (
+      <div>
+        {/* Panel header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ padding: '3px 12px', borderRadius: 20, background: stage?.bg ?? '#F3F4F6', color: stage?.color ?? '#374151', fontSize: 12, fontWeight: 700 }}>
+              {stage?.label ?? stageKey}
+            </span>
+            {isActive   && <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>● Current Stage</span>}
+            {stageIdx < currentIdx && <span style={{ fontSize: 11, color: '#10B981' }}>✓ Completed</span>}
+            {stageIdx > currentIdx && <span style={{ fontSize: 11, color: '#9CA3AF' }}>Upcoming</span>}
+          </div>
+          {isActive && nextKey && (
+            <button
+              onClick={() => handleStageChange(cycle.id, nextKey)}
+              style={{ padding: '6px 14px', background: stage?.color ?? '#374151', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Advance → {CYCLE_STAGES[nextKey]?.label}
+            </button>
+          )}
+        </div>
+
+        {stageKey === 'admin_setup'       && renderChecklist(cycle.id, 'admin_setup')}
+        {stageKey === 'pipeline_planning' && renderPipelineMetrics()}
+        {stageKey === 'resource_planning' && renderChecklist(cycle.id, 'resource_planning')}
+        {stageKey === 'regional_review'   && renderRegionSignoffs(cycle.id)}
+        {stageKey === 'global_approval'   && renderGlobalApprovers(cycle.id)}
+        {stageKey === 'closed' && (
+          <div style={{ textAlign: 'center', padding: '24px 0', color: '#9CA3AF', fontSize: 13 }}>This planning cycle is closed.</div>
+        )}
+      </div>
+    );
+  }
+
+  function renderChecklist(cycleId: number, stageKey: string) {
+    const items = checklist.filter(i => i.stage_key === stageKey);
+    if (!items.length) return <div style={{ color: '#9CA3AF', fontSize: 12 }}>Checklist items will appear once the cycle loads.</div>;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.map(item => (
+          <div key={item.item_key}
+            onClick={() => handleChecklistToggle(cycleId, stageKey, item.item_key, item.is_checked)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: item.is_checked ? '#F0FDF4' : '#FAFAFA', borderRadius: 8, border: `1px solid ${item.is_checked ? '#BBF7D0' : '#E5E7EB'}`, cursor: 'pointer', userSelect: 'none' }}
+          >
+            <div style={{ width: 20, height: 20, borderRadius: 4, border: `2px solid ${item.is_checked ? '#16A34A' : '#D1D5DB'}`, background: item.is_checked ? '#16A34A' : '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {item.is_checked && <span style={{ color: '#FFF', fontSize: 11, fontWeight: 700 }}>✓</span>}
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 500, color: item.is_checked ? '#16A34A' : '#374151', textDecoration: item.is_checked ? 'line-through' : 'none', opacity: item.is_checked ? 0.75 : 1, flex: 1 }}>
+              {item.label}
+            </span>
+            {item.checked_at && <span style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0 }}>{new Date(item.checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function renderPipelineMetrics() {
+    if (!pipelineMetrics) return <div style={{ color: '#9CA3AF', fontSize: 12 }}>No metrics available.</div>;
+    const { total_projects, updated_since_start, by_type } = pipelineMetrics;
+    const remaining = total_projects - updated_since_start;
+    const pct = total_projects > 0 ? Math.round((updated_since_start / total_projects) * 100) : 0;
+    return (
+      <div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
+          {[
+            { label: 'Total Projects', val: total_projects, bg: '#EFF6FF', color: '#0057B7' },
+            { label: 'Weighting Updated', val: updated_since_start, bg: '#F0FDF4', color: '#16A34A' },
+            { label: 'Remaining', val: remaining, bg: '#FFF7ED', color: '#D97706' },
+          ].map(({ label, val, bg, color }) => (
+            <div key={label} style={{ padding: '12px 16px', background: bg, borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, color }}>{val}</div>
+              <div style={{ fontSize: 11, color: '#374151', marginTop: 2 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6B7280', marginBottom: 4 }}>
+            <span>Weighting completion</span><span>{pct}%</span>
+          </div>
+          <div style={{ height: 8, background: '#E5E7EB', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#16A34A' : '#0057B7', borderRadius: 4 }} />
+          </div>
+        </div>
+        {Object.keys(by_type).length > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
+            {Object.entries(by_type).map(([type, count]) => (
+              <span key={type} style={{ padding: '3px 10px', background: '#F3F4F6', borderRadius: 6, fontSize: 12, color: '#374151' }}>{type}: {count}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderRegionSignoffs(cycleId: number) {
+    if (!regionSignoffs.length) return <div style={{ color: '#9CA3AF', fontSize: 12 }}>No regions configured.</div>;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {regionSignoffs.map(r => (
+          <div key={r.region_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: r.signed_off_at ? '#F0FDF4' : '#FAFAFA', borderRadius: 8, border: `1px solid ${r.signed_off_at ? '#BBF7D0' : '#E5E7EB'}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: r.signed_off_at ? '#16A34A' : '#D1D5DB', display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{r.region_name}</span>
+              {r.signed_off_at && <span style={{ fontSize: 10, color: '#9CA3AF' }}>Signed {new Date(r.signed_off_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+            </div>
+            <button
+              onClick={() => handleRegionSignoff(cycleId, r.region_id, !!r.signed_off_at)}
+              style={{ padding: '5px 12px', border: `1px solid ${r.signed_off_at ? '#D1D5DB' : '#16A34A'}`, borderRadius: 6, background: r.signed_off_at ? '#FFF' : '#16A34A', color: r.signed_off_at ? '#6B7280' : '#FFF', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+            >
+              {r.signed_off_at ? 'Undo Sign-off' : 'Sign Off'}
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function renderGlobalApprovers(cycleId: number) {
+    return (
+      <div>
+        {!globalApprovers.length && !addingApprover && (
+          <div style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 12 }}>No approvers configured yet.</div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+          {globalApprovers.map(ap => (
+            <div key={ap.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: ap.is_approved ? '#F0FDF4' : '#FAFAFA', borderRadius: 8, border: `1px solid ${ap.is_approved ? '#BBF7D0' : '#E5E7EB'}` }}>
+              <div style={{ flex: 1 }}>
+                {ap.role_title && <div style={{ fontSize: 10, color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{ap.role_title}</div>}
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{ap.approver_name}</div>
+              </div>
+              {ap.is_approved && ap.approved_at && (
+                <span style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0 }}>
+                  {new Date(ap.approved_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                </span>
+              )}
+              <button
+                onClick={() => handleApproverToggle(cycleId, ap.id, ap.is_approved)}
+                style={{ padding: '5px 12px', border: `1px solid ${ap.is_approved ? '#D1D5DB' : '#059669'}`, borderRadius: 6, background: ap.is_approved ? '#FFF' : '#059669', color: ap.is_approved ? '#6B7280' : '#FFF', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+              >
+                {ap.is_approved ? 'Undo' : 'Approve'}
+              </button>
+              <button onClick={() => handleRemoveApprover(cycleId, ap.id)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', fontSize: 18, padding: '0 2px', lineHeight: 1 }}>×</button>
+            </div>
+          ))}
+        </div>
+
+        {addingApprover ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' as const, padding: '10px 14px', background: '#F9FAFB', borderRadius: 8, border: '1px dashed #D1D5DB' }}>
+            <div>
+              <label style={lbl}>Role Title</label>
+              <input autoFocus value={newApproverRole} onChange={e => setNewApproverRole(e.target.value)} placeholder="e.g. PMO Head" style={{ ...inp, width: 160 }} />
+            </div>
+            <div>
+              <label style={lbl}>Name *</label>
+              <input value={newApproverName} onChange={e => setNewApproverName(e.target.value)} placeholder="Full name" onKeyDown={e => e.key === 'Enter' && handleAddApprover(cycleId)} style={{ ...inp, width: 160 }} />
+            </div>
+            <button onClick={() => handleAddApprover(cycleId)} disabled={!newApproverName.trim()}
+              style={{ padding: '7px 14px', background: '#E91C24', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: !newApproverName.trim() ? 0.5 : 1 }}>Add</button>
+            <button onClick={() => { setAddingApprover(false); setNewApproverRole(''); setNewApproverName(''); }}
+              style={{ ...btnSecondary, fontSize: 12, padding: '7px 12px' }}>Cancel</button>
+          </div>
+        ) : (
+          <button onClick={() => setAddingApprover(true)}
+            style={{ padding: '5px 12px', background: 'none', border: '1px dashed #D1D5DB', borderRadius: 6, fontSize: 12, color: '#6B7280', cursor: 'pointer' }}>
+            + Add Approver
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // ── Main render ──────────────────────────────────────────────────────────────
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-        <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-          Manage planning cycles and their workflow stages. Use the Stage column to advance a cycle - editing access updates automatically based on the stage.
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12 }}>
+        <p style={{ fontSize: 13, color: '#666', margin: 0, lineHeight: 1.55 }}>
+          Track each planning cycle through 5 stages. Click any stage node to view its checklist, metrics, or sign-off actions.
         </p>
-        <button
-          onClick={() => { setCreating(true); setEditingId(null); }}
-          style={{ padding: '4px 10px', background: '#E91C24', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', marginLeft: 20, flexShrink: 0 }}
-        >+ New Cycle</button>
+        <button onClick={() => { setCreating(true); setEditingId(null); }}
+          style={{ padding: '5px 12px', background: '#E91C24', color: '#FFF', border: 'none', borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          + New Cycle
+        </button>
       </div>
 
       {creating && (
         <div style={{ ...card, marginBottom: 16, padding: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#111111', marginBottom: 12 }}>New Planning Cycle</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 12 }}>New Planning Cycle</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={lbl}>Name *</label>
-              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. H1 2027" style={inp} />
-            </div>
-            <div>
-              <label style={lbl}>Start Date *</label>
-              <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} style={inp} />
-            </div>
-            <div>
-              <label style={lbl}>End Date *</label>
-              <input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} style={inp} />
-            </div>
+            <div><label style={lbl}>Name *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. H1 2027" style={inp} /></div>
+            <div><label style={lbl}>Start Date *</label><input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} style={inp} /></div>
+            <div><label style={lbl}>End Date *</label><input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} style={inp} /></div>
             <div>
               <label style={lbl}>Copy From</label>
               <select value={form.copy_from_cycle_id} onChange={e => setForm(f => ({ ...f, copy_from_cycle_id: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
-                <option value="">-- Start blank --</option>
+                <option value="">— Start blank —</option>
                 {cycles.filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button onClick={() => setCreating(false)} style={btnSecondary}>Cancel</button>
-            <button
-              onClick={handleCreate} disabled={saving || !form.name || !form.start_date || !form.end_date}
-              style={{ padding: '7px 16px', background: '#E91C24', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: (!form.name || !form.start_date || !form.end_date) ? 0.6 : 1 }}
-            >{saving ? 'Creating...' : form.copy_from_cycle_id ? 'Create & Copy' : 'Create'}</button>
+            <button onClick={handleCreate} disabled={saving || !form.name || !form.start_date || !form.end_date}
+              style={{ padding: '7px 16px', background: '#E91C24', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (!form.name || !form.start_date || !form.end_date) ? 0.6 : 1 }}>
+              {saving ? 'Creating…' : form.copy_from_cycle_id ? 'Create & Copy' : 'Create'}
+            </button>
           </div>
         </div>
       )}
 
-      <div style={{ ...card, overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 880 }}>
-          <thead>
-            <tr>
-              <th style={{ ...th, width: 100 }}>Name</th>
-              <th style={{ ...th, width: 180 }}>Period</th>
-              <th style={{ ...th, width: 220 }}>Stage</th>
-              <th style={th}>Edit Access</th>
-              <th style={th}>Approvers</th>
-              <th style={{ ...th, width: 80 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cycles.length === 0
-              ? <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: '#555' }}>No planning cycles</td></tr>
-              : cycles.map(cycle => {
-                  const stage = CYCLE_STAGES[cycle.status] ?? CYCLE_STAGES.draft;
-                  const cycleApprovers = approvers[cycle.id] ?? [];
-                  const isSavingStage  = stageSaving === cycle.id;
+      {cycles.length === 0 && (
+        <div style={{ ...card, padding: '32px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+          No planning cycles yet.
+        </div>
+      )}
 
-                  if (editingId === cycle.id) {
-                    return (
-                      <tr key={cycle.id} style={{ background: '#FAFAFA' }}>
-                        <td style={td}>
-                          <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={{ ...inp, width: 100 }} />
-                        </td>
-                        <td style={td} colSpan={3}>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <input type="date" value={editForm.start_date} onChange={e => setEditForm(f => ({ ...f, start_date: e.target.value }))} style={{ ...inp, width: 140 }} />
-                            <span style={{ color: '#999', fontSize: 12 }}>to</span>
-                            <input type="date" value={editForm.end_date} onChange={e => setEditForm(f => ({ ...f, end_date: e.target.value }))} style={{ ...inp, width: 140 }} />
-                          </div>
-                        </td>
-                        <td style={td} />
-                        <td style={td}>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button onClick={() => handleUpdate(cycle.id)} disabled={saving}
-                              style={{ padding: '5px 12px', background: '#E91C24', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                              {saving ? '...' : 'Save'}
-                            </button>
-                            <button onClick={() => setEditingId(null)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Cancel</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }
+      {cycles.map(cycle => {
+        const stageInfo = CYCLE_STAGES[cycle.status] ?? CYCLE_STAGES.admin_setup;
+        const isExpanded = expandedCycleId === cycle.id;
 
-                  return (
-                    <tr key={cycle.id}>
-                      <td style={{ ...td, fontWeight: 600, color: '#111' }}>{cycle.name}</td>
-                      <td style={{ ...td, fontSize: 12, color: '#555' }}>{fmtPeriod(cycle)}</td>
-                      <td style={td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <select
-                            value={cycle.status}
-                            disabled={isSavingStage}
-                            onChange={e => handleStageChange(cycle.id, e.target.value)}
-                            style={{
-                              padding: '4px 8px', border: `1px solid ${stage.color}44`,
-                              borderRadius: 6, fontSize: 12, fontWeight: 600,
-                              color: stage.color, background: stage.bg,
-                              cursor: isSavingStage ? 'wait' : 'pointer', outline: 'none',
-                            }}
-                          >
-                            {Object.entries(CYCLE_STAGES).map(([v, { label }]) => (
-                              <option key={v} value={v}>{label}</option>
-                            ))}
-                          </select>
-                          {isSavingStage && <span style={{ fontSize: 11, color: '#9CA3AF' }}>Saving...</span>}
-                        </div>
-                      </td>
-                      <td style={td}>
-                        <RoleChips roles={liveStageAccess[cycle.status] ?? STAGE_ACCESS[cycle.status] ?? []} />
-                      </td>
-                      <td style={td}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                          {cycleApprovers.map(ap => (
-                            <span key={ap.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#166534' }}>
-                              {ap.approver_name}
-                              {ap.approver_email && <span style={{ opacity: 0.65 }}>({ap.approver_email})</span>}
-                              <button
-                                onClick={() => handleRemoveApprover(cycle.id, ap.id)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', fontSize: 14, padding: '0 0 0 2px', lineHeight: 1, opacity: 0.6 }}
-                                title="Remove approver"
-                              >Ã—</button>
-                            </span>
-                          ))}
-                          {addingApproverFor === cycle.id ? (
-                            <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-                              <input autoFocus value={newApproverName} onChange={e => setNewApproverName(e.target.value)}
-                                placeholder="Name" onKeyDown={e => e.key === 'Enter' && handleAddApprover(cycle.id)}
-                                style={{ ...inp, width: 110, fontSize: 11, padding: '3px 6px' }} />
-                              <input value={newApproverEmail} onChange={e => setNewApproverEmail(e.target.value)}
-                                placeholder="Email (optional)"
-                                style={{ ...inp, width: 150, fontSize: 11, padding: '3px 6px' }} />
-                              <button onClick={() => handleAddApprover(cycle.id)} disabled={!newApproverName.trim()}
-                                style={{ padding: '3px 10px', background: '#059669', color: '#FFF', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Add</button>
-                              <button onClick={() => { setAddingApproverFor(null); setNewApproverName(''); setNewApproverEmail(''); }}
-                                style={{ padding: '3px 8px', background: 'none', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 11, cursor: 'pointer', color: '#666' }}>x</button>
-                            </div>
-                          ) : (
-                            <button onClick={() => { setAddingApproverFor(cycle.id); setNewApproverName(''); setNewApproverEmail(''); }}
-                              style={{ padding: '2px 8px', background: 'none', border: '1px dashed #D1D5DB', borderRadius: 10, fontSize: 11, color: '#666', cursor: 'pointer' }}>
-                              + Approver
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td style={td}>
-                        <button onClick={() => startEdit(cycle)} style={{ ...btnSecondary, padding: '5px 10px', fontSize: 12 }}>Edit</button>
-                      </td>
-                    </tr>
-                  );
-                })
-            }
-          </tbody>
-        </table>
-      </div>
+        if (editingId === cycle.id) {
+          return (
+            <div key={cycle.id} style={{ ...card, marginBottom: 12, padding: 16 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
+                <div style={{ flex: '1 1 140px' }}><label style={lbl}>Name</label><input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={inp} /></div>
+                <div style={{ flex: '0 0 150px' }}><label style={lbl}>Start Date</label><input type="date" value={editForm.start_date} onChange={e => setEditForm(f => ({ ...f, start_date: e.target.value }))} style={inp} /></div>
+                <div style={{ flex: '0 0 150px' }}><label style={lbl}>End Date</label><input type="date" value={editForm.end_date} onChange={e => setEditForm(f => ({ ...f, end_date: e.target.value }))} style={inp} /></div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => handleUpdate(cycle.id)} disabled={saving}
+                    style={{ padding: '7px 16px', background: '#E91C24', color: '#FFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {saving ? '…' : 'Save'}
+                  </button>
+                  <button onClick={() => setEditingId(null)} style={btnSecondary}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={cycle.id} style={{ ...card, marginBottom: 14 }}>
+            {/* Card header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px 8px', borderBottom: '1px solid #F3F4F6' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: '#111' }}>{cycle.name}</span>
+                <span style={{ fontSize: 12, color: '#6B7280' }}>{fmtPeriod(cycle)}</span>
+                {cycle.is_active && <span style={{ padding: '2px 8px', background: '#DCFCE7', color: '#16A34A', border: '1px solid #BBF7D0', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>Active</span>}
+                <span style={{ padding: '2px 10px', borderRadius: 20, background: stageInfo.bg, color: stageInfo.color, fontSize: 11, fontWeight: 700 }}>{stageInfo.label}</span>
+              </div>
+              <button onClick={() => startEdit(cycle)} style={{ ...btnSecondary, fontSize: 12, padding: '4px 10px', flexShrink: 0 }}>Edit</button>
+            </div>
+
+            {/* Milestone timeline */}
+            <div style={{ padding: '0 20px' }}>
+              {renderTimeline(cycle)}
+            </div>
+
+            {/* Stage detail panel */}
+            {isExpanded && selectedStage && (
+              <div style={{ borderTop: '1px solid #F3F4F6', padding: '14px 20px 16px' }}>
+                {renderStageDetail(cycle, selectedStage)}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

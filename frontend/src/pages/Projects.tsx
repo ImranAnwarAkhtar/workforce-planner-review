@@ -697,7 +697,7 @@ useEffect(() => {
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
             {!canEdit && selectedCycle && (
               <span style={{ fontSize: 11, color: '#D97706', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '4px 10px', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                🔒 {selectedCycle.status === 'draft' ? 'Stage 1: Admin Setup' : selectedCycle.status === 'approved' ? 'Stage 4: Global Approval' : 'Closed'} — editing restricted
+                🔒 {selectedCycle.status === 'admin_setup' ? 'Stage 1: Admin Setup' : selectedCycle.status === 'global_approval' ? 'Stage 5: Global Approval' : 'Closed'} — editing restricted
               </span>
             )}
             <div style={{ display: 'flex', gap: 2 }}>

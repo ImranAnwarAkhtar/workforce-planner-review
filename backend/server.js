@@ -467,6 +467,92 @@ _startupMigs.push((async () => {
   }
 })());
 
+// ── Cycle progress tables + stage migration ───────────────────────────────────
+_startupMigs.push((async () => {
+  try {
+    // New cycle progress tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cycle_checklist_items (
+        id                SERIAL PRIMARY KEY,
+        planning_cycle_id INTEGER NOT NULL REFERENCES planning_cycles(id) ON DELETE CASCADE,
+        stage_key         VARCHAR(50)  NOT NULL,
+        item_key          VARCHAR(100) NOT NULL,
+        label             VARCHAR(255) NOT NULL,
+        is_checked        BOOLEAN      NOT NULL DEFAULT FALSE,
+        checked_by        INTEGER REFERENCES users(id),
+        checked_at        TIMESTAMPTZ,
+        UNIQUE(planning_cycle_id, stage_key, item_key)
+      );
+      CREATE TABLE IF NOT EXISTS cycle_region_signoffs (
+        id                SERIAL PRIMARY KEY,
+        planning_cycle_id INTEGER NOT NULL REFERENCES planning_cycles(id) ON DELETE CASCADE,
+        region_id         INTEGER NOT NULL REFERENCES regions(id),
+        signed_off_by     INTEGER REFERENCES users(id),
+        signed_off_at     TIMESTAMPTZ,
+        UNIQUE(planning_cycle_id, region_id)
+      );
+      ALTER TABLE cycle_approvers ADD COLUMN IF NOT EXISTS role_title  VARCHAR(100);
+      ALTER TABLE cycle_approvers ADD COLUMN IF NOT EXISTS sort_order  INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE cycle_approvers ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE cycle_approvers ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+      ALTER TABLE cycle_approvers ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id);
+    `);
+
+    // New stage keys in cycle_stage_access
+    await pool.query(`
+      INSERT INTO cycle_stage_access (stage_key, stage_label, stage_order, edit_roles, review_roles, approval_roles) VALUES
+        ('admin_setup',       'Stage 1: Admin Setup',       1,
+          ARRAY['Senior PMO','PMO Team'], ARRAY[]::TEXT[], ARRAY['Senior PMO','PMO Team']),
+        ('pipeline_planning', 'Stage 2: Pipeline Planning', 2,
+          ARRAY['Senior PMO','PMO Team','Workforce Planning','Administration','Department Head','Hub Lead'],
+          ARRAY['Senior PMO','PMO Team','Workforce Planning'], ARRAY['Senior PMO','PMO Team']),
+        ('resource_planning', 'Stage 3: Resource Planning', 3,
+          ARRAY['Senior PMO','PMO Team','Workforce Planning','Administration','Department Head','Hub Lead'],
+          ARRAY['Senior PMO','PMO Team','Workforce Planning'], ARRAY['Senior PMO','PMO Team']),
+        ('regional_review',   'Stage 4: Regional Review',   4,
+          ARRAY['Senior PMO','PMO Team','Workforce Planning','Administration','Department Head','Hub Lead'],
+          ARRAY['Senior PMO','PMO Team','Workforce Planning','Department Head','Hub Lead'],
+          ARRAY['Senior PMO','PMO Team','Department Head','Hub Lead']),
+        ('global_approval',   'Stage 5: Global Approval',   5,
+          ARRAY[]::TEXT[], ARRAY['Senior PMO','PMO Team'], ARRAY['Senior PMO','EVP'])
+      ON CONFLICT (stage_key) DO NOTHING;
+    `);
+
+    // Migrate old stage keys → new stage keys (idempotent via constraint check)
+    await pool.query(`
+      DO $$
+      DECLARE v_con TEXT;
+      BEGIN
+        SELECT tc.constraint_name INTO v_con
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.check_constraints cc
+          ON tc.constraint_name = cc.constraint_name AND tc.constraint_schema = cc.constraint_schema
+        WHERE tc.table_name = 'planning_cycles' AND tc.constraint_type = 'CHECK'
+          AND cc.check_clause LIKE '%draft%'
+        LIMIT 1;
+        IF v_con IS NOT NULL THEN
+          EXECUTE format('ALTER TABLE planning_cycles DROP CONSTRAINT %I', v_con);
+          UPDATE planning_cycles SET status = 'admin_setup'       WHERE status = 'draft';
+          UPDATE planning_cycles SET status = 'pipeline_planning' WHERE status = 'active';
+          UPDATE planning_cycles SET status = 'resource_planning' WHERE status = 'under_review';
+          UPDATE planning_cycles SET status = 'global_approval'   WHERE status = 'approved';
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.check_constraints
+          WHERE constraint_schema = current_schema() AND check_clause LIKE '%admin_setup%'
+        ) THEN
+          ALTER TABLE planning_cycles ADD CONSTRAINT planning_cycles_status_new
+            CHECK (status IN ('admin_setup','pipeline_planning','resource_planning','regional_review','global_approval','closed'));
+        END IF;
+      END $$;
+    `);
+
+    logger.info('Cycle progress tables + stage migration complete');
+  } catch (err) {
+    logger.error('Cycle progress migration failed', { error: err.message });
+  }
+})());
+
 // Drop the fixed CHECK constraint on regions.code so free-form codes can be used
 _startupMigs.push((async () => {
   try {

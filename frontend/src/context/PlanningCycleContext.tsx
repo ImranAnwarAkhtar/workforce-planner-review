@@ -50,7 +50,8 @@ export function PlanningCycleProvider({ children }: { children: ReactNode }) {
       setCycles(data);
       // Auto-select the active cycle if nothing is stored yet
       if (!localStorage.getItem(LS_CYCLE)) {
-        const active = data.find(c => c.status === 'active' && c.is_active);
+        const active = data.find(c => ['pipeline_planning', 'resource_planning'].includes(c.status) && c.is_active)
+          ?? data.find(c => c.is_active);
         if (active) setSelectedCycleId(active.id);
       }
     } catch {

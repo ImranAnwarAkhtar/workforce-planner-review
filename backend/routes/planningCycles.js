@@ -29,13 +29,37 @@ router.get('/:id/approvers', requireAuth, async (req, res) => {
 });
 
 router.post('/:id/approvers', requireAuth, requireRole(...WP_ONLY), async (req, res) => {
-  const { approver_name, approver_email } = req.body;
+  const { approver_name, approver_email, role_title } = req.body;
   if (!approver_name) return res.status(400).json({ error: 'approver_name is required' });
   const { rows } = await pool.query(
-    'INSERT INTO cycle_approvers (planning_cycle_id, approver_name, approver_email) VALUES ($1,$2,$3) RETURNING *',
-    [req.params.id, approver_name, approver_email ?? null]
+    'INSERT INTO cycle_approvers (planning_cycle_id, approver_name, approver_email, role_title) VALUES ($1,$2,$3,$4) RETURNING *',
+    [req.params.id, approver_name, approver_email ?? null, role_title ?? null]
   );
   res.status(201).json({ data: rows[0] });
+});
+
+router.put('/:id/approvers/:approverId', requireAuth, requireRole(...WP_ONLY), async (req, res) => {
+  const id = Number(req.params.approverId);
+  const cycleId = Number(req.params.id);
+  const { role_title, approver_name, approver_email, is_approved, sort_order } = req.body;
+  const sets = [], vals = [];
+  if (role_title     !== undefined) { sets.push(`role_title = $${vals.length+1}`);     vals.push(role_title); }
+  if (approver_name  !== undefined) { sets.push(`approver_name = $${vals.length+1}`);  vals.push(approver_name); }
+  if (approver_email !== undefined) { sets.push(`approver_email = $${vals.length+1}`); vals.push(approver_email); }
+  if (is_approved    !== undefined) {
+    sets.push(`is_approved = $${vals.length+1}`); vals.push(Boolean(is_approved));
+    sets.push(`approved_at = $${vals.length+1}`); vals.push(is_approved ? new Date() : null);
+    sets.push(`approved_by = $${vals.length+1}`); vals.push(is_approved ? (req.user?.id ?? null) : null);
+  }
+  if (sort_order !== undefined) { sets.push(`sort_order = $${vals.length+1}`); vals.push(Number(sort_order)); }
+  if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+  vals.push(id); vals.push(cycleId);
+  const { rows } = await pool.query(
+    `UPDATE cycle_approvers SET ${sets.join(', ')} WHERE id = $${vals.length-1} AND planning_cycle_id = $${vals.length} RETURNING *`,
+    vals
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Approver not found' });
+  res.json({ data: rows[0] });
 });
 
 router.delete('/:id/approvers/:approverId', requireAuth, requireRole(...WP_ONLY), async (req, res) => {

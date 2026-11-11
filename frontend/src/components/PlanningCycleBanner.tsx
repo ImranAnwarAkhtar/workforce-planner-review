@@ -1,11 +1,12 @@
 import { usePlanningCycle } from '../context/PlanningCycleContext';
 
 const STATUS_META: Record<string, { label: string; bg: string; color: string; border: string }> = {
-  draft:        { label: 'Draft',        bg: '#F3F4F6', color: '#6B7280', border: '#D1D5DB' },
-  active:       { label: 'Active',       bg: '#DCFCE7', color: '#16A34A', border: '#86EFAC' },
-  under_review: { label: 'Under Review', bg: '#FEF9C3', color: '#CA8A04', border: '#FDE047' },
-  approved:     { label: 'Approved',     bg: '#DBEAFE', color: '#2563EB', border: '#93C5FD' },
-  closed:       { label: 'Closed',       bg: '#F3F4F6', color: '#9CA3AF', border: '#D1D5DB' },
+  admin_setup:       { label: 'Admin Setup',       bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  pipeline_planning: { label: 'Pipeline Planning', bg: '#DCFCE7', color: '#16A34A', border: '#86EFAC' },
+  resource_planning: { label: 'Resource Planning', bg: '#F5F3FF', color: '#7C3AED', border: '#DDD6FE' },
+  regional_review:   { label: 'Regional Review',   bg: '#FEF9C3', color: '#CA8A04', border: '#FDE047' },
+  global_approval:   { label: 'Global Approval',   bg: '#FFF1F2', color: '#E91C24', border: '#FECDD3' },
+  closed:            { label: 'Closed',            bg: '#F3F4F6', color: '#9CA3AF', border: '#D1D5DB' },
 };
 
 function fmtDate(s: string) {
@@ -16,7 +17,7 @@ export default function PlanningCycleBanner() {
   const { selectedCycle } = usePlanningCycle();
   if (!selectedCycle) return null;
 
-  const meta = STATUS_META[selectedCycle.status] ?? STATUS_META.draft;
+  const meta = STATUS_META[selectedCycle.status] ?? STATUS_META.admin_setup;
 
   return (
     <div style={{
