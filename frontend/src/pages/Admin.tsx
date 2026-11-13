@@ -1099,39 +1099,80 @@ const PERM_PROFILES = [
   { name: 'People Manager',     short: 'P. Mgr',     colour: '#0891B2', desc: 'Line managers with view access to their team\'s headcount, active hires, and recruitment progress.' },
 ];
 
-const SECTION_ROWS: Array<{ key: string; label: string; group: boolean }> = [
-  { key: 'people',            label: 'People',                group: true  },
-  { key: 'people.view',       label: 'View people list',      group: false },
-  { key: 'people.edit',       label: 'Add & edit person',     group: false },
-  { key: 'people.deactivate', label: 'Deactivate person',     group: false },
-  { key: 'people.delete',     label: 'Hard delete',           group: false },
-  { key: 'projects',          label: 'Projects',              group: true  },
-  { key: 'projects.view',     label: 'View projects',         group: false },
-  { key: 'projects.edit',     label: 'Create & edit',         group: false },
-  { key: 'allocations',       label: 'Allocations',           group: true  },
-  { key: 'allocations.view',  label: 'View allocations',      group: false },
-  { key: 'allocations.edit',  label: 'Edit allocations',      group: false },
-  { key: 'cycles',            label: 'Planning Cycles',       group: true  },
-  { key: 'cycles.view',       label: 'View cycles',           group: false },
-  { key: 'cycles.manage',     label: 'Create & manage',       group: false },
-  { key: 'cycles.draft',      label: 'Edit: Draft stage',     group: false },
-  { key: 'cycles.active',     label: 'Edit: Active stage',    group: false },
-  { key: 'cycles.review',     label: 'Edit: Review stage',    group: false },
-  { key: 'talent',            label: 'Talent Acquisition',    group: true  },
-  { key: 'talent.view',       label: 'View pipeline',         group: false },
-  { key: 'talent.create',     label: 'Create hire requests',  group: false },
-  { key: 'talent.approve',    label: 'Approve hire requests', group: false },
-  { key: 'changes',           label: 'Change Requests',       group: true  },
-  { key: 'changes.view',      label: 'View changes',          group: false },
-  { key: 'changes.create',    label: 'Create requests',       group: false },
-  { key: 'changes.status',    label: 'Update plan status',    group: false },
-  { key: 'reports',           label: 'Reports & Dashboard',   group: true  },
-  { key: 'reports.view',      label: 'View dashboard',        group: false },
-  { key: 'reports.finance',   label: 'Finance data',          group: false },
-  { key: 'admin',             label: 'Administration',        group: true  },
-  { key: 'admin.view',        label: 'View admin panel',      group: false },
-  { key: 'admin.refdata',     label: 'Edit reference data',   group: false },
-  { key: 'admin.access',      label: 'Manage user access',    group: false },
+const SECTION_ROWS: Array<{ key: string; label: string; group: boolean; future?: boolean }> = [
+  // ── People ────────────────────────────────────────────────────────────────
+  { key: 'people',              label: 'People',                       group: true  },
+  { key: 'people.view',         label: 'View people list',             group: false },
+  { key: 'people.edit',         label: 'Add & edit person',            group: false },
+  { key: 'people.deactivate',   label: 'Deactivate person',            group: false },
+  { key: 'people.delete',       label: 'Hard delete',                  group: false },
+  { key: 'people.export',       label: 'Export people data',           group: false },
+  { key: 'people.import',       label: 'Import via API sync',          group: false, future: true },
+
+  // ── Projects ──────────────────────────────────────────────────────────────
+  { key: 'projects',            label: 'Projects',                     group: true  },
+  { key: 'projects.view',       label: 'View projects',                group: false },
+  { key: 'projects.edit',       label: 'Create & edit project',        group: false },
+  { key: 'projects.weight',     label: 'Update project weightings',    group: false },
+  { key: 'projects.archive',    label: 'Archive / delete project',     group: false },
+  { key: 'projects.export',     label: 'Export project data',          group: false },
+  { key: 'projects.import',     label: 'Import via API sync',          group: false, future: true },
+
+  // ── Allocations ───────────────────────────────────────────────────────────
+  { key: 'allocations',         label: 'Allocations',                  group: true  },
+  { key: 'allocations.view',    label: 'View allocations',             group: false },
+  { key: 'allocations.edit',    label: 'Edit allocations',             group: false },
+  { key: 'allocations.bulk',    label: 'Bulk edit / copy',             group: false },
+  { key: 'allocations.delete',  label: 'Remove allocations',           group: false },
+  { key: 'allocations.export',  label: 'Export allocation data',       group: false },
+
+  // ── Planning Cycles ───────────────────────────────────────────────────────
+  { key: 'cycles',                   label: 'Planning Cycles',         group: true  },
+  { key: 'cycles.view',              label: 'View cycles',             group: false },
+  { key: 'cycles.manage',            label: 'Create & manage cycles',  group: false },
+  { key: 'cycles.advance',           label: 'Advance cycle stage',     group: false },
+  { key: 'cycles.snapshot',          label: 'Take / manage snapshots', group: false },
+  { key: 'cycles.admin_setup',       label: 'Edit: Admin Setup',       group: false },
+  { key: 'cycles.pipeline_planning', label: 'Edit: Pipeline Planning', group: false },
+  { key: 'cycles.resource_planning', label: 'Edit: Resource Planning', group: false },
+  { key: 'cycles.regional_review',   label: 'Edit: Regional Review',   group: false },
+  { key: 'cycles.global_approval',   label: 'Edit: Global Approval',   group: false },
+
+  // ── Talent Acquisition ────────────────────────────────────────────────────
+  { key: 'talent',              label: 'Talent Acquisition',           group: true  },
+  { key: 'talent.view',         label: 'View pipeline',                group: false },
+  { key: 'talent.create',       label: 'Create hire requests',         group: false },
+  { key: 'talent.edit',         label: 'Edit hire requests',           group: false },
+  { key: 'talent.approve',      label: 'Approve hire requests',        group: false },
+  { key: 'talent.withdraw',     label: 'Withdraw / close requests',    group: false },
+
+  // ── Change Requests ───────────────────────────────────────────────────────
+  { key: 'changes',             label: 'Change Requests',              group: true  },
+  { key: 'changes.view',        label: 'View change requests',         group: false },
+  { key: 'changes.create',      label: 'Create requests',              group: false },
+  { key: 'changes.approve',     label: 'Approve / reject requests',    group: false },
+  { key: 'changes.status',      label: 'Update plan status',           group: false },
+
+  // ── Reports & Dashboard ───────────────────────────────────────────────────
+  { key: 'reports',             label: 'Reports & Dashboard',          group: true  },
+  { key: 'reports.view',        label: 'View dashboard',               group: false },
+  { key: 'reports.headcount',   label: 'View headcount budget',        group: false },
+  { key: 'reports.finance',     label: 'Finance data',                 group: false },
+  { key: 'reports.export',      label: 'Export reports',               group: false },
+
+  // ── Administration ────────────────────────────────────────────────────────
+  { key: 'admin',               label: 'Administration',               group: true  },
+  { key: 'admin.view',          label: 'View admin panel',             group: false },
+  { key: 'admin.refdata',       label: 'Edit reference data',          group: false },
+  { key: 'admin.alerts',        label: 'Manage system alerts',         group: false },
+  { key: 'admin.access',        label: 'Manage user access',           group: false },
+
+  // ── API Integrations (planned) ────────────────────────────────────────────
+  { key: 'api',                 label: 'API Integrations',             group: true,  future: true },
+  { key: 'api.view',            label: 'View integration status',      group: false, future: true },
+  { key: 'api.sync',            label: 'Trigger manual data sync',     group: false, future: true },
+  { key: 'api.configure',       label: 'Configure API connections',    group: false, future: true },
+  { key: 'api.mapping',         label: 'Manage field mappings',        group: false, future: true },
 ];
 
 type PermLevel = 'none' | 'view' | 'edit' | 'full';
@@ -1147,31 +1188,74 @@ const W = ['Senior PMO', 'PMO Team', 'Workforce Planning', 'Administration', 'De
 const S = ['Senior PMO', 'Senior TA', 'Department Head', 'Hub Lead', 'EVP'];
 
 function defaultPermLevel(sectionKey: string, profile: string): PermLevel {
+  const isSeniorPMO = profile === 'Senior PMO';
+  const isPMOOrAbove = ['Senior PMO', 'PMO Team'].includes(profile);
   switch (sectionKey) {
-    case 'people.view':       return 'view';
-    case 'people.edit':       return W.includes(profile) ? 'edit' : 'none';
-    case 'people.deactivate': return W.includes(profile) ? 'edit' : 'none';
-    case 'people.delete':     return ['Senior PMO', 'Workforce Planning'].includes(profile) ? 'full' : 'none';
-    case 'projects.view':     return 'view';
-    case 'projects.edit':     return W.includes(profile) ? 'edit' : 'none';
-    case 'allocations.view':  return 'view';
-    case 'allocations.edit':  return W.includes(profile) ? 'edit' : 'none';
-    case 'cycles.view':       return 'view';
-    case 'cycles.manage':     return profile === 'Senior PMO' ? 'full' : 'none';
-    case 'cycles.draft':      return profile === 'Senior PMO' ? 'edit' : 'none';
-    case 'cycles.active':     return W.includes(profile) ? 'edit' : 'none';
-    case 'cycles.review':     return W.includes(profile) ? 'edit' : 'none';
+    // People
+    case 'people.view':         return 'view';
+    case 'people.edit':         return W.includes(profile) ? 'edit' : 'none';
+    case 'people.deactivate':   return W.includes(profile) ? 'edit' : 'none';
+    case 'people.delete':       return ['Senior PMO', 'Workforce Planning'].includes(profile) ? 'full' : 'none';
+    case 'people.export':       return W.includes(profile) ? 'edit' : 'none';
+    case 'people.import':       return isSeniorPMO ? 'edit' : 'none';          // future API sync
+
+    // Projects
+    case 'projects.view':       return 'view';
+    case 'projects.edit':       return W.includes(profile) ? 'edit' : 'none';
+    case 'projects.weight':     return W.includes(profile) ? 'edit' : 'none';
+    case 'projects.archive':    return isPMOOrAbove ? 'full' : 'none';
+    case 'projects.export':     return W.includes(profile) ? 'edit' : 'none';
+    case 'projects.import':     return isSeniorPMO ? 'edit' : 'none';          // future API sync
+
+    // Allocations
+    case 'allocations.view':    return 'view';
+    case 'allocations.edit':    return W.includes(profile) ? 'edit' : 'none';
+    case 'allocations.bulk':    return W.includes(profile) ? 'edit' : 'none';
+    case 'allocations.delete':  return ['Senior PMO', 'Workforce Planning'].includes(profile) ? 'full' : 'none';
+    case 'allocations.export':  return W.includes(profile) ? 'edit' : 'none';
+
+    // Planning Cycles
+    case 'cycles.view':              return 'view';
+    case 'cycles.manage':            return isSeniorPMO ? 'full' : 'none';
+    case 'cycles.advance':           return ['Senior PMO', 'Workforce Planning'].includes(profile) ? 'full' : 'none';
+    case 'cycles.snapshot':          return W.includes(profile) ? 'edit' : 'none';
+    case 'cycles.admin_setup':       return ['Senior PMO', 'Workforce Planning'].includes(profile) ? 'edit' : 'none';
+    case 'cycles.pipeline_planning': return W.includes(profile) ? 'edit' : 'none';
+    case 'cycles.resource_planning': return W.includes(profile) ? 'edit' : 'none';
+    case 'cycles.regional_review':   return ['Senior PMO', 'PMO Team', 'Hub Lead'].includes(profile) ? 'edit' : 'none';
+    case 'cycles.global_approval':   return ['Senior PMO', 'EVP'].includes(profile) ? 'full' : 'none';
+
+    // Talent Acquisition
     case 'talent.view':       return 'view';
     case 'talent.create':     return profile === 'People Manager' ? 'none' : 'edit';
+    case 'talent.edit':       return profile === 'People Manager' ? 'none' : 'edit';
     case 'talent.approve':    return S.includes(profile) ? 'full' : 'none';
+    case 'talent.withdraw':   return S.includes(profile) ? 'full' : 'none';
+
+    // Change Requests
     case 'changes.view':      return 'view';
     case 'changes.create':    return profile === 'People Manager' ? 'none' : 'edit';
+    case 'changes.approve':   return S.includes(profile) ? 'full' : 'none';
     case 'changes.status':    return profile === 'People Manager' ? 'none' : 'edit';
+
+    // Reports & Dashboard
     case 'reports.view':      return 'view';
+    case 'reports.headcount': return [...W, 'Finance'].includes(profile) ? 'view' : 'none';
     case 'reports.finance':   return ['Senior PMO', 'PMO Team', 'Finance'].includes(profile) ? 'view' : 'none';
+    case 'reports.export':    return ['Senior PMO', 'PMO Team', 'Finance', 'Workforce Planning'].includes(profile) ? 'edit' : 'none';
+
+    // Administration
     case 'admin.view':        return ['Senior PMO', 'PMO Team', 'Workforce Planning', 'Administration'].includes(profile) ? 'view' : 'none';
     case 'admin.refdata':     return ['Senior PMO', 'PMO Team', 'Workforce Planning'].includes(profile) ? 'edit' : 'none';
-    case 'admin.access':      return profile === 'Senior PMO' ? 'full' : 'none';
+    case 'admin.alerts':      return ['Senior PMO', 'PMO Team', 'Workforce Planning'].includes(profile) ? 'edit' : 'none';
+    case 'admin.access':      return isSeniorPMO ? 'full' : 'none';
+
+    // API Integrations (future — locked down by default)
+    case 'api.view':          return isSeniorPMO ? 'view' : 'none';
+    case 'api.sync':          return isSeniorPMO ? 'edit' : 'none';
+    case 'api.configure':     return isSeniorPMO ? 'full' : 'none';
+    case 'api.mapping':       return isSeniorPMO ? 'full' : 'none';
+
     default:                  return 'none';
   }
 }
@@ -1295,19 +1379,25 @@ function UserAccessTab() {
               <tr><td colSpan={PERM_PROFILES.length + 1} style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: '#888' }}>Loading permissions...</td></tr>
             ) : SECTION_ROWS.map((row, idx) => {
               if (row.group) {
+                const grpBg = row.future ? '#F5F3FF' : '#F2F3F4';
+                const grpColor = row.future ? '#6D28D9' : '#374151';
                 return (
-                  <tr key={row.key} style={{ background: '#F2F3F4' }}>
-                    <td colSpan={PERM_PROFILES.length + 1} style={{ padding: '7px 16px', fontSize: 10, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.08em', borderTop: idx > 0 ? '2px solid #D1D5DB' : undefined, position: 'sticky', left: 0 }}>
+                  <tr key={row.key} style={{ background: grpBg }}>
+                    <td colSpan={PERM_PROFILES.length + 1} style={{ padding: '7px 16px', fontSize: 10, fontWeight: 700, color: grpColor, textTransform: 'uppercase', letterSpacing: '0.08em', borderTop: idx > 0 ? '2px solid #D1D5DB' : undefined, position: 'sticky', left: 0 }}>
                       {row.label}
+                      {row.future && <span style={{ marginLeft: 8, padding: '1px 6px', borderRadius: 4, background: '#EDE9FE', color: '#6D28D9', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', verticalAlign: 'middle' }}>PLANNED</span>}
                     </td>
                   </tr>
                 );
               }
-              const rowBg = leafRows.indexOf(row) % 2 === 0 ? '#FFFFFF' : '#FAFAFA';
+              const rowBg = row.future
+                ? (leafRows.indexOf(row) % 2 === 0 ? '#FDFCFF' : '#F9F7FF')
+                : (leafRows.indexOf(row) % 2 === 0 ? '#FFFFFF' : '#FAFAFA');
               return (
                 <tr key={row.key} style={{ background: rowBg }}>
-                  <td style={{ padding: '6px 16px 6px 26px', fontSize: 12, color: '#374151', position: 'sticky', left: 0, background: rowBg, borderRight: '2px solid #E0E0E0', borderBottom: '1px solid #F0F0F0', whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '6px 16px 6px 26px', fontSize: 12, color: row.future ? '#7C3AED' : '#374151', position: 'sticky', left: 0, background: rowBg, borderRight: '2px solid #E0E0E0', borderBottom: '1px solid #F0F0F0', whiteSpace: 'nowrap' }}>
                     {row.label}
+                    {row.future && <span style={{ marginLeft: 7, padding: '1px 5px', borderRadius: 3, background: '#EDE9FE', color: '#7C3AED', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em' }}>API</span>}
                   </td>
                   {PERM_PROFILES.map(p => {
                     const level = getLevel(row.key, p.name);
@@ -1316,9 +1406,9 @@ function UserAccessTab() {
                       local[p.name]?.[row.key] !== (dbPerms[p.name]?.[row.key] ?? defaultPermLevel(row.key, p.name));
                     return (
                       <td key={p.name} style={{ padding: '4px 3px', textAlign: 'center', borderLeft: '1px solid #F0F0F0', borderBottom: '1px solid #F0F0F0' }}>
-                        <button onClick={() => cycleCell(row.key, p.name)}
-                          title={`${p.name} - ${level} - click to change`}
-                          style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 4, cursor: 'pointer', minWidth: 40, outline: isDirty ? '2px solid #F59E0B' : 'none', outlineOffset: 1 }}>
+                        <button onClick={() => !row.future && cycleCell(row.key, p.name)}
+                          title={row.future ? 'Planned — not yet active' : `${p.name} · ${level} · click to change`}
+                          style={{ padding: '3px 6px', fontSize: 10, fontWeight: 700, background: row.future ? '#F5F3FF' : cfg.bg, color: row.future ? '#A78BFA' : cfg.color, border: `1px solid ${row.future ? '#DDD6FE' : cfg.border}`, borderRadius: 4, cursor: row.future ? 'default' : 'pointer', minWidth: 40, outline: isDirty ? '2px solid #F59E0B' : 'none', outlineOffset: 1, opacity: row.future ? 0.7 : 1 }}>
                           {cfg.label}
                         </button>
                       </td>
