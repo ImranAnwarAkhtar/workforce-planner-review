@@ -1214,7 +1214,7 @@ function PeopleTab({ yearA, yearB, dataA, dataB, allRegionNames, regionCodeMap }
             { label: 'Req Contractor', vA: dataA.headcount.reduce((s,r)=>s+r.req_con,0),       vB: dataB.headcount.reduce((s,r)=>s+r.req_con,0),       color: C.reqCon  },
             { label: 'Total Heads',    vA: totalA,                                              vB: totalB,                                              color: '#111'    },
           ].map(row => (
-            <div key={row.label} style={{ background: '#F8F9FA', borderRadius: 7, padding: '12px 14px', borderLeft: `3px solid ${row.color}` }}>
+            <div key={row.label} style={{ background: `linear-gradient(to right, ${row.color}28, #F8F9FA 65%)`, borderRadius: 7, padding: '12px 14px', borderLeft: `3px solid ${row.color}` }}>
               <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, marginBottom: 8 }}>{row.label}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div>
