@@ -6,7 +6,7 @@ const { fireEventAlerts } = require('./alerts');
 
 const router = Router();
 
-// Full SELECT — includes the 8 columns added by startup migration
+// Full SELECT — includes all columns added by startup migrations
 const SELECT_FULL = `
   cr.id, cr.change_type, cr.status, cr.auto_approved,
   cr.current_manager, cr.new_manager, cr.new_metro_location,
@@ -14,6 +14,7 @@ const SELECT_FULL = `
   cr.xscale_vs_retail, cr.requestor_email, cr.comments, cr.reviewer_notes,
   cr.is_borrowed_or_repurposed, cr.rejection_reason,
   cr.new_tbh_code_assigned, cr.finance_notified_at, cr.created_at, cr.approved_at,
+  cr.tbh_code_raw, cr.source,
   t.tbh_id,
   r.name  AS new_region_name,
   c.name  AS new_country_name,
@@ -36,6 +37,7 @@ const SELECT_CORE = `
   cr.justification,
   cr.is_borrowed_or_repurposed, cr.rejection_reason,
   cr.new_tbh_code_assigned, cr.finance_notified_at, cr.created_at, cr.approved_at,
+  cr.tbh_code_raw, cr.source,
   t.tbh_id,
   r.name  AS new_region_name,
   c.name  AS new_country_name,
@@ -96,7 +98,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 
 router.post('/', requireAuth, requireRole(...ALL_ROLES), async (req, res) => {
   const {
-    tbh_code_id, change_type,
+    tbh_code_id, tbh_code_raw, change_type,
     current_manager, new_manager, new_metro_location,
     new_region_id, new_country_id, new_level_id,
     is_borrowed_or_repurposed, justification,
@@ -105,6 +107,16 @@ router.post('/', requireAuth, requireRole(...ALL_ROLES), async (req, res) => {
   } = req.body;
 
   if (!change_type) return res.status(400).json({ error: 'change_type is required' });
+
+  // Resolve tbh_code_id from raw string if not supplied directly
+  let resolvedTbhCodeId = tbh_code_id ?? null;
+  if (!resolvedTbhCodeId && tbh_code_raw) {
+    const { rows: tbhRows } = await pool.query(
+      `SELECT id FROM tbh_codes WHERE LOWER(TRIM(tbh_id)) = LOWER(TRIM($1)) LIMIT 1`,
+      [tbh_code_raw]
+    );
+    if (tbhRows.length) resolvedTbhCodeId = tbhRows[0].id;
+  }
 
   const { rows: rules } = await pool.query(
     'SELECT auto_approve FROM change_request_rules WHERE change_type = $1',
@@ -115,18 +127,18 @@ router.post('/', requireAuth, requireRole(...ALL_ROLES), async (req, res) => {
 
   const { rows } = await pool.query(
     `INSERT INTO change_requests (
-       tbh_code_id, change_type,
+       tbh_code_id, tbh_code_raw, change_type,
        current_manager, new_manager, new_metro_location,
        new_region_id, new_country_id, new_level_id,
        is_borrowed_or_repurposed, justification,
        approval_type, senior_approver, senior_approver_status,
        xscale_vs_retail, requestor_email, comments,
-       status, auto_approved, submitted_by, approved_by, approved_at
+       source, status, auto_approved, submitted_by, approved_by, approved_at
      ) VALUES (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23
      ) RETURNING *`,
     [
-      tbh_code_id ?? null, change_type,
+      resolvedTbhCodeId, tbh_code_raw ?? null, change_type,
       current_manager ?? null, new_manager ?? null, new_metro_location ?? null,
       new_region_id ?? null, new_country_id ?? null, new_level_id ?? null,
       is_borrowed_or_repurposed ?? null, justification ?? null,
@@ -135,7 +147,7 @@ router.post('/', requireAuth, requireRole(...ALL_ROLES), async (req, res) => {
       xscale_vs_retail ?? null,
       requestor_email ?? req.user.email ?? null,
       comments ?? null,
-      status, autoApprove,
+      'in_app', status, autoApprove,
       req.user.id,
       autoApprove ? req.user.id : null,
       autoApprove ? new Date() : null,

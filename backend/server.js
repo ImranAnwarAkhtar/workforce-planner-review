@@ -836,10 +836,14 @@ const PORT = process.env.PORT || 3000;
     `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS approval_type          VARCHAR(100)`,
     `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS senior_approver        VARCHAR(255)`,
     `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS senior_approver_status VARCHAR(20) DEFAULT 'N/A'`,
-    `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS xscale_vs_retail       VARCHAR(10)`,
+    `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS xscale_vs_retail       VARCHAR(100)`,
     `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS requestor_email        VARCHAR(255)`,
     `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS comments               TEXT`,
     `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS reviewer_notes         TEXT`,
+    `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS tbh_code_raw           VARCHAR(200)`,
+    `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS source                 VARCHAR(50) DEFAULT 'in_app'`,
+    `ALTER TABLE change_requests ALTER COLUMN xscale_vs_retail TYPE VARCHAR(100)`,
+    `ALTER TABLE change_requests ALTER COLUMN change_type       TYPE TEXT`,
   ];
   for (const sql of crCols) {
     try { await pool.query(sql); } catch (e) { logger.warn('CR col migration skipped', { sql, err: e.message }); }

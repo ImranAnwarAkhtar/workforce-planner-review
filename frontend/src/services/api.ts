@@ -371,6 +371,13 @@ export const adminUsersApi = {
     client.put<ItemResponse<AppUser>>(`/admin/users/${id}`, body).then(r => r.data.data),
 };
 
+export interface FormUser { id: number; name: string; email: string }
+
+export const formUsersApi = {
+  list: () =>
+    client.get<ListResponse<FormUser>>('/admin/users/for-form').then(r => r.data.data),
+};
+
 export type UpdatePersonBody = Partial<CreatePersonBody> & {
   is_active?: boolean;
   email?: string | null;
@@ -766,6 +773,8 @@ export interface ChangeRequest {
   created_at: string;
   approved_at: string | null;
   tbh_id: string | null;
+  tbh_code_raw: string | null;
+  source: string | null;
   new_region_name: string | null;
   new_country_name: string | null;
   new_level_name: string | null;
@@ -784,6 +793,7 @@ export interface ChangeRequestsQuery {
 
 export interface CreateChangeRequestBody {
   tbh_code_id?: number | null;
+  tbh_code_raw?: string | null;
   change_type: string;
   current_manager?: string | null;
   new_manager?: string | null;

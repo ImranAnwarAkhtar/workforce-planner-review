@@ -97,6 +97,14 @@ router.get('/contract-types', requireAuth, async (req, res) => {
   res.json({ data: rows });
 });
 
+// ── Users (lightweight — for form dropdowns, all authenticated users) ────────
+router.get('/users/for-form', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, name, email FROM users WHERE is_active = true ORDER BY name ASC`
+  );
+  res.json({ data: rows });
+});
+
 // ── Users (administrator tier or Senior PMO) ──────────────────────────────────
 
 router.get('/users', requireAuth, requireRole(ROLES.PMO, PROFILES.SENIOR_PMO), async (req, res) => {
