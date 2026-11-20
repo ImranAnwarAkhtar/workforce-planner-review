@@ -28,7 +28,9 @@ const ROUTE_GRADIENTS: Record<string, string> = {
   '/people':          'linear-gradient(160deg, #7739D9 0%, #411980 100%)',
   '/headcount':       'linear-gradient(160deg, #086AE3 0%, #411980 100%)',
   '/requests':        'linear-gradient(160deg, #FE9234 0%, #E91C24 100%)',
-  '/change-requests': 'linear-gradient(160deg, #E91C24 0%, #2F3541 100%)',
+  '/change-requests':      'linear-gradient(160deg, #E91C24 0%, #2F3541 100%)',
+  '/change-requests/form': 'linear-gradient(160deg, #E91C24 0%, #2F3541 100%)',
+  '/change-requests/list': 'linear-gradient(160deg, #E91C24 0%, #2F3541 100%)',
   '/recruitment':     'linear-gradient(160deg, #33A85C 0%, #086AE3 100%)',
   '/admin':           'linear-gradient(160deg, #2F3541 0%, #111111 100%)',
   '/import':          'linear-gradient(160deg, #00737A 0%, #086AE3 100%)',
@@ -46,7 +48,10 @@ const NAV: NavItem[] = [
   { kind: 'link',  to: '/allocations',     label: 'Resource Allocation', icon: 'allocations' },
   { kind: 'link',  to: '/summary',         label: 'Resource Summary',   icon: 'summary'      },
   { kind: 'link',  to: '/headcount',       label: 'Headcount Requests', icon: 'headcount'    },
-  { kind: 'link',  to: '/change-requests', label: 'Change Requests',    icon: 'changes'      },
+  { kind: 'group', label: 'Change Requests', icon: 'changes', children: [
+    { to: '/change-requests/form', label: 'Change Form' },
+    { to: '/change-requests/list', label: 'Change List' },
+  ]},
   { kind: 'link',  to: '/recruitment',       label: 'Talent Acquisition',  icon: 'recruitment'  },
   { kind: 'link',  to: '/headcount-budget', label: 'Headcount Budget',     icon: 'budget'       },
   { kind: 'group', label: 'Admin', icon: 'admin', children: [
@@ -68,7 +73,8 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-const ADMIN_CHILDREN = new Set(['/people', '/project-list', '/admin', '/import']);
+const ADMIN_CHILDREN  = new Set(['/people', '/project-list', '/admin', '/import']);
+const CHANGE_CHILDREN = new Set(['/change-requests/form', '/change-requests/list']);
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const [hovered, setHovered]         = useState(false);
@@ -81,9 +87,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const isExpanded = !collapsed || hovered;
   const gradient   = ROUTE_GRADIENTS[activeRoute] ?? ROUTE_GRADIENTS['/dashboard'];
 
-  // Auto-open Admin group when an admin child is active
-  const adminChildActive = ADMIN_CHILDREN.has(activeRoute);
-  const isAdminOpen = groupOpen['Admin'] ?? adminChildActive;
+  // Auto-open groups when a child route is active
+  const adminChildActive  = ADMIN_CHILDREN.has(activeRoute);
+  const changeChildActive = CHANGE_CHILDREN.has(activeRoute);
+  const isAdminOpen  = groupOpen['Admin']           ?? adminChildActive;
+  const isChangeOpen = groupOpen['Change Requests'] ?? changeChildActive;
 
   function handleLogout() {
     logout();
@@ -203,7 +211,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
           // Group item
           const { label, icon, children } = item;
-          const isOpen      = label === 'Admin' ? isAdminOpen : (groupOpen[label] ?? false);
+          const isOpen      = label === 'Admin' ? isAdminOpen : label === 'Change Requests' ? isChangeOpen : (groupOpen[label] ?? false);
           const groupActive = children.some(c => c.to === activeRoute);
           const isHov       = hoveredNav === `group:${label}`;
           return (

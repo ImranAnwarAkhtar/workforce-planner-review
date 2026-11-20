@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   smartsheetApi, changeRequestsApi, formUsersApi,
   type SmartsheetRow, type ChangeRequest, type FormUser,
@@ -197,7 +198,8 @@ const EMPTY_FORM: FormState = {
   change_required: [],
 };
 
-function ChangeForm({ onSubmitted }: { onSubmitted: () => void }) {
+function ChangeForm() {
+  const navigate = useNavigate();
   const [form,       setForm]       = useState<FormState>(EMPTY_FORM);
   const [users,      setUsers]      = useState<FormUser[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -256,7 +258,7 @@ function ChangeForm({ onSubmitted }: { onSubmitted: () => void }) {
             Submit Another
           </button>
           <button
-            onClick={onSubmitted}
+            onClick={() => navigate('/change-requests/list')}
             style={{ padding: '8px 20px', border: 'none', borderRadius: 7, fontSize: 13, background: '#E91C24', cursor: 'pointer', color: '#FFF', fontWeight: 600 }}
           >
             View in List
@@ -784,68 +786,13 @@ function ChangeRequestList() {
 }
 
 // ---------------------------------------------------------------------------
-// Main page component
+// Main page component — driven by route via `view` prop
 // ---------------------------------------------------------------------------
 
-type Tab = 'list' | 'form';
-
-export default function ChangeRequests() {
-  const [activeTab, setActiveTab] = useState<Tab>('list');
-  const [listKey, setListKey] = useState(0);
-
-  function handleFormSubmitted() {
-    setActiveTab('list');
-    setListKey(k => k + 1);
-  }
-
-  const TAB_BTN = (tab: Tab, label: string) => {
-    const active = activeTab === tab;
-    return (
-      <button
-        key={tab}
-        onClick={() => setActiveTab(tab)}
-        style={{
-          padding: '8px 20px', border: 'none', borderRadius: '6px 6px 0 0',
-          fontSize: 13, fontWeight: active ? 700 : 500,
-          cursor: 'pointer',
-          background: active ? '#FFFFFF' : 'transparent',
-          color: active ? '#E91C24' : '#5A657B',
-          borderBottom: active ? '2px solid #E91C24' : '2px solid transparent',
-          transition: 'all 0.1s',
-        }}
-      >
-        {label}
-      </button>
-    );
-  };
-
+export default function ChangeRequests({ view }: { view: 'form' | 'list' }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', color: '#111111' }}>
-
-      {/* Page header */}
-      <div style={{
-        flexShrink: 0,
-        background: '#FFFFFF', borderBottom: '1px solid #E0E3E8',
-        marginBottom: 0, padding: '8px 16px 0',
-        display: 'flex', flexDirection: 'column', gap: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Change Requests</span>
-        </div>
-        <div style={{ display: 'flex', gap: 2 }}>
-          {TAB_BTN('list', 'List')}
-          {TAB_BTN('form', 'Change Form')}
-        </div>
-      </div>
-
-      {/* Tab content */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '10px 0 0' }}>
-        {activeTab === 'list'
-          ? <ChangeRequestList key={listKey} />
-          : <ChangeForm onSubmitted={handleFormSubmitted} />
-        }
-      </div>
-
+      {view === 'list' ? <ChangeRequestList /> : <ChangeForm />}
     </div>
   );
 }

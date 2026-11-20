@@ -39,7 +39,9 @@ export default function App() {
               <Route path="/people"          element={<People />} />
               <Route path="/allocations"     element={<Allocations />} />
               <Route path="/requests"        element={<Requests />} />
-              <Route path="/change-requests" element={<ChangeRequests />} />
+              <Route path="/change-requests"      element={<Navigate to="/change-requests/form" replace />} />
+              <Route path="/change-requests/form" element={<ChangeRequests view="form" />} />
+              <Route path="/change-requests/list" element={<ChangeRequests view="list" />} />
               <Route path="/recruitment"        element={<Recruitment />} />
               <Route path="/talent-acquisition" element={<Recruitment />} />
               <Route path="/headcount"          element={<Headcount />} />
