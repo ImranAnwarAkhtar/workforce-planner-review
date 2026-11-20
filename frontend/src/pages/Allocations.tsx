@@ -1395,12 +1395,12 @@ useEffect(() => {
                     {group.country}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
-                      {sortedProjects.length} <span style={{ fontSize: 9, fontWeight: 400, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>proj</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
+                      {sortedProjects.length} <span style={{ fontSize: 8, fontWeight: 400 }}>Projects</span>
                     </span>
                     <span style={{ width: 1, height: 10, background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#E91C24' }}>
-                      {group.totalWeight} <span style={{ fontSize: 9, fontWeight: 400, color: 'rgba(233,28,36,0.75)', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>wt</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#E91C24' }}>
+                      {group.totalWeight} <span style={{ fontSize: 8, fontWeight: 400, color: 'rgba(233,28,36,0.75)' }}>Wt</span>
                     </span>
                   </div>
                 </div>

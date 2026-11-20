@@ -9,7 +9,9 @@ const Allocations   = lazy(() => import('../pages/Allocations'));
 const People        = lazy(() => import('../pages/People'));
 const Headcount     = lazy(() => import('../pages/Headcount'));
 const Requests      = lazy(() => import('../pages/Requests'));
-const ChangeRequests = lazy(() => import('../pages/ChangeRequests'));
+const ChangeRequestsRaw  = lazy(() => import('../pages/ChangeRequests'));
+const ChangeRequestsForm = (props: any) => <ChangeRequestsRaw {...props} view="form" />;
+const ChangeRequestsList = (props: any) => <ChangeRequestsRaw {...props} view="list" />;
 const Recruitment   = lazy(() => import('../pages/Recruitment'));
 const Admin         = lazy(() => import('../pages/Admin'));
 const Import        = lazy(() => import('../pages/Import'));
@@ -25,7 +27,9 @@ const PAGE_MAP: Record<string, React.ComponentType<any>> = {
   '/people':              People,
   '/headcount':           Headcount,
   '/requests':            Requests,
-  '/change-requests':     ChangeRequests,
+  '/change-requests':      ChangeRequestsForm,
+  '/change-requests/form': ChangeRequestsForm,
+  '/change-requests/list': ChangeRequestsList,
   '/recruitment':         Recruitment,
   '/admin':               Admin,
   '/import':              Import,
