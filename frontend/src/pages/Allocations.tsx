@@ -1368,6 +1368,10 @@ useEffect(() => {
           });
 
         const totalFte = allocatedPeople.reduce((s, p) => s + (allocMap[p.id]?.[group.countryId] ?? 0), 0);
+        const fteAlloc = allocatedPeople.filter(p => contractGroup(p) === 'employee')
+          .reduce((s, p) => s + (allocMap[p.id]?.[group.countryId] ?? 0), 0);
+        const conAlloc = allocatedPeople.filter(p => contractGroup(p) === 'contingent')
+          .reduce((s, p) => s + (allocMap[p.id]?.[group.countryId] ?? 0), 0);
 
         if (sortedProjects.length === 0 && allocatedPeople.length === 0) return null;
 
@@ -1386,8 +1390,19 @@ useEffect(() => {
             {/* Projects section */}
             {sortedProjects.length > 0 && (
               <>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 6 }}>
-                  {group.country} — {sortedProjects.length} project{sortedProjects.length !== 1 ? 's' : ''}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
+                    {group.country}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
+                      {sortedProjects.length} <span style={{ fontSize: 9, fontWeight: 400, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>proj</span>
+                    </span>
+                    <span style={{ width: 1, height: 10, background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#E91C24' }}>
+                      {group.totalWeight} <span style={{ fontSize: 9, fontWeight: 400, color: 'rgba(233,28,36,0.75)', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>wt</span>
+                    </span>
+                  </div>
                 </div>
                 {sortedProjects.map(proj => (
                   <div key={proj.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
@@ -1403,8 +1418,30 @@ useEffect(() => {
             {/* People section */}
             {allocatedPeople.length > 0 && (
               <>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginTop: sortedProjects.length > 0 ? 10 : 0, marginBottom: 6, borderTop: sortedProjects.length > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', paddingTop: sortedProjects.length > 0 ? 8 : 0 }}>
-                  {sortedProjects.length === 0 ? `${group.country} — ` : ''}{allocatedPeople.length} person{allocatedPeople.length !== 1 ? 's' : ''} · {totalFte.toFixed(2)} FTE
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: sortedProjects.length > 0 ? 10 : 0, marginBottom: 6, borderTop: sortedProjects.length > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', paddingTop: sortedProjects.length > 0 ? 8 : 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
+                    {sortedProjects.length === 0 ? `${group.country} · ` : ''}{allocatedPeople.length} <span style={{ fontWeight: 400, fontSize: 9, letterSpacing: '0.06em' }}>person{allocatedPeople.length !== 1 ? 's' : ''}</span>
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                    {fteAlloc > 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
+                        {fteAlloc.toFixed(2)} <span style={{ fontSize: 9, fontWeight: 400, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>fte</span>
+                      </span>
+                    )}
+                    {fteAlloc > 0 && conAlloc > 0 && (
+                      <span style={{ width: 1, height: 10, background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+                    )}
+                    {conAlloc > 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#F59E0B' }}>
+                        {conAlloc.toFixed(2)} <span style={{ fontSize: 9, fontWeight: 400, color: 'rgba(245,158,11,0.75)', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>con</span>
+                      </span>
+                    )}
+                    {fteAlloc === 0 && conAlloc === 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
+                        {totalFte.toFixed(2)} <span style={{ fontSize: 9, fontWeight: 400, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>fte</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {allocatedPeople.slice(0, 8).map(p => (
                   <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
