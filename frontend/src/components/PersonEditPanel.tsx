@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import {
   peopleApi, refDataApi, tbhCodesApi, countryAllocationsApi,
@@ -156,16 +156,26 @@ export default function PersonEditPanel({ person, onClose, onSaved, countryAlloc
     setAllocEntries(entries);
   }, [countryAllocs]);
 
+  // Build a lookup of existing NP values so they are preserved on save
+  const existingNpMap = useMemo(() => {
+    const m: Record<number, number> = {};
+    for (const a of countryAllocs ?? []) {
+      m[a.country_id] = Number(a.non_project_fte ?? 0);
+    }
+    return m;
+  }, [countryAllocs]);
+
   const allocTotal = countryGroups
     ? countryGroups.reduce((s, g) => s + (parseFloat(allocEntries[g.countryId] ?? '0') || 0), 0)
     : 0;
 
   async function saveAllocs() {
     if (!person) return;
-    const allocs = (countryGroups ?? []).map(g => ({
-      country_id: g.countryId,
-      fte_value: parseFloat(allocEntries[g.countryId] ?? '0') || 0,
-    })).filter(a => a.fte_value > 0);
+    const allocs = (countryGroups ?? []).map(g => {
+      const fv = parseFloat(allocEntries[g.countryId] ?? '0') || 0;
+      const np = Math.min(existingNpMap[g.countryId] ?? 0, fv);
+      return { country_id: g.countryId, fte_value: fv, non_project_fte: np };
+    }).filter(a => a.fte_value > 0);
     if (allocTotal > 1.001) { toast.error(`Total FTE ${allocTotal.toFixed(2)} exceeds 1.0`); return; }
     setAllocSaving(true);
     try {

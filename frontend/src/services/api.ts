@@ -556,6 +556,7 @@ export interface CountryAllocation {
   country_id: number;
   planning_cycle_id: number | null;
   fte_value: number;
+  non_project_fte: number;
   country_name: string;
   person_name: string;
   created_at: string;
@@ -565,7 +566,7 @@ export interface CountryAllocation {
 export const countryAllocationsApi = {
   list: (params: { planning_cycle_id?: number | null; region_id?: number | null; person_id?: number }) =>
     client.get<ListResponse<CountryAllocation>>('/country-allocations', { params }).then(r => r.data.data),
-  save: (personId: number, planning_cycle_id: number | null, allocations: { country_id: number; fte_value: number }[]) =>
+  save: (personId: number, planning_cycle_id: number | null, allocations: { country_id: number; fte_value: number; non_project_fte?: number }[]) =>
     client.put<ListResponse<CountryAllocation>>(`/country-allocations/${personId}`, { planning_cycle_id, allocations }).then(r => r.data.data),
 };
 

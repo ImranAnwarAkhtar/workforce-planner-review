@@ -673,6 +673,11 @@ _startupMigs.push((async () => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ca_person ON country_allocations(person_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ca_country ON country_allocations(country_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ca_cycle ON country_allocations(planning_cycle_id)`);
+    // Add non_project_fte column if not yet present
+    await pool.query(`
+      ALTER TABLE country_allocations
+        ADD COLUMN IF NOT EXISTS non_project_fte DECIMAL(4,2) NOT NULL DEFAULT 0
+    `);
     logger.info('Country allocations migration complete');
   } catch (err) {
     logger.error('Country allocations migration failed', { error: err.message });

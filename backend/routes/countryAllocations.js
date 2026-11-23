@@ -18,7 +18,7 @@ router.get('/', requireAuth, async (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const { rows } = await pool.query(
     `SELECT ca.id, ca.person_id, ca.country_id, ca.planning_cycle_id,
-            ca.fte_value, ca.created_at, ca.updated_at,
+            ca.fte_value, ca.non_project_fte, ca.created_at, ca.updated_at,
             co.name AS country_name, pe.name AS person_name
      FROM country_allocations ca
      JOIN countries co ON ca.country_id = co.id
@@ -54,13 +54,14 @@ router.put('/:personId', requireAuth, async (req, res) => {
       );
     }
     const saved = [];
-    for (const { country_id, fte_value } of allocations) {
-      const fv = parseFloat(fte_value) || 0;
+    for (const { country_id, fte_value, non_project_fte } of allocations) {
+      const fv  = parseFloat(fte_value) || 0;
+      const npv = Math.min(parseFloat(non_project_fte) || 0, fv); // NP cannot exceed total FTE
       if (fv <= 0) continue;
       const { rows: [row] } = await client.query(
-        `INSERT INTO country_allocations (person_id, country_id, planning_cycle_id, fte_value)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [personId, parseInt(country_id, 10), planning_cycle_id || null, fv]
+        `INSERT INTO country_allocations (person_id, country_id, planning_cycle_id, fte_value, non_project_fte)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [personId, parseInt(country_id, 10), planning_cycle_id || null, fv, npv]
       );
       saved.push(row);
     }

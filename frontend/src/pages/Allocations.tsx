@@ -124,6 +124,7 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   // Add allocation modal state
   const [modalPersonId, setModalPersonId]   = useState<number | ''>('');
   const [modalAllocs, setModalAllocs]       = useState<Record<number, string>>({});
+  const [modalNonProjectAllocs, setModalNonProjectAllocs] = useState<Record<number, string>>({});
   const [modalSaving, setModalSaving]       = useState(false);
   const [allocMode, setAllocMode]           = useState<'equal' | 'custom'>('equal');
   const [equalCountries, setEqualCountries] = useState<Set<number>>(new Set());
@@ -166,7 +167,7 @@ export default function Allocations({ tabId }: { tabId?: string } = {}) {
   const [createPersonSaving, setCreatePersonSaving] = useState(false);
 
   // ── Undo / redo history ───────────────────────────────────────────────────
-  type AllocSnapshot = { personId: number; cycleId: number | null; before: { country_id: number; fte_value: number }[]; after: { country_id: number; fte_value: number }[] };
+  type AllocSnapshot = { personId: number; cycleId: number | null; before: { country_id: number; fte_value: number; non_project_fte?: number }[]; after: { country_id: number; fte_value: number; non_project_fte?: number }[] };
   const [undoStack, setUndoStack] = useState<AllocSnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<AllocSnapshot[]>([]);
 
@@ -280,6 +281,15 @@ useEffect(() => {
     for (const a of countryAllocs) {
       if (!m[a.person_id]) m[a.person_id] = {};
       m[a.person_id][a.country_id] = Number(a.fte_value);
+    }
+    return m;
+  }, [countryAllocs]);
+
+  const nonProjectAllocMap = useMemo(() => {
+    const m: Record<number, Record<number, number>> = {};
+    for (const a of countryAllocs) {
+      if (!m[a.person_id]) m[a.person_id] = {};
+      m[a.person_id][a.country_id] = Number(a.non_project_fte ?? 0);
     }
     return m;
   }, [countryAllocs]);
@@ -414,7 +424,7 @@ useEffect(() => {
 
       const countries = countryGroups.map(g => {
         const proposed = h.allPeople.reduce(
-          (s, p) => s + (allocMap[p.id]?.[g.countryId] ?? 0), 0
+          (s, p) => s + (allocMap[p.id]?.[g.countryId] ?? 0) - (nonProjectAllocMap[p.id]?.[g.countryId] ?? 0), 0
         );
 
         if (!retailDivisor && !xScaleDivisor) {
@@ -450,7 +460,7 @@ useEffect(() => {
       });
       return { discipline: h.discipline, countries };
     });
-  }, [displayedHierarchy, allocMap, countryGroups, gearingConstants]);
+  }, [displayedHierarchy, allocMap, nonProjectAllocMap, countryGroups, gearingConstants]);
 
   // ── Lazy comment fetch for pill tooltip ──────────────────────────────────
   const fetchLatestComment = useCallback(async (personId: number) => {
@@ -475,6 +485,7 @@ useEffect(() => {
     setLockedPerson(null);
     setModalPersonId('');
     setModalAllocs({});
+    setModalNonProjectAllocs({});
     setAllocMode('equal');
     setEqualCountries(new Set());
     setModalTab('person');
@@ -543,12 +554,15 @@ useEffect(() => {
       return;
     }
     const existing: Record<number, string> = {};
+    const existingNp: Record<number, string> = {};
     for (const a of countryAllocs.filter(a => a.person_id === p.id)) {
       existing[a.country_id] = String(a.fte_value);
+      if (Number(a.non_project_fte) > 0) existingNp[a.country_id] = String(a.non_project_fte);
     }
     setModalPersonId(p.id);
     setLockedPerson(p);
     setModalAllocs(existing);
+    setModalNonProjectAllocs(existingNp);
     setAllocMode(Object.keys(existing).length > 0 ? 'custom' : 'equal');
     setEqualCountries(new Set());
     setAddModal({});
@@ -556,7 +570,7 @@ useEffect(() => {
 
   async function saveModalAllocs() {
     if (!modalPersonId) return;
-    let allocs: { country_id: number; fte_value: number }[];
+    let allocs: { country_id: number; fte_value: number; non_project_fte?: number }[];
     if (allocMode === 'equal') {
       if (equalCountries.size === 0) { toast.error('Select at least one country'); return; }
       const perFte = parseFloat((1.0 / equalCountries.size).toFixed(4));
@@ -567,10 +581,15 @@ useEffect(() => {
         fte_value: i === ids.length - 1
           ? parseFloat((1.0 - perFte * (ids.length - 1)).toFixed(4))
           : perFte,
+        non_project_fte: 0,
       }));
     } else {
       allocs = countryGroups
-        .map(g => ({ country_id: g.countryId, fte_value: parseFloat(modalAllocs[g.countryId] ?? '0') || 0 }))
+        .map(g => {
+          const fv = parseFloat(modalAllocs[g.countryId] ?? '0') || 0;
+          const npv = Math.min(parseFloat(modalNonProjectAllocs[g.countryId] ?? '0') || 0, fv);
+          return { country_id: g.countryId, fte_value: fv, non_project_fte: npv };
+        })
         .filter(a => a.fte_value > 0);
       const total = allocs.reduce((s, a) => s + a.fte_value, 0);
       if (total > 1.001) { toast.error(`Total FTE ${total.toFixed(2)} exceeds 1.0`); return; }
@@ -579,7 +598,7 @@ useEffect(() => {
     const cycleId = selectedCycleId ?? null;
     const before = countryAllocs
       .filter(a => a.person_id === personIdNum && a.planning_cycle_id === cycleId)
-      .map(a => ({ country_id: a.country_id, fte_value: Number(a.fte_value) }));
+      .map(a => ({ country_id: a.country_id, fte_value: Number(a.fte_value), non_project_fte: Number(a.non_project_fte ?? 0) }));
     setModalSaving(true);
     try {
       await countryAllocationsApi.save(personIdNum, cycleId, allocs);
@@ -1491,20 +1510,35 @@ useEffect(() => {
             {/* Country allocations */}
             {(() => {
               const personAllocs = countryGroups
-                .map(g => ({ country: g.country, countryId: g.countryId, val: allocMap[hovP.id]?.[g.countryId] ?? 0 }))
+                .map(g => ({
+                  country: g.country,
+                  countryId: g.countryId,
+                  val: allocMap[hovP.id]?.[g.countryId] ?? 0,
+                  np: nonProjectAllocMap[hovP.id]?.[g.countryId] ?? 0,
+                }))
                 .filter(a => a.val > 0);
               if (personAllocs.length === 0) return null;
               return (
                 <div style={{ borderTop: '1px solid #2E2E50', paddingTop: 8, marginBottom: 6 }}>
                   {personAllocs.map(a => {
                     const f = flagUrl(a.country);
+                    const projectFte = a.val - a.np;
                     return (
-                      <div key={a.countryId} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        {f && <img src={f} alt="" width={14} height={10} style={{ borderRadius: 1, objectFit: 'cover', flexShrink: 0 }} />}
-                        <span style={{ fontSize: 11, flex: 1, color: 'rgba(255,255,255,0.85)' }}>{a.country}</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#7BC8FF', flexShrink: 0 }}>
-                          {a.val % 1 === 0 ? a.val.toFixed(0) : a.val.toFixed(2)} FTE
-                        </span>
+                      <div key={a.countryId} style={{ marginBottom: 5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {f && <img src={f} alt="" width={14} height={10} style={{ borderRadius: 1, objectFit: 'cover', flexShrink: 0 }} />}
+                          <span style={{ fontSize: 11, flex: 1, color: 'rgba(255,255,255,0.85)' }}>{a.country}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#7BC8FF', flexShrink: 0 }}>
+                            {a.val % 1 === 0 ? a.val.toFixed(0) : a.val.toFixed(2)} FTE
+                          </span>
+                        </div>
+                        {a.np > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 1, paddingLeft: 20 }}>
+                            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>
+                              Project: {projectFte.toFixed(2)} · Non-proj: {a.np.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1686,19 +1720,28 @@ useEffect(() => {
               {/* Custom mode — per-country number inputs */}
               {countryGroups.length > 0 && allocMode === 'custom' && (
                 <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, marginBottom: 8 }}>
-                    Country allocations (total must be ≤ 1.0)
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase' as const, letterSpacing: '0.07em', fontWeight: 600, flex: 1 }}>
+                      Country allocations (total ≤ 1.0)
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#5A657B', width: 70, textAlign: 'center' as const }}>Total FTE</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#C59000', width: 70, textAlign: 'center' as const }}>Non-Project</span>
+                    </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {countryGroups.map(g => {
                       const flag = flagUrl(g.country);
                       const val = modalAllocs[g.countryId] ?? '';
+                      const npVal = modalNonProjectAllocs[g.countryId] ?? '';
+                      const fv = parseFloat(val) || 0;
+                      const npv = parseFloat(npVal) || 0;
+                      const npExceeds = npv > fv && fv > 0;
                       return (
-                        <div key={g.country} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div key={g.country} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
                             {flag && <img src={flag} alt="" width={16} height={12} style={{ borderRadius: 2, objectFit: 'cover', flexShrink: 0 }} />}
                             <span style={{ fontSize: 13, color: '#111111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.country}</span>
-                            <span style={{ fontSize: 10, color: '#888', marginLeft: 4, flexShrink: 0 }}>Wt {g.totalWeight.toFixed(1)}</span>
                           </div>
                           <input
                             type="number" min="0" max="1" step="0.1"
@@ -1706,6 +1749,14 @@ useEffect(() => {
                             onChange={e => setModalAllocs(prev => ({ ...prev, [g.countryId]: e.target.value }))}
                             placeholder="0.0"
                             style={{ width: 70, padding: '5px 8px', border: '1px solid #D5D5D5', borderRadius: 4, fontSize: 13, textAlign: 'center' as const, outline: 'none' }}
+                          />
+                          <input
+                            type="number" min="0" max={val || '1'} step="0.1"
+                            value={npVal}
+                            onChange={e => setModalNonProjectAllocs(prev => ({ ...prev, [g.countryId]: e.target.value }))}
+                            placeholder="0.0"
+                            title="Non-project time (subtracted from gearing targets)"
+                            style={{ width: 70, padding: '5px 8px', border: `1px solid ${npExceeds ? '#E91C24' : '#D5D5D5'}`, borderRadius: 4, fontSize: 13, textAlign: 'center' as const, outline: 'none', background: npVal ? '#FFF9E6' : undefined }}
                           />
                         </div>
                       );
