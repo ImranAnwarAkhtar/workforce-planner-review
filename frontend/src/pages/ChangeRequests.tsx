@@ -42,6 +42,30 @@ const CHANGE_REQUIRED_OPTIONS = [
   'Manager Change – Across Regions',
 ] as const;
 
+const LEVEL_OPTIONS = [
+  'IC1 – Individual Contributor Level 1',
+  'IC2 – Individual Contributor Level 2',
+  'IC3 – Individual Contributor Level 3',
+  'IC4 – Individual Contributor Level 4',
+  'IC5 – Individual Contributor Level 5',
+  'IC6 – Individual Contributor Level 6',
+  'PM1 – People Manager Level 1',
+  'PM2 – People Manager Level 2',
+  'PM3 – People Manager Level 3',
+  'PM4 – People Manager Level 4',
+  'PM5 – People Manager Level 5',
+] as const;
+
+const METRO_OPTIONS = [
+  'Ashburn / Washington DC', 'Atlanta', 'Boston', 'Chicago', 'Dallas',
+  'Denver', 'Houston', 'Los Angeles', 'Miami', 'New York', 'Phoenix',
+  'Seattle', 'Silicon Valley', 'Toronto', 'São Paulo',
+  'Amsterdam', 'Dubai', 'Frankfurt', 'Helsinki', 'London', 'Madrid',
+  'Milan', 'Paris', 'Warsaw', 'Zurich',
+  'Hong Kong', 'Jakarta', 'Melbourne', 'Osaka', 'Seoul', 'Singapore',
+  'Sydney', 'Tokyo',
+] as const;
+
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
@@ -179,6 +203,99 @@ function UserEmailSelect({
 }
 
 // ---------------------------------------------------------------------------
+// Multi-select dropdown with checkboxes
+// ---------------------------------------------------------------------------
+
+function MultiSelectDropdown({
+  options, value, onChange, placeholder, error,
+}: {
+  options: readonly string[];
+  value: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+  error?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          padding: '7px 10px', border: `1px solid ${error ? '#E91C24' : open ? '#3B4ECA' : '#D1D5DB'}`,
+          borderRadius: 6, cursor: 'pointer', background: '#FFF',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+          minHeight: 38, gap: 6,
+        }}
+      >
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1 }}>
+          {value.length === 0 ? (
+            <span style={{ fontSize: 13, color: '#9CA3AF', paddingTop: 1 }}>{placeholder ?? 'Select all that apply…'}</span>
+          ) : value.map(v => (
+            <span key={v} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '2px 8px', borderRadius: 12,
+              background: '#EEF4FF', color: '#3B4ECA',
+              border: '1px solid #C7D2FE', fontSize: 12, fontWeight: 600,
+            }}>
+              {v}
+              <span
+                onMouseDown={e => { e.stopPropagation(); onChange(value.filter(x => x !== v)); }}
+                style={{ cursor: 'pointer', fontSize: 14, lineHeight: 1, opacity: 0.7 }}
+              >×</span>
+            </span>
+          ))}
+        </div>
+        <span style={{ flexShrink: 0, marginTop: 4, color: '#6B7280', fontSize: 10 }}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          background: '#FFF', border: '1px solid #D1D5DB', borderTop: 'none',
+          borderRadius: '0 0 6px 6px',
+          boxShadow: '0 6px 16px rgba(0,0,0,0.1)',
+          maxHeight: 280, overflowY: 'auto',
+        }}>
+          {options.map(opt => {
+            const checked = value.includes(opt);
+            return (
+              <label
+                key={opt}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 12px', cursor: 'pointer',
+                  background: checked ? '#F5F7FF' : '#FFF',
+                  borderBottom: '1px solid #F0F2F5',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={e => onChange(e.target.checked ? [...value, opt] : value.filter(v => v !== opt))}
+                  style={{ accentColor: '#3B4ECA', width: 15, height: 15, flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 13, color: checked ? '#3B4ECA' : '#374151', fontWeight: checked ? 600 : 400 }}>
+                  {opt}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Change Form tab
 // ---------------------------------------------------------------------------
 
@@ -188,6 +305,13 @@ interface FormState {
   requestor_email: string;
   xscale_vs_retail: string;
   change_required: string[];
+  // Conditional fields
+  new_manager_name: string;
+  new_level_or_role: string;
+  new_metro_location: string;
+  justification: string;
+  borrowed_or_repurposed: string;
+  send_copy: boolean;
 }
 
 const EMPTY_FORM: FormState = {
@@ -196,6 +320,12 @@ const EMPTY_FORM: FormState = {
   requestor_email: '',
   xscale_vs_retail: '',
   change_required: [],
+  new_manager_name: '',
+  new_level_or_role: '',
+  new_metro_location: '',
+  justification: '',
+  borrowed_or_repurposed: '',
+  send_copy: false,
 };
 
 function ChangeForm() {
@@ -210,13 +340,28 @@ function ChangeForm() {
     formUsersApi.list().then(setUsers).catch(() => {});
   }, []);
 
+  const needsManagerName   = form.change_required.some(c => c.startsWith('Manager Change'));
+  const needsLevelOrRole   = form.change_required.includes('Level or Role Change');
+  const needsMetroLocation = form.change_required.some(c =>
+    c === 'Location Change – Same Region' || c === 'Manager Change – Across Regions'
+  );
+  const hasAnyChange       = form.change_required.length > 0;
+  const showSendCopy       = form.change_required.includes('Manager Change – Different Function or Team');
+
   function validate(): boolean {
     const e: typeof errors = {};
-    if (!form.tbh_code_raw.trim())   e.tbh_code_raw   = 'TBH Code is required';
-    if (!form.current_manager.trim()) e.current_manager = 'Current Manager is required';
-    if (!form.requestor_email)        e.requestor_email = 'Requestor Email is required';
+    if (!form.tbh_code_raw.trim())    e.tbh_code_raw    = 'TBH Code is required';
+    if (!form.current_manager.trim()) e.current_manager  = 'Current Manager is required';
+    if (!form.requestor_email)        e.requestor_email  = 'Requestor Email is required';
     if (!form.xscale_vs_retail)       e.xscale_vs_retail = 'xScale v Retail is required';
-    if (!form.change_required.length) e.change_required = 'At least one change type is required';
+    if (!form.change_required.length) e.change_required  = 'At least one change type is required';
+    if (hasAnyChange) {
+      if (needsManagerName && !form.new_manager_name.trim())  e.new_manager_name   = 'New Manager Name is required';
+      if (needsLevelOrRole && !form.new_level_or_role)        e.new_level_or_role  = 'New Level or Role is required';
+      if (needsMetroLocation && !form.new_metro_location)     e.new_metro_location = 'New metro location is required';
+      if (!form.justification.trim())                         e.justification      = 'Reason for change is required';
+      if (!form.borrowed_or_repurposed)                       e.borrowed_or_repurposed = 'Please select Borrowed or Repurposed';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -227,11 +372,21 @@ function ChangeForm() {
     setSubmitting(true);
     try {
       await changeRequestsApi.create({
-        tbh_code_raw:     form.tbh_code_raw.trim(),
-        change_type:      form.change_required.join(', '),
-        current_manager:  form.current_manager.trim(),
-        requestor_email:  form.requestor_email,
-        xscale_vs_retail: form.xscale_vs_retail,
+        tbh_code_raw:              form.tbh_code_raw.trim(),
+        change_type:               form.change_required.join(', '),
+        current_manager:           form.current_manager.trim(),
+        requestor_email:           form.requestor_email,
+        xscale_vs_retail:          form.xscale_vs_retail,
+        new_manager:               needsManagerName ? form.new_manager_name.trim() || null : null,
+        new_metro_location:        needsMetroLocation ? form.new_metro_location || null : null,
+        justification:             hasAnyChange ? form.justification.trim() || null : null,
+        is_borrowed_or_repurposed: hasAnyChange && form.borrowed_or_repurposed
+          ? form.borrowed_or_repurposed === 'Borrowed'
+          : null,
+        comments: [
+          needsLevelOrRole && form.new_level_or_role ? `New Level/Role: ${form.new_level_or_role}` : '',
+          showSendCopy && form.send_copy ? 'Requestor requested a copy of responses' : '',
+        ].filter(Boolean).join('; ') || null,
       });
       setSubmitted(true);
       setForm(EMPTY_FORM);
@@ -269,165 +424,243 @@ function ChangeForm() {
   }
 
   const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 };
-  const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.06em' };
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: '#111827' };
   const inputStyle = (hasErr: boolean): React.CSSProperties => ({
     padding: '7px 10px', border: `1px solid ${hasErr ? '#E91C24' : '#D1D5DB'}`, borderRadius: 6,
-    fontSize: 13, outline: 'none', background: '#FFF',
+    fontSize: 13, outline: 'none', background: '#FFF', width: '100%', boxSizing: 'border-box' as const,
   });
-  const helperStyle: React.CSSProperties = { fontSize: 11, color: '#6B7280', marginTop: 2 };
-  const errStyle: React.CSSProperties = { fontSize: 11, color: '#E91C24', marginTop: 2 };
+  const selectStyle = (hasErr: boolean): React.CSSProperties => ({
+    padding: '7px 10px', border: `1px solid ${hasErr ? '#E91C24' : '#D1D5DB'}`, borderRadius: 6,
+    fontSize: 13, outline: 'none', background: '#FFF', width: '100%', boxSizing: 'border-box' as const,
+    cursor: 'pointer',
+  });
+  const helperStyle: React.CSSProperties = { fontSize: 11, color: '#6B7280' };
+  const errStyle: React.CSSProperties = { fontSize: 11, color: '#E91C24' };
+  const dividerStyle: React.CSSProperties = { borderTop: '1px solid #E5E7EB', margin: '4px 0' };
 
   return (
     <div style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', padding: '20px 16px' }}>
-      <div style={{ width: '100%', maxWidth: 620 }}>
+      <div style={{ width: '100%', maxWidth: 640 }}>
         {/* Form header */}
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Headcount Change Request</div>
           <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
             Use this form to submit a headcount change. All requests are reviewed by PMO before action is taken.
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Form card */}
+        <div style={{
+          border: '1px solid #E0E3E8', borderRadius: 10,
+          background: '#FFFFFF', padding: '28px 32px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+        }}>
+          <form onSubmit={handleSubmit} noValidate>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* TBH Code */}
-            <div style={fieldStyle}>
-              <label style={labelStyle}>TBH Code <span style={{ color: '#E91C24' }}>*</span></label>
-              <input
-                type="text"
-                value={form.tbh_code_raw}
-                onChange={e => setForm(f => ({ ...f, tbh_code_raw: e.target.value }))}
-                placeholder="e.g. TBHXX_L0XXX_CXXX_MON YR"
-                style={inputStyle(!!errors.tbh_code_raw)}
-              />
-              {errors.tbh_code_raw
-                ? <span style={errStyle}>{errors.tbh_code_raw}</span>
-                : <span style={helperStyle}>Enter the TBH Code for the headcount being changed</span>
-              }
-            </div>
-
-            {/* Current Manager */}
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Current Manager <span style={{ color: '#E91C24' }}>*</span></label>
-              <input
-                type="text"
-                value={form.current_manager}
-                onChange={e => setForm(f => ({ ...f, current_manager: e.target.value }))}
-                placeholder="Name of current Hiring Manager"
-                style={inputStyle(!!errors.current_manager)}
-              />
-              {errors.current_manager
-                ? <span style={errStyle}>{errors.current_manager}</span>
-                : <span style={helperStyle}>Name of current Hiring Manager allocated to this Headcount</span>
-              }
-            </div>
-
-            {/* Requestor Email */}
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Requestor Email <span style={{ color: '#E91C24' }}>*</span></label>
-              <UserEmailSelect
-                value={form.requestor_email}
-                onChange={v => setForm(f => ({ ...f, requestor_email: v }))}
-                users={users}
-              />
-              {errors.requestor_email && <span style={errStyle}>{errors.requestor_email}</span>}
-            </div>
-
-            {/* xScale v Retail */}
-            <div style={fieldStyle}>
-              <label style={labelStyle}>xScale v Retail <span style={{ color: '#E91C24' }}>*</span></label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {XSCALE_OPTIONS.map(opt => {
-                  const checked = form.xscale_vs_retail === opt;
-                  return (
-                    <label
-                      key={opt}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px',
-                        border: `1px solid ${checked ? '#3B4ECA' : '#D1D5DB'}`,
-                        borderRadius: 7, cursor: 'pointer',
-                        background: checked ? '#EEF4FF' : '#FFF',
-                        transition: 'border-color 0.1s, background 0.1s',
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="xscale_vs_retail"
-                        value={opt}
-                        checked={checked}
-                        onChange={() => setForm(f => ({ ...f, xscale_vs_retail: opt }))}
-                        style={{ accentColor: '#3B4ECA' }}
-                      />
-                      <span style={{ fontSize: 13, color: checked ? '#3B4ECA' : '#374151', fontWeight: checked ? 600 : 400 }}>{opt}</span>
-                    </label>
-                  );
-                })}
+              {/* TBH Code */}
+              <div style={fieldStyle}>
+                <label style={labelStyle}>TBH Code <span style={{ color: '#E91C24' }}>*</span></label>
+                <input
+                  type="text"
+                  value={form.tbh_code_raw}
+                  onChange={e => setForm(f => ({ ...f, tbh_code_raw: e.target.value }))}
+                  placeholder="e.g. TBHXX_L0XXX_CXXX_MON YR"
+                  style={inputStyle(!!errors.tbh_code_raw)}
+                />
+                {errors.tbh_code_raw
+                  ? <span style={errStyle}>{errors.tbh_code_raw}</span>
+                  : <span style={helperStyle}>Enter the TBH Code for the headcount being changed</span>
+                }
               </div>
-              {errors.xscale_vs_retail && <span style={errStyle}>{errors.xscale_vs_retail}</span>}
-            </div>
 
-            {/* Change Required */}
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Change Required <span style={{ color: '#E91C24' }}>*</span></label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {CHANGE_REQUIRED_OPTIONS.map(opt => {
-                  const checked = form.change_required.includes(opt);
-                  return (
-                    <label
-                      key={opt}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px',
-                        border: `1px solid ${checked ? '#3B4ECA' : '#D1D5DB'}`,
-                        borderRadius: 7, cursor: 'pointer',
-                        background: checked ? '#EEF4FF' : '#FFF',
-                        transition: 'border-color 0.1s, background 0.1s',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        value={opt}
-                        checked={checked}
-                        onChange={e => setForm(f => ({
-                          ...f,
-                          change_required: e.target.checked
-                            ? [...f.change_required, opt]
-                            : f.change_required.filter(v => v !== opt),
-                        }))}
-                        style={{ accentColor: '#3B4ECA', width: 15, height: 15 }}
-                      />
-                      <span style={{ fontSize: 13, color: checked ? '#3B4ECA' : '#374151', fontWeight: checked ? 600 : 400 }}>{opt}</span>
-                    </label>
-                  );
-                })}
+              {/* Current Manager */}
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Current Manager <span style={{ color: '#E91C24' }}>*</span></label>
+                <input
+                  type="text"
+                  value={form.current_manager}
+                  onChange={e => setForm(f => ({ ...f, current_manager: e.target.value }))}
+                  placeholder="Name of current Hiring Manager"
+                  style={inputStyle(!!errors.current_manager)}
+                />
+                {errors.current_manager
+                  ? <span style={errStyle}>{errors.current_manager}</span>
+                  : <span style={helperStyle}>Name of current Hiring Manager allocated to this Headcount</span>
+                }
               </div>
-              {errors.change_required && <span style={errStyle}>{errors.change_required}</span>}
-            </div>
 
-            {/* Submit */}
-            <div style={{ paddingTop: 8, display: 'flex', gap: 10 }}>
-              <button
-                type="submit"
-                disabled={submitting}
-                style={{
-                  padding: '10px 28px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700,
-                  background: submitting ? '#F3F4F6' : '#E91C24', color: submitting ? '#9CA3AF' : '#FFF',
-                  cursor: submitting ? 'default' : 'pointer',
-                }}
-              >
-                {submitting ? 'Submitting…' : 'Submit Change Request'}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setForm(EMPTY_FORM); setErrors({}); }}
-                style={{ padding: '10px 20px', border: '1px solid #D1D5DB', borderRadius: 7, fontSize: 13, background: '#FFF', cursor: 'pointer', color: '#374151' }}
-              >
-                Reset
-              </button>
-            </div>
+              {/* Requestor Email */}
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Requestor Email <span style={{ color: '#E91C24' }}>*</span></label>
+                <UserEmailSelect
+                  value={form.requestor_email}
+                  onChange={v => setForm(f => ({ ...f, requestor_email: v }))}
+                  users={users}
+                />
+                {errors.requestor_email && <span style={errStyle}>{errors.requestor_email}</span>}
+              </div>
 
-          </div>
-        </form>
+              {/* xScale v Retail */}
+              <div style={fieldStyle}>
+                <label style={labelStyle}>xScale v Retail <span style={{ color: '#E91C24' }}>*</span></label>
+                <select
+                  value={form.xscale_vs_retail}
+                  onChange={e => setForm(f => ({ ...f, xscale_vs_retail: e.target.value }))}
+                  style={selectStyle(!!errors.xscale_vs_retail)}
+                >
+                  <option value="">Select an option…</option>
+                  {XSCALE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+                {errors.xscale_vs_retail && <span style={errStyle}>{errors.xscale_vs_retail}</span>}
+              </div>
+
+              {/* Change Required — multi-select dropdown with checkboxes */}
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Change Required <span style={{ color: '#E91C24' }}>*</span></label>
+                <span style={{ ...helperStyle, marginBottom: 2 }}>Select all that apply</span>
+                <MultiSelectDropdown
+                  options={CHANGE_REQUIRED_OPTIONS}
+                  value={form.change_required}
+                  onChange={v => setForm(f => ({ ...f, change_required: v }))}
+                  placeholder="Select all that apply…"
+                  error={!!errors.change_required}
+                />
+                {errors.change_required && <span style={errStyle}>{errors.change_required}</span>}
+              </div>
+
+              {/* ── Conditional fields (shown when at least one change type is selected) ── */}
+              {hasAnyChange && (
+                <>
+                  <div style={dividerStyle} />
+
+                  {/* New Manager Name — Manager Change (any type) */}
+                  {needsManagerName && (
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>New Manager Name</label>
+                      <span style={helperStyle}>Full name of new hiring manager</span>
+                      <input
+                        type="text"
+                        value={form.new_manager_name}
+                        onChange={e => setForm(f => ({ ...f, new_manager_name: e.target.value }))}
+                        placeholder="Full name of new hiring manager"
+                        style={{ ...inputStyle(!!errors.new_manager_name), marginTop: 2 }}
+                      />
+                      {errors.new_manager_name && <span style={errStyle}>{errors.new_manager_name}</span>}
+                    </div>
+                  )}
+
+                  {/* New Level or Role — Level or Role Change only */}
+                  {needsLevelOrRole && (
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>New Level or Role required</label>
+                      <span style={helperStyle}>IC = Individual Contributor and PM = People Manager</span>
+                      <select
+                        value={form.new_level_or_role}
+                        onChange={e => setForm(f => ({ ...f, new_level_or_role: e.target.value }))}
+                        style={{ ...selectStyle(!!errors.new_level_or_role), marginTop: 2 }}
+                      >
+                        <option value="">Select level or role…</option>
+                        {LEVEL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                      {errors.new_level_or_role && <span style={errStyle}>{errors.new_level_or_role}</span>}
+                    </div>
+                  )}
+
+                  {/* New Metro Location — Location Change or Manager Across Regions */}
+                  {needsMetroLocation && (
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>New metro location</label>
+                      <select
+                        value={form.new_metro_location}
+                        onChange={e => setForm(f => ({ ...f, new_metro_location: e.target.value }))}
+                        style={selectStyle(!!errors.new_metro_location)}
+                      >
+                        <option value="">Select metro location…</option>
+                        {METRO_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                      {errors.new_metro_location && <span style={errStyle}>{errors.new_metro_location}</span>}
+                    </div>
+                  )}
+
+                  {/* Reason for change — always shown when change type selected */}
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Include 1–2 sentences as the reason for the change <span style={{ color: '#E91C24' }}>*</span></label>
+                    <textarea
+                      value={form.justification}
+                      onChange={e => setForm(f => ({ ...f, justification: e.target.value }))}
+                      rows={3}
+                      style={{
+                        ...inputStyle(!!errors.justification),
+                        resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5',
+                      }}
+                      placeholder="Briefly describe the reason for this change…"
+                    />
+                    {errors.justification && <span style={errStyle}>{errors.justification}</span>}
+                  </div>
+
+                  {/* Borrowed or Repurposed — always shown when change type selected */}
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Is this Headcount being borrowed or repurposed <span style={{ color: '#E91C24' }}>*</span></label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 1 }}>
+                      <span style={helperStyle}><span style={{ fontWeight: 600, color: '#3B4ECA' }}>Borrowed:</span> Headcount will be returned to the current hiring manager; must know where this HC will come from</span>
+                      <span style={helperStyle}><span style={{ fontWeight: 600, color: '#3B4ECA' }}>Repurposed:</span> Headcount will not be returned to the current hiring manager.</span>
+                    </div>
+                    <select
+                      value={form.borrowed_or_repurposed}
+                      onChange={e => setForm(f => ({ ...f, borrowed_or_repurposed: e.target.value }))}
+                      style={{ ...selectStyle(!!errors.borrowed_or_repurposed), marginTop: 4 }}
+                    >
+                      <option value="">Select an option…</option>
+                      <option value="Borrowed">Borrowed</option>
+                      <option value="Repurposed">Repurposed</option>
+                    </select>
+                    {errors.borrowed_or_repurposed && <span style={errStyle}>{errors.borrowed_or_repurposed}</span>}
+                  </div>
+
+                  {/* Send copy — only for Manager Change – Different Function or Team */}
+                  {showSendCopy && (
+                    <>
+                      <div style={dividerStyle} />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={form.send_copy}
+                          onChange={e => setForm(f => ({ ...f, send_copy: e.target.checked }))}
+                          style={{ accentColor: '#3B4ECA', width: 16, height: 16, flexShrink: 0 }}
+                        />
+                        <span style={{ fontSize: 13, color: '#374151' }}>Send me a copy of my responses</span>
+                      </label>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Submit */}
+              <div style={{ paddingTop: 8, display: 'flex', gap: 10 }}>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{
+                    padding: '10px 28px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700,
+                    background: submitting ? '#F3F4F6' : '#E91C24', color: submitting ? '#9CA3AF' : '#FFF',
+                    cursor: submitting ? 'default' : 'pointer',
+                  }}
+                >
+                  {submitting ? 'Submitting…' : 'Submit Change Request'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setForm(EMPTY_FORM); setErrors({}); }}
+                  style={{ padding: '10px 20px', border: '1px solid #D1D5DB', borderRadius: 7, fontSize: 13, background: '#FFF', cursor: 'pointer', color: '#374151' }}
+                >
+                  Reset
+                </button>
+              </div>
+
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
