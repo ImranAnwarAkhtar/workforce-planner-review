@@ -1055,7 +1055,7 @@ function CountriesTab() {
 
 const USER_PROFILES = [
   'Senior PMO', 'PMO Team', 'Workforce Planning', 'Administration',
-  'Senior TA', 'Talent Acquisition', 'Finance', 'Department Head', 'Hub Lead', 'EVP',
+  'Senior TA', 'Talent Acquisition', 'Onboarding Team', 'Finance', 'Department Head', 'Hub Lead', 'EVP',
 ];
 const ACCESS_TIERS = ['standard', 'approver', 'administrator'];
 const TIER_STYLE: Record<string, React.CSSProperties> = {
@@ -1071,6 +1071,7 @@ const PROFILE_DEFS = [
   { name: 'Administration',     colour: '#6366F1', description: 'Administrative support. Edit access to people and project data during active cycle stages.', caps: ['Edit people & projects', 'Active & review stages'] },
   { name: 'Senior TA',          colour: '#059669', description: 'Senior talent acquisition. Reviews, raises, and approves hire requests and manages the recruitment pipeline.', caps: ['Create hire requests', 'Approve hire requests', 'View pipeline'] },
   { name: 'Talent Acquisition', colour: '#10B981', description: 'Talent acquisition team. Manages the recruitment pipeline and raises hire and change requests.', caps: ['Create hire requests', 'View pipeline'] },
+  { name: 'Onboarding Team',   colour: '#F59E0B', description: 'Onboarding coordinators. Receives alerts when positions are filled and new starters are confirmed. Read-only access to people records and the onboarding dashboard tab.', caps: ['View people (new starters)', 'Onboarding dashboard', 'New starter alerts'] },
   { name: 'Finance',            colour: '#B45309', description: 'Finance team. Read access across planning data with visibility of financial and headcount reporting.', caps: ['View all data', 'Financial reports'] },
   { name: 'Department Head',    colour: '#7C3AED', description: 'Departmental leadership. Edits own project allocations, participates in review stage, and approves departmental hire requests.', caps: ['Edit people & projects', 'Active & review stages', 'Approve hire requests'] },
   { name: 'Hub Lead',           colour: '#DB2777', description: 'Regional hub leadership. Same edit and approval rights as Department Head, scoped to their regional hub.', caps: ['Edit people & projects', 'Active & review stages', 'Approve hire requests'] },
@@ -1092,6 +1093,7 @@ const PERM_PROFILES = [
   { name: 'Administration',     short: 'Admin',      colour: '#6366F1', desc: 'System administrators managing user access, reference data, and operational settings.' },
   { name: 'Senior TA',          short: 'Sr TA',      colour: '#059669', desc: 'Senior talent acquisition with approval authority over hire requests and full recruitment pipeline access.' },
   { name: 'Talent Acquisition', short: 'Talent Acq', colour: '#10B981', desc: 'Manages the recruitment pipeline, creating and progressing hire requests.' },
+  { name: 'Onboarding Team',   short: 'Onboard',    colour: '#F59E0B', desc: 'Onboarding coordinators. Receives new-starter alerts and has read-only access to people records and the onboarding dashboard tab.' },
   { name: 'Finance',            short: 'Finance',    colour: '#B45309', desc: 'Finance team with visibility into cost and headcount data, including financial reports.' },
   { name: 'Department Head',    short: 'Dept Head',  colour: '#7C3AED', desc: 'Departmental leaders who manage their teams, approve requests, and oversee headcount.' },
   { name: 'Hub Lead',           short: 'Hub Lead',   colour: '#DB2777', desc: 'Hub or site leads with people management responsibilities and approval authority.' },
@@ -1156,6 +1158,7 @@ const SECTION_ROWS: Array<{ key: string; label: string; group: boolean; future?:
   // ── Reports & Dashboard ───────────────────────────────────────────────────
   { key: 'reports',             label: 'Reports & Dashboard',          group: true  },
   { key: 'reports.view',        label: 'View dashboard',               group: false },
+  { key: 'reports.onboarding',  label: 'View onboarding tab',          group: false },
   { key: 'reports.headcount',   label: 'View headcount budget',        group: false },
   { key: 'reports.finance',     label: 'Finance data',                 group: false },
   { key: 'reports.export',      label: 'Export reports',               group: false },
@@ -1227,19 +1230,20 @@ function defaultPermLevel(sectionKey: string, profile: string): PermLevel {
 
     // Talent Acquisition
     case 'talent.view':       return 'view';
-    case 'talent.create':     return profile === 'People Manager' ? 'none' : 'edit';
-    case 'talent.edit':       return profile === 'People Manager' ? 'none' : 'edit';
+    case 'talent.create':     return ['People Manager', 'Onboarding Team'].includes(profile) ? 'none' : 'edit';
+    case 'talent.edit':       return ['People Manager', 'Onboarding Team'].includes(profile) ? 'none' : 'edit';
     case 'talent.approve':    return S.includes(profile) ? 'full' : 'none';
     case 'talent.withdraw':   return S.includes(profile) ? 'full' : 'none';
 
     // Change Requests
     case 'changes.view':      return 'view';
-    case 'changes.create':    return profile === 'People Manager' ? 'none' : 'edit';
+    case 'changes.create':    return ['People Manager', 'Onboarding Team'].includes(profile) ? 'none' : 'edit';
     case 'changes.approve':   return S.includes(profile) ? 'full' : 'none';
-    case 'changes.status':    return profile === 'People Manager' ? 'none' : 'edit';
+    case 'changes.status':    return ['People Manager', 'Onboarding Team'].includes(profile) ? 'none' : 'edit';
 
     // Reports & Dashboard
     case 'reports.view':      return 'view';
+    case 'reports.onboarding': return 'view';
     case 'reports.headcount': return [...W, 'Finance'].includes(profile) ? 'view' : 'none';
     case 'reports.finance':   return ['Senior PMO', 'PMO Team', 'Finance'].includes(profile) ? 'view' : 'none';
     case 'reports.export':    return ['Senior PMO', 'PMO Team', 'Finance', 'Workforce Planning'].includes(profile) ? 'edit' : 'none';
@@ -2528,6 +2532,11 @@ const MESSAGE_TEMPLATES: Record<string, { label: string; subject: string; body: 
       subject: '[GDC] Position filled – {{tbh_id}}',
       body: `A position has been filled.\n\nTBH ID: {{tbh_id}}\nCandidate: {{candidate_name}}\nStart Date: {{confirmed_start_date}}\nRegion: {{region_name}}\n\nDate: {{triggered_at}}`,
     },
+    {
+      label: 'Onboarding team – new starter alert',
+      subject: '[GDC] New starter confirmed – {{candidate_name}} ({{region_name}})',
+      body: `A new hire has been confirmed and requires onboarding preparation.\n\nName: {{candidate_name}}\nTBH ID: {{tbh_id}}\nStart Date: {{confirmed_start_date}}\nRegion: {{region_name}}\n\nPlease initiate the onboarding workflow and ensure all pre-joining steps are in place before the start date.\n\nIf you have any questions, contact the Talent Acquisition team.\n\nDate confirmed: {{triggered_at}}`,
+    },
   ],
   change_request_submitted: [
     {
@@ -2555,6 +2564,11 @@ const MESSAGE_TEMPLATES: Record<string, { label: string; subject: string; body: 
       label: 'Upcoming starters digest',
       subject: '[GDC] {{count}} starter(s) joining soon',
       body: `The following people are scheduled to start soon:\n\n{{record_list}}\n\nTotal starters: {{count}}\nChecked: {{triggered_at}}\n\nPlease ensure onboarding is in progress.`,
+    },
+    {
+      label: 'Onboarding team – preparation reminder',
+      subject: '[GDC] Onboarding required – {{count}} starter(s) joining soon',
+      body: `The following confirmed starters require onboarding preparation:\n\n{{record_list}}\n\nTotal: {{count}}\nChecked: {{triggered_at}}\n\nPlease ensure all onboarding workflows have been initiated and that pre-joining steps (IT setup, access provisioning, induction scheduling) are on track for each individual listed above.`,
     },
   ],
   unallocated_people: [
